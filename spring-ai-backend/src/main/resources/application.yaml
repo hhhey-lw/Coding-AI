@@ -1,0 +1,60 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://121.40.252.207:3306/coding_oj?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai
+    password: longcoding
+    username: root
+
+  # Web MVC配置
+  mvc:
+    static-path-pattern: /static/**
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+  ai:
+    openai:
+        base-url: https://dashscope.aliyuncs.com/compatible-mode
+        api-key: sk-bbe244347f4545fca6182c22b5512c9d
+
+  data:
+    redis:
+      host: longcoding.top
+      port: 6379
+      password: longcoding
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: 3000ms
+          max-idle: 8
+          min-idle: 0
+
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: 1410124534@qq.com
+    password: avmvaqqeifelhcjb
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          timeout: 3000
+
+jwt:
+  secret: 1ONZjSrF4YMyjH5AAgLHygE+gpeDCJ8MTwzoqWFsl42lmYL2AI1VYHVe0Eg7qNETKR3VHfL8tLsUz9i6fMa7Wg==
+  expiration: 86400000  # 24小时，单位：毫秒
+  access-token-expiration: 7200000    # Access Token过期时间：2小时（毫秒）
+  refresh-token-expiration: 604800000 # Refresh Token过期时间：7天（毫秒）

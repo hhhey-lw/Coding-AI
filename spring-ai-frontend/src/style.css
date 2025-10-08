@@ -1,0 +1,16 @@
+/* 基础样式重置 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Element Plus Message 提示位置调整到左下角 */
+.el-message {
+  position: fixed !important;
+  left: 20px !important;
+  right: auto !important;
+  bottom: 60px !important;
+  top: auto !important;
+  transform: none !important;
+}
