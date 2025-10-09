@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.coding.graph.core.generator;
+package com.coding.graph.core.streaming;
+
+import com.coding.graph.core.generator.AsyncGenerator;
 
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;

@@ -135,6 +135,7 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                 .stream()
                 .filter(e -> e.getValue() instanceof AsyncGenerator)
                 .findFirst()
+                // 迭代器和最终的回调函数
                 .map(generatorEntry -> {
                     final var generator = (AsyncGenerator<Output>) generatorEntry.getValue();
                     return Data.composeWith(generator.map(n -> {
@@ -172,9 +173,9 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
 
     // 构建节点输出
     @SuppressWarnings("unchecked")
-    protected Output buildNodeOutput(String nodeId) {
+    protected CompletableFuture<Output> buildNodeOutput(String nodeId) {
         OverAllState state = new OverAllState(currentState);
-        return (Output) NodeOutput.of(nodeId, state);
+        return CompletableFuture.completedFuture((Output) NodeOutput.of(nodeId, state));
     }
 
     // 执行监听器

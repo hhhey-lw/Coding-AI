@@ -1,5 +1,6 @@
 package com.coding.workflow.agent;
 
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.coding.graph.core.agent.ReactAgent;
 import com.coding.graph.core.exception.GraphRunnerException;
@@ -96,16 +97,16 @@ public class ReactAgentTest {
         ReactAgent reactAgent = new ReactAgent(llmNode, toolNode, builder);
 //        Optional<OverAllState> result = reactAgent.invoke(Map.of(
 //                "messages", List.of(new UserMessage("""
-//                        Hi, 请你生成一张海边落日的图片，参考图是 https://example.com/reference.jpg
-//                        还要生成一段音乐，歌词和音乐风格你可以自己发挥。
+//                         你好呀！！
 //                        """))
 //        ));
-//        System.out.println(JSONUtil.toJsonStr(result.get()));
+//        System.out.println(JSONUtil.toJsonStr(result.get().data()));
+
+
 
         AsyncGenerator<NodeOutput> result = reactAgent.stream(Map.of(
                 "messages", List.of(new UserMessage("""
-                        Hi, 请你生成一张海边落日的图片，参考图是 https://example.com/reference.jpg
-                        还要生成一段音乐，歌词和音乐风格你可以自己发挥。
+                        Hi, 请你生成一张海边落日的图片，参考图是 https://example.com/reference.jpg。还要生成一段音乐，歌词和音乐风格你可以自己发挥。
                         """))
         ));
 
@@ -118,18 +119,17 @@ public class ReactAgentTest {
                                           Sinks.Many<ServerSentEvent<String>> sink) {
         return generator.forEachAsync(output -> {
             try {
-                System.out.println(output);
+                System.out.println("Received output: " + output);
                 String nodeName = output.getNode();
                 String content;
                 if (output instanceof StreamingOutput streamingOutput) {
-                    content = JSONUtil.toJsonStr(Map.of(nodeName, streamingOutput.getChunk()));
+                    content = JSONUtil.toJsonStr(Map.of(nodeName, streamingOutput.getChatResponse().getResult().getOutput().getText()));
                 }
                 else {
-                    Map<String, Object> data = Map.of(
-                            "data", output.getState().data(),
-                            "node", nodeName
-                    );
-                    content = JSONUtil.toJsonStr(data);
+                    JSONObject nodeOutput = new JSONObject();
+                    nodeOutput.put("data", output.getState().data());
+                    nodeOutput.put("node", nodeName);
+                    content = JSONUtil.toJsonStr(nodeOutput);
                 }
                 sink.tryEmitNext(ServerSentEvent.builder(content).build());
             }
@@ -158,6 +158,7 @@ public class ReactAgentTest {
                              @ToolParam(description = "参考图URL地址") String referenceImage) {
             return "https://example.com/image.png";
         }
+
     }
 
 }

@@ -35,7 +35,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/doc.html",
                         // 排除静态资源
                         "/favicon.ico",
-                        "/error"
+                        "/error",
+                        // 测试接口
+                        "/ai/agent/**"
                 );
     }
 }

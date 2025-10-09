@@ -129,7 +129,7 @@ public class CompiledGraph {
      * 注意这里仅返回generator，运行需要手动调用 => forEachAsync 触发节点级别的迭代
      */
     public AsyncGenerator<NodeOutput> stream(Map<String, Object> inputs) throws GraphRunnerException {
-        OverAllState overAllState = new OverAllState(inputs, keyStrategyMap);
+        OverAllState overAllState = new OverAllState(new HashMap<>(inputs), keyStrategyMap);
         return this.streamFromInitialNode(overAllState, RunnableConfig.builder().build());
     }
 

@@ -1,7 +1,6 @@
 package com.coding.graph.core.state;
 
 import com.coding.graph.core.state.strategy.KeyStrategy;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 
 import java.io.Serializable;

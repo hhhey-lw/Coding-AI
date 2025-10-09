@@ -85,7 +85,7 @@ public interface AsyncGenerator<E> extends Iterable<E>, AsyncGeneratorOperators<
         }
 
         public boolean isDone() {
-            return data == null;
+            return data == null && embed == null;
         }
 
         public boolean isError() {
@@ -93,11 +93,11 @@ public interface AsyncGenerator<E> extends Iterable<E>, AsyncGeneratorOperators<
         }
 
         public static <E> Data<E> of(CompletableFuture<E> data) {
-            return new Data<>(data, null);
+            return new Data<>(data, null, null);
         }
 
         public static <E> Data<E> of(E data)  {
-            return new Data<>(completedFuture(data), null);
+            return new Data<>(completedFuture(data), null, null);
         }
 
         public static <E> Data<E> composeWith(AsyncGenerator<E> generator, EmbedCompletionHandler onCompletion) {
@@ -111,7 +111,7 @@ public interface AsyncGenerator<E> extends Iterable<E>, AsyncGeneratorOperators<
         }
 
         public static <E> Data<E> done(Object resultValue) {
-            return new Data<>(null, resultValue);
+            return new Data<>(null, null, resultValue);
         }
 
     }
@@ -185,11 +185,6 @@ public interface AsyncGenerator<E> extends Iterable<E>, AsyncGeneratorOperators<
             final Data<E> result = embed.generator.next();
 
             if (result.isDone()) {
-                Data<E> next = result.embed.generator.next();
-                while (!next.isDone()) {
-                    System.out.println("Data: " + next.data.join() + ", embed: " + next.embed + ", resultValue: " + next.resultValue);
-                    next = embed.generator.next();
-                }
                 clearPreviousReturnsValuesIfAny();
                 returnValueStack.push(result);
                 if (embed.onCompletion != null /* && result.resultValue != null */ ) {

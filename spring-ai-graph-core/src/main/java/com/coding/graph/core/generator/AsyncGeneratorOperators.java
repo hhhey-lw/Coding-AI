@@ -102,8 +102,11 @@ public interface AsyncGeneratorOperators<E> {
 				future = future.thenCompose(v -> finalNext.embed.generator.async(executor()).forEachAsync(consumer));
 			}
 			else {
-				future = future
-					.thenCompose(v -> finalNext.data.thenAcceptAsync(consumer, executor()).thenApply(x -> null));
+				// 如果是普通的数据块，同步调用 consumer
+				E data = finalNext.data.join(); // 阻塞等待 CompletableFuture 完成并获取结果
+				if (data != null) {
+					consumer.accept(data);
+				}
 			}
 		}
 		return future;

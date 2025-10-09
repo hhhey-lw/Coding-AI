@@ -1,8 +1,6 @@
 package com.coding.graph.core.streaming;
 
 import com.coding.graph.core.generator.AsyncGenerator;
-import com.coding.graph.core.generator.AsyncGeneratorQueue;
-import com.coding.graph.core.generator.GeneratorSubscriber;
 import com.coding.graph.core.node.NodeOutput;
 import com.coding.graph.core.node.StreamingOutput;
 import com.coding.graph.core.state.OverAllState;
@@ -15,12 +13,9 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 
@@ -51,7 +46,8 @@ public interface StreamingChatGenerator {
         }
 
         public AsyncGenerator<? extends NodeOutput> build(Flux<ChatResponse> flux) {
-            return buildInternal(flux, chatResponse -> new StreamingOutput(chatResponse.getResult().getOutput().getText(), startingNode, startingState));
+            return buildInternal(flux,
+                    chatResponse -> new StreamingOutput(startingNode, startingState, chatResponse));
         }
 
         /**
@@ -100,15 +96,12 @@ public interface StreamingChatGenerator {
             var processedFlux = flux
                     .filter(response -> response.getResult() != null && response.getResult().getOutput() != null)
                     .doOnNext(mergeMessage)
-                    // 丢失工具信息
-                    .map(next -> new StreamingOutput(next.getResult().getOutput().getText(), startingNode, startingState));
+                    .map(outputMapper);
 
-
-            // 使用 BlockingQueue 作为流和生成器之间的桥梁
-            final BlockingQueue<AsyncGenerator.Data<NodeOutput>> queue = new LinkedBlockingQueue<>();
-
-            return new GeneratorSubscriber<>(FlowAdapters.toFlowPublisher(processedFlux), () -> mapResult.apply(result.get()), queue);
+            return FlowGenerator.fromPublisher(FlowAdapters.toFlowPublisher(processedFlux),
+                    () -> mapResult.apply(result.get()));
         }
     }
 
 }
+
