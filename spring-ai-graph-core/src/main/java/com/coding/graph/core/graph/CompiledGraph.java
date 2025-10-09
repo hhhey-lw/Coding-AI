@@ -126,6 +126,7 @@ public class CompiledGraph {
 
     /**
      * 根据提供的输入参数，创建一个异步生成器（AsyncGenerator）流，用于输出 NodeOutput 类型的数据。
+     * 注意这里仅返回generator，运行需要手动调用 => forEachAsync 触发节点级别的迭代
      */
     public AsyncGenerator<NodeOutput> stream(Map<String, Object> inputs) throws GraphRunnerException {
         OverAllState overAllState = new OverAllState(inputs, keyStrategyMap);
@@ -151,8 +152,8 @@ public class CompiledGraph {
     public AsyncGenerator<NodeOutput> streamFromInitialNode(OverAllState overAllState, RunnableConfig config) {
         Objects.requireNonNull(config, "运行配置不能为空");
         final AsyncNodeGenerator<NodeOutput> generator = new AsyncNodeGenerator<>(this, config, overAllState);
-
-        return new AsyncGenerator.WithResult<>(generator);
+        // WithResult 调整为 WithEmbed
+        return new AsyncGenerator.WithEmbed<>(generator);
     }
 
     /**

@@ -10,12 +10,12 @@ import com.coding.graph.core.state.OverAllState;
 import com.coding.graph.core.utils.LifeListenerUtil;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.coding.graph.core.common.NodeCodeConstants.*;
 
@@ -107,6 +107,12 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                 // updateState 是具体节点返回的Map结果
                 .thenApply((updateState) -> {
                     try {
+                        // FIX: SUPPORT STREAM CHAT
+                        Optional<Data<Output>> embed = getEmbedGenerator(updateState);
+                        if (embed.isPresent()) {
+                            return embed.get();
+                        }
+
                         // 更新状态
                         this.currentState = OverAllState.updateState(currentState, updateState, this.overAllState.keyStrategies());
                         this.overAllState.updateState(updateState);
@@ -121,6 +127,46 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                 })
                 .whenComplete((outputData, throwable) -> {
                     doListeners(NODE_AFTER, null);
+                });
+    }
+
+    private Optional<Data<Output>> getEmbedGenerator(Map<String, Object> partialState) {
+        return partialState.entrySet()
+                .stream()
+                .filter(e -> e.getValue() instanceof AsyncGenerator)
+                .findFirst()
+                .map(generatorEntry -> {
+                    final var generator = (AsyncGenerator<Output>) generatorEntry.getValue();
+                    return Data.composeWith(generator.map(n -> {
+                        // n.setSubGraph(true);
+                        return n;
+                    }), data -> {
+
+                        if (data != null) {
+
+                            if (data instanceof Map<?, ?>) {
+                                var partialStateWithoutGenerator = partialState.entrySet()
+                                        .stream()
+                                        .filter(e -> !Objects.equals(e.getKey(), generatorEntry.getKey()))
+                                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+                                var intermediateState = OverAllState.updateState(currentState,
+                                        partialStateWithoutGenerator, this.overAllState.keyStrategies());
+
+                                currentState = OverAllState.updateState(intermediateState, (Map<String, Object>) data,
+                                        this.overAllState.keyStrategies());
+                                this.overAllState.updateState(currentState);
+                            }
+                            else {
+                                throw new IllegalArgumentException("Embedded generator must return a Map");
+                            }
+                        }
+
+                        var nextNodeCommand = this.compiledGraph.nextNodeId(context.currentNodeId(), currentState, config);
+                        context.setNextNodeId(nextNodeCommand.gotoNode());
+                        currentState = nextNodeCommand.update();
+
+                    });
                 });
     }
 

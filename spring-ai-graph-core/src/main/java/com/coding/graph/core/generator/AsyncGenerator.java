@@ -2,13 +2,12 @@ package com.coding.graph.core.generator;
 
 import lombok.Getter;
 
-import java.util.Iterator;
-import java.util.Optional;
-import java.util.Spliterator;
-import java.util.Spliterators;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -21,7 +20,7 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
  * 提供异步数据迭代功能
  * @param <E> 迭代元素类型
  */
-public interface AsyncGenerator<E> extends Iterable<E> {
+public interface AsyncGenerator<E> extends Iterable<E>, AsyncGeneratorOperators<E> {
 
     // 获取下一个迭代元素
     Data<E> next();
@@ -36,13 +35,31 @@ public interface AsyncGenerator<E> extends Iterable<E> {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
     }
 
-    default CompletableFuture<Object> forEachAsync(Consumer<E> consumer) {
-        CompletableFuture<Object> future = completedFuture(null);
-        for (AsyncGenerator.Data<E> next = next(); !next.isDone(); next = next()) {
-            final AsyncGenerator.Data<E> finalNext = next;
-            future = future.thenCompose(v -> finalNext.data.thenAcceptAsync(consumer, Runnable::run).thenApply(x -> null));
+    /**
+     * 包装
+     * 异步生成器
+     * 完成回调
+     */
+    class Embed<E> {
+
+        @Getter
+        final AsyncGenerator<E> generator;
+
+        final EmbedCompletionHandler onCompletion;
+
+        public Embed(AsyncGenerator<E> generator, EmbedCompletionHandler onCompletion) {
+            Objects.requireNonNull(generator, "generator cannot be null");
+            this.generator = generator;
+            this.onCompletion = onCompletion;
         }
-        return future;
+
+    }
+
+    @FunctionalInterface
+    interface EmbedCompletionHandler {
+
+        void accept(Object t) throws Exception;
+
     }
 
     // 包装类，包含异步数据和结果值
@@ -50,11 +67,20 @@ public interface AsyncGenerator<E> extends Iterable<E> {
     class Data<E> {
         final CompletableFuture<E> data;
 
+        final Embed<E> embed;
+
         final Object resultValue;
 
         // 构造函数
         private Data(CompletableFuture<E> data, Object resultValue) {
             this.data = data;
+            this.resultValue = resultValue;
+            this.embed = null;
+        }
+
+        public Data(CompletableFuture<E> data, Embed<E> embed, Object resultValue) {
+            this.data = data;
+            this.embed = embed;
             this.resultValue = resultValue;
         }
 
@@ -72,6 +98,10 @@ public interface AsyncGenerator<E> extends Iterable<E> {
 
         public static <E> Data<E> of(E data)  {
             return new Data<>(completedFuture(data), null);
+        }
+
+        public static <E> Data<E> composeWith(AsyncGenerator<E> generator, EmbedCompletionHandler onCompletion) {
+            return new Data<>(null, new Embed<>(generator, onCompletion), null);
         }
 
         public static <E> Data<E> error(Throwable e) {
@@ -116,6 +146,80 @@ public interface AsyncGenerator<E> extends Iterable<E> {
 
     }
 
+    // 能够嵌套生成器的包装类
+    class WithEmbed<E> implements AsyncGenerator<E> {
+        // 存储嵌套生成器的栈：1. 节点迭代生成器 >> 2. 流式输出的生成器
+        protected final Deque<Embed<E>> generatorsStack = new ArrayDeque<>(2);
+        // 存储返回值的栈
+        private final Deque<Data<E>> returnValueStack = new ArrayDeque<>(2);
+
+        public WithEmbed(AsyncGenerator<E> delegate, EmbedCompletionHandler onGeneratorDoneWithResult) {
+            generatorsStack.push(new Embed<>(delegate, onGeneratorDoneWithResult));
+        }
+
+        public WithEmbed(AsyncGenerator<E> delegate) {
+            this(delegate, null);
+        }
+
+        public Optional<Object> resultValue() {
+            return ofNullable(returnValueStack.peek()).map(r -> r.resultValue);
+        }
+
+        private void clearPreviousReturnsValuesIfAny() {
+            // Check if the return values are which ones from previous run
+            if (returnValueStack.size() > 1 && returnValueStack.size() == generatorsStack.size()) {
+                returnValueStack.clear();
+            }
+        }
+
+        protected boolean isLastGenerator() {
+            return generatorsStack.size() == 1;
+        }
+
+        @Override
+        public Data<E> next() {
+            if (generatorsStack.isEmpty()) { // GUARD
+                throw new IllegalStateException("no generator found!");
+            }
+            final Embed<E> embed = generatorsStack.peek();
+            final Data<E> result = embed.generator.next();
+
+            if (result.isDone()) {
+                Data<E> next = result.embed.generator.next();
+                while (!next.isDone()) {
+                    System.out.println("Data: " + next.data.join() + ", embed: " + next.embed + ", resultValue: " + next.resultValue);
+                    next = embed.generator.next();
+                }
+                clearPreviousReturnsValuesIfAny();
+                returnValueStack.push(result);
+                if (embed.onCompletion != null /* && result.resultValue != null */ ) {
+                    try {
+                        embed.onCompletion.accept(result.resultValue);
+                    }
+                    catch (Exception e) {
+                        return Data.error(e);
+                    }
+                }
+                if (isLastGenerator()) {
+                    return result;
+                }
+                generatorsStack.pop();
+                return next();
+            }
+            if (result.embed != null) {
+                if (generatorsStack.size() >= 2) {
+                    return Data.error(new UnsupportedOperationException(
+                            "Currently recursive nested generators are not supported!"));
+                }
+                generatorsStack.push(result.embed);
+                return next();
+            }
+
+            return result;
+        }
+
+    }
+
     // 内部迭代器
     class InternalIterator<E> implements Iterator<E> {
 
@@ -148,6 +252,20 @@ public interface AsyncGenerator<E> extends Iterable<E> {
 
             return next.data.join();
         }
+    }
+
+    default AsyncGeneratorOperators<E> async(Executor executor) {
+        return new AsyncGeneratorOperators<E>() {
+            @Override
+            public Data<E> next() {
+                return AsyncGenerator.this.next();
+            }
+
+            @Override
+            public Executor executor() {
+                return executor;
+            }
+        };
     }
 
 }

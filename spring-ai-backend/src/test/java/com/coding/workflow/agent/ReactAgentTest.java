@@ -84,7 +84,7 @@ public class ReactAgentTest {
                 .toolCallbacks(toolCallbacks)
                 .model("qwen-max")
                 .messagesKey("messages")
-                .stream(false)
+                .stream(true)
                 .build();
 
         ToolNode toolNode = ToolNode.builder()
@@ -94,28 +94,28 @@ public class ReactAgentTest {
                 .build();
 
         ReactAgent reactAgent = new ReactAgent(llmNode, toolNode, builder);
-        Optional<OverAllState> result = reactAgent.invoke(Map.of(
-                "messages", List.of(new UserMessage("""
-                        Hi, 请你生成一张海边落日的图片，参考图是 https://example.com/reference.jpg
-                        还要生成一段音乐，歌词和音乐风格你可以自己发挥。
-                        """))
-        ));
-        System.out.println(JSONUtil.toJsonStr(result.get()));
-
-//        AsyncGenerator<NodeOutput> result = reactAgent.stream(Map.of(
+//        Optional<OverAllState> result = reactAgent.invoke(Map.of(
 //                "messages", List.of(new UserMessage("""
 //                        Hi, 请你生成一张海边落日的图片，参考图是 https://example.com/reference.jpg
 //                        还要生成一段音乐，歌词和音乐风格你可以自己发挥。
 //                        """))
 //        ));
-//
-//        Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().unicast().onBackpressureBuffer();
-//        processStream(result, sink).get();
+//        System.out.println(JSONUtil.toJsonStr(result.get()));
+
+        AsyncGenerator<NodeOutput> result = reactAgent.stream(Map.of(
+                "messages", List.of(new UserMessage("""
+                        Hi, 请你生成一张海边落日的图片，参考图是 https://example.com/reference.jpg
+                        还要生成一段音乐，歌词和音乐风格你可以自己发挥。
+                        """))
+        ));
+
+        Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().unicast().onBackpressureBuffer();
+        processStream(result, sink).get();
+        Thread.sleep(10000L);
     }
 
     CompletableFuture<Void> processStream(AsyncGenerator<NodeOutput> generator,
                                           Sinks.Many<ServerSentEvent<String>> sink) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
         return generator.forEachAsync(output -> {
             try {
                 System.out.println(output);

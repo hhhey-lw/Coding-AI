@@ -1,9 +1,12 @@
 package com.coding.graph.core.streaming;
 
 import com.coding.graph.core.generator.AsyncGenerator;
+import com.coding.graph.core.generator.AsyncGeneratorQueue;
+import com.coding.graph.core.generator.GeneratorSubscriber;
 import com.coding.graph.core.node.NodeOutput;
 import com.coding.graph.core.node.StreamingOutput;
 import com.coding.graph.core.state.OverAllState;
+import org.reactivestreams.FlowAdapters;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -14,7 +17,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 
@@ -61,75 +67,47 @@ public interface StreamingChatGenerator {
             Objects.requireNonNull(flux, "flux 不能为空");
             Objects.requireNonNull(mapResult, "mapResult 不能为空");
 
-            // 1. 使用 BlockingQueue 作为流和生成器之间的桥梁
-            final BlockingQueue<AsyncGenerator.Data<? extends NodeOutput>> queue = new LinkedBlockingQueue<>();
+            var result = new AtomicReference<ChatResponse>(null);
 
-            // 2. 使用 publish().refCount(2) 将流分享给两个订阅者
-            Flux<ChatResponse> sharedFlux = flux
-                    .filter(response -> response.getResult() != null && response.getResult().getOutput() != null)
-                    .publish()
-                    .refCount(2);
+            Consumer<ChatResponse> mergeMessage = (response) -> {
+                result.updateAndGet(lastResponse -> {
 
-            // 订阅者 1: 流式发送部分结果
-            sharedFlux.map(outputMapper)
-                    .map(AsyncGenerator.Data::of)
-                    .cast(AsyncGenerator.Data.class)
-                    .doOnError(error -> queue.add(AsyncGenerator.Data.error(error)))
-                    .subscribe(queue::add);
-
-            // 订阅者 2: 聚合最终结果
-            sharedFlux.collectList().subscribe(responses -> {
-                if (responses.isEmpty()) {
-                    queue.add(AsyncGenerator.Data.done(mapResult.apply(null)));
-                    return;
-                }
-
-                // 使用 reduce 操作合并所有响应块
-                ChatResponse finalResponse = responses.stream().reduce(null, (acc, response) -> {
-                    if (acc == null) {
+                    if (lastResponse == null) {
                         return response;
                     }
+
                     final var currentMessage = response.getResult().getOutput();
+
                     if (currentMessage.hasToolCalls()) {
                         return response;
                     }
-                    final var lastMessageText = requireNonNull(acc.getResult().getOutput().getText(),
-                            "lastResponse text 不能为空");
+
+                    final var lastMessageText = requireNonNull(lastResponse.getResult().getOutput().getText(),
+                            "lastResponse text cannot be null");
+
                     final var currentMessageText = currentMessage.getText();
+
                     var newMessage = new AssistantMessage(
                             currentMessageText != null ? lastMessageText.concat(currentMessageText) : lastMessageText,
                             currentMessage.getMetadata(), currentMessage.getToolCalls(), currentMessage.getMedia());
+
                     var newGeneration = new Generation(newMessage, response.getResult().getMetadata());
                     return new ChatResponse(List.of(newGeneration), response.getMetadata());
+
                 });
-
-                // 发送带有最终聚合结果的完成信号
-                queue.add(AsyncGenerator.Data.done(mapResult.apply(finalResponse)));
-            });
-
-            // 3. 返回一个自包含的、匿名的 AsyncGenerator 实现
-            return new AsyncGenerator<NodeOutput>() {
-                private Data<NodeOutput> endMarker = null;
-
-                @Override
-                public Data<NodeOutput> next() {
-                    if (endMarker != null) {
-                        return endMarker;
-                    }
-                    try {
-                        // 4. 从队列中取出数据，如果队列为空则阻塞等待
-                        @SuppressWarnings("unchecked")
-                        Data<NodeOutput> value = (Data<NodeOutput>) queue.take();
-                        if (value.isDone()) {
-                            endMarker = value;
-                        }
-                        return value;
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return AsyncGenerator.Data.error(e);
-                    }
-                }
             };
+
+            var processedFlux = flux
+                    .filter(response -> response.getResult() != null && response.getResult().getOutput() != null)
+                    .doOnNext(mergeMessage)
+                    // 丢失工具信息
+                    .map(next -> new StreamingOutput(next.getResult().getOutput().getText(), startingNode, startingState));
+
+
+            // 使用 BlockingQueue 作为流和生成器之间的桥梁
+            final BlockingQueue<AsyncGenerator.Data<NodeOutput>> queue = new LinkedBlockingQueue<>();
+
+            return new GeneratorSubscriber<>(FlowAdapters.toFlowPublisher(processedFlux), () -> mapResult.apply(result.get()), queue);
         }
     }
 
