@@ -23,6 +23,9 @@ spring:
     openai:
         base-url: https://dashscope.aliyuncs.com/compatible-mode
         api-key: sk-bbe244347f4545fca6182c22b5512c9d
+        chat:
+          options:
+            model: qwen-max
 
   data:
     redis:
@@ -58,3 +61,7 @@ jwt:
   expiration: 86400000  # 24小时，单位：毫秒
   access-token-expiration: 7200000    # Access Token过期时间：2小时（毫秒）
   refresh-token-expiration: 604800000 # Refresh Token过期时间：7天（毫秒）
+
+logging:
+  level:
+    root: info

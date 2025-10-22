@@ -17,6 +17,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.annotation.Tool;
@@ -80,7 +81,21 @@ public class ReactAgentTest {
                 .build();
 
         LlmNode llmNode = LlmNode.builder()
-                .systemPrompt("你是一个乐于助人的助手")
+                .systemPrompt("""
+                        你是一个乐于助人、聪明且细心的 AI 助手，你的目标是尽可能准确、高效地帮助用户解决问题。
+                        你具备调用特定工具的能力，可以帮助你更好地完成用户请求。当你认为调用某个工具能够推进任务时，你应该明确说明你的思考过程，并按照规定的格式调用工具。
+                        请遵循以下规则：
+                        🧠 规则 1：先思考，再行动：
+                        - 在回答用户问题之前，先分析问题，明确你接下来要做什么。
+                        - 如果任务需要获取额外信息、生成媒体内容、执行计算等，考虑是否需要调用工具。
+                        - 你的每一步都应该包含清晰的思考（Thought），说明你为什么这么做。
+                        🛠️ 规则 2：如果你决定调用工具，请明确工具名称和参数：
+                        📝 规则 3：如果不需要调用工具，直接给出问题的答案：
+                        - 如果你认为不需要调用任何工具就能直接回答用户问题，请直接输出答案。
+                        🔄 规则 4：如果工具返回了结果（Observation），请基于结果进一步思考并给出最终回答
+                        - 当你获得工具的执行结果后，结合上下文，给出清晰、完整的最终回复。
+                        （如果工具被调用，后续你可能还会收到工具的返回结果，然后继续输出下一轮的 Thought 和 Action）
+                        """)
                 .chatClient(chatClient)
                 .toolCallbacks(toolCallbacks)
                 .model("qwen-max")
@@ -119,7 +134,7 @@ public class ReactAgentTest {
                                           Sinks.Many<ServerSentEvent<String>> sink) {
         return generator.forEachAsync(output -> {
             try {
-                System.out.println("Received output: " + output);
+//                System.out.println("Received output: " + output);
                 String nodeName = output.getNode();
                 String content;
                 if (output instanceof StreamingOutput streamingOutput) {
@@ -131,6 +146,7 @@ public class ReactAgentTest {
                     nodeOutput.put("node", nodeName);
                     content = JSONUtil.toJsonStr(nodeOutput);
                 }
+                System.out.println(">> " + content);
                 sink.tryEmitNext(ServerSentEvent.builder(content).build());
             }
             catch (Exception e) {

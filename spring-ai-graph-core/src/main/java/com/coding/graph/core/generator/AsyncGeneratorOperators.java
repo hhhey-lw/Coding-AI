@@ -1,27 +1,9 @@
-/*
- * Copyright 2024-2025 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.coding.graph.core.generator;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
@@ -34,10 +16,15 @@ public interface AsyncGeneratorOperators<E> {
 	}
 
 	/**
-	 * Maps the elements of this generator to a new asynchronous generator.
-	 * @param mapFunction the function to map elements to a new asynchronous counterpart
-	 * @param <U> the type of elements in the new generator
-	 * @return a generator with mapped elements
+	 * 将当前生成器的元素映射为一个新的异步生成器。
+	 *
+	 * 该方法接收一个映射函数，将当前生成器中的每个元素转换为另一种类型的异步元素，
+	 * 并返回一个新的异步生成器，该生成器将生成经过映射后的元素。
+	 *
+	 * @param mapFunction 用于将元素映射为异步对应元素的函数。
+	 *                   该函数定义了如何将当前生成器的元素类型 T 转换为目标生成器的元素类型 U。
+	 * @param <U>         新生成器中元素的类型，即映射后的目标类型。
+	 * @return            一个异步生成器，其元素类型为 U，元素内容由 mapFunction 映射而来。
 	 */
 	default <U> AsyncGenerator<U> map(Function<E, U> mapFunction) {
 		return () -> {
@@ -50,49 +37,13 @@ public interface AsyncGeneratorOperators<E> {
 	}
 
 	/**
-	 * Maps the elements of this generator to a new asynchronous generator, and flattens
-	 * the resulting nested generators.
-	 * @param mapFunction the function to map elements to a new asynchronous counterpart
-	 * @param <U> the type of elements in the new generator
-	 * @return a generator with mapped and flattened elements
-	 */
-	default <U> AsyncGenerator<U> flatMap(Function<E, CompletableFuture<U>> mapFunction) {
-		return () -> {
-			final AsyncGenerator.Data<E> next = next();
-			if (next.isDone()) {
-				return AsyncGenerator.Data.done(next.resultValue);
-			}
-			return AsyncGenerator.Data.of(next.data.thenComposeAsync(mapFunction, executor()));
-		};
-	}
-
-	/**
-	 * Filters the elements of this generator based on the given predicate. Only elements
-	 * that satisfy the predicate will be included in the resulting generator.
-	 * @param predicate the predicate to test elements against
-	 * @return a generator with elements that satisfy the predicate
-	 */
-	default AsyncGenerator<E> filter(Predicate<E> predicate) {
-		return () -> {
-			AsyncGenerator.Data<E> next = next();
-			while (!next.isDone()) {
-
-				final E value = next.data.join();
-
-				if (predicate.test(value)) {
-					return next;
-				}
-				next = next();
-			}
-			return AsyncGenerator.Data.done(next.resultValue);
-		};
-	}
-
-	/**
-	 * Asynchronously iterates over the elements of the AsyncGenerator and applies the
-	 * given consumer to each element.
-	 * @param consumer the consumer function to be applied to each element
-	 * @return a CompletableFuture representing the completion of the iteration process.
+	 * 异步迭代 AsyncGenerator 的元素，并将给定的消费者应用于每个元素。
+	 *
+	 * ⚠️ 注意：此方法会在调用线程中阻塞等待所有数据产生完毕后才返回，
+	 * 不适合需要实时流式处理的场景。对于实时流式处理，请使用 streamForEach 方法。
+	 * 
+	 * @param consumer 应用于每个元素的消费者函数
+	 * @return 表示迭代过程完成的 CompletableFuture
 	 */
 	default CompletableFuture<Object> forEachAsync(Consumer<E> consumer) {
 		CompletableFuture<Object> future = completedFuture(null);
@@ -102,33 +53,12 @@ public interface AsyncGeneratorOperators<E> {
 				future = future.thenCompose(v -> finalNext.embed.generator.async(executor()).forEachAsync(consumer));
 			}
 			else {
-				// 如果是普通的数据块，同步调用 consumer
-				E data = finalNext.data.join(); // 阻塞等待 CompletableFuture 完成并获取结果
-				if (data != null) {
-					consumer.accept(data);
-				}
+				future = future
+						.thenCompose(v -> finalNext.data.thenAcceptAsync(consumer, executor()).thenApply(x -> null));
 			}
 		}
 		return future;
 	}
 
-	/**
-	 * Collects elements from the AsyncGenerator asynchronously into a list.
-	 * @param <R> the type of the result list
-	 * @param result the result list to collect elements into
-	 * @param consumer the consumer function for processing elements
-	 * @return a CompletableFuture representing the completion of the collection process
-	 */
-	default <R extends List<E>> CompletableFuture<R> collectAsync(R result, BiConsumer<R, E> consumer) {
-		CompletableFuture<R> future = completedFuture(result);
-		for (AsyncGenerator.Data<E> next = next(); !next.isDone(); next = next()) {
-			final AsyncGenerator.Data<E> finalNext = next;
-			future = future.thenCompose(res -> finalNext.data.thenApplyAsync(v -> {
-				consumer.accept(res, v);
-				return res;
-			}, executor()));
-		}
-		return future;
-	}
 
 }

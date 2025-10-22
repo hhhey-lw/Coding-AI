@@ -9,6 +9,10 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
+// MateChat
+import MateChat from '@matechat/core'
+import '@devui-design/icons/icomoon/devui-icon.css'
+
 const app = createApp(App)
 const pinia = createPinia()
 
@@ -26,6 +30,9 @@ app.use(ElementPlus, {
     offset: 60
   }
 })
+
+// 使用 MateChat
+app.use(MateChat)
 
 app.use(router).mount('#app')
 

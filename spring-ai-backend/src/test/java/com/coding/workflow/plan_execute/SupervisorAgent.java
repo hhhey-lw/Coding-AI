@@ -1,0 +1,115 @@
+/*
+ * Copyright 2024-2025 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.coding.workflow.plan_execute;
+
+import cn.hutool.json.JSONUtil;
+import com.coding.graph.core.node.action.NodeAction;
+import com.coding.graph.core.state.OverAllState;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+
+public class SupervisorAgent implements NodeAction {
+
+    private final PlanningTool planningTool;
+
+    public SupervisorAgent(PlanningTool planningTool) {
+        this.planningTool = planningTool;
+    }
+
+    @Override
+    public Map<String, Object> apply(OverAllState t) throws Exception {
+
+        String planStr = (String) t.value("plan").orElseThrow();
+        PlanningTool.Plan tempPlan = parsePlan(planStr);
+        PlanningTool.Plan plan = planningTool.getGraphPlan(tempPlan.getPlanId());
+
+        Optional<Object> optionalOutput = t.value("step_output");
+
+        if (optionalOutput.isPresent()) {
+            String finalStepOutput = String.format("This is the final output of step %s:\n %s", plan.getCurrentStep(),
+                    optionalOutput.get());
+            plan.updateStepStatus(plan.getCurrentStep(), finalStepOutput);
+        }
+
+        String promptForNextStep;
+        if (!plan.isFinished()) {
+            promptForNextStep = plan.nextStepPrompt();
+        }
+        else {
+            promptForNextStep = "Plan completed.";
+        }
+
+        // 构造包含完整进度信息的返回结果
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("step_prompt", promptForNextStep);
+        result.put("plan_id", plan.getPlanId());
+        result.put("current_step_index", Integer.parseInt(plan.getCurrentStep()));
+        result.put("total_steps", plan.getSteps().size());
+        result.put("is_finished", plan.isFinished());
+        result.put("step_status_history", plan.getStepStatus());
+        result.put("task", plan.getTask());
+        
+        // 如果还有下一步，添加当前步骤描述
+        if (!plan.isFinished() && Integer.parseInt(plan.getCurrentStep()) < plan.getSteps().size()) {
+            result.put("current_step_description", plan.getSteps().get(Integer.parseInt(plan.getCurrentStep())));
+        }
+
+        return result;
+    }
+
+    public String think(OverAllState state) {
+
+        String nextPrompt = (String) state.value("step_prompt").orElseThrow();
+
+        if (nextPrompt.equalsIgnoreCase("Plan completed.")) {
+            state.updateState(Map.of("final_output", state.value("step_output").orElseThrow()));
+            return "end";
+        }
+
+        return "continue";
+    }
+
+    private PlanningTool.Plan parsePlan(String planJson) {
+        planJson = extractJsonFromMarkdown(planJson);
+        return JSONUtil.toBean(planJson, PlanningTool.Plan.class);
+    }
+
+    /**
+     * 移除字符串中的Markdown代码块标记（```json 和 ```） 如果字符串不包含这些标记，则返回原始字符串
+     * @param input 可能包含Markdown代码块标记的字符串
+     * @return 去除了代码块标记的字符串
+     */
+    public static String extractJsonFromMarkdown(String input) {
+        if (input == null || input.isEmpty()) {
+            return null;
+        }
+
+        // 正则表达式匹配 ```json ... ```
+        Pattern pattern = Pattern.compile("```json\\s*(.*?)\\s*```", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(input);
+
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        return null;
+    }
+
+}

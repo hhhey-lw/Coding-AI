@@ -1,8 +1,7 @@
 package com.coding.admin.controller;
 
-import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import com.coding.admin.common.MessageVO;
+import com.coding.admin.model.vo.MessageVO;
 import com.coding.admin.manager.AgentManager;
 import com.coding.graph.core.agent.ReactAgent;
 import com.coding.graph.core.exception.GraphRunnerException;
@@ -12,21 +11,21 @@ import com.coding.graph.core.node.NodeOutput;
 import com.coding.graph.core.node.StreamingOutput;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Sinks;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+@Slf4j
 @RestController
 @RequestMapping("/ai/agent")
 public class ReactAgentController {
@@ -42,66 +41,109 @@ public class ReactAgentController {
     }
 
     /**
-     * SSE 流式接口：接收 prompt，返回 Server-Sent Events 流
+     * SSE 流式接口：使用 SseEmitter 实现真正的流式传输
+     * 
+     * ⚠️ 不使用 forEachAsync 的原因：
+     * forEachAsync 的 for 循环会阻塞等待所有流式数据产生完毕才返回，
+     * 导致无法实现真正的实时流式传输。
      */
-    @GetMapping(value = "/react", produces = "text/event-stream;charset=UTF-8")
-    public Flux<ServerSentEvent<String>> streamAgent(@RequestParam("prompt") String prompt) throws GraphStateException, GraphRunnerException {
-        // 1. 调用 Agent，获取异步流式结果
-        AsyncGenerator<NodeOutput> result = this.reactAgent.stream(Map.of(
+    @GetMapping(value = "/react")
+    public SseEmitter streamAgent(@RequestParam("prompt") String prompt) throws GraphStateException, GraphRunnerException {
+        
+        log.info("🚀 收到 SSE 请求，prompt: {}", prompt);
+        
+        // 创建 SseEmitter，超时时间 5 分钟
+        SseEmitter emitter = new SseEmitter(300_000L);
+        
+        // 调用 Agent，获取流式结果
+        AsyncGenerator<NodeOutput> generator = this.reactAgent.stream(Map.of(
                 "messages", List.of(new UserMessage(prompt))
         ));
-
-        // 2. 创建 SSE Sink
-        Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().unicast().onBackpressureBuffer();
-
-        // 3. 处理流，将内容推送到 Sink
-        processStream(result, sink);
-
-        // 4. 返回 SSE Flux 流
-        return sink.asFlux();
-    }
-
-    /**
-     * 处理流式输出，将每个 NodeOutput 转为 SSE 事件并发送
-     */
-    private CompletableFuture<Void> processStream(AsyncGenerator<NodeOutput> generator,
-                                                  Sinks.Many<ServerSentEvent<String>> sink) {
-        return generator.forEachAsync(output -> {
+        
+        // 🔥 使用独立线程 + 迭代器实现真正的流式处理
+        // 避免使用 forEachAsync，因为它会阻塞等待所有数据
+        CompletableFuture.runAsync(() -> {
             try {
-                if (output instanceof StreamingOutput streamingOutput) {
-                    // 构造成 JSON（可选，前端可按需解析）
-                    AssistantMessage assistantMessage = streamingOutput.getChatResponse().getResult().getOutput();
-                    MessageVO messageVO = MessageVO.builder()
-                            .role(assistantMessage.getMessageType().getValue())
-                            .content(assistantMessage.getText())
-                            .toolCalls(assistantMessage.getToolCalls().toString())
-                            .build();
+                log.info("🚀 开始流式处理");
+                
+                // 使用迭代器逐个处理数据，每产生一个就立即发送一个
+                for (NodeOutput output : generator) {
+                    if (output instanceof StreamingOutput streamingOutput) {
+                        try {
+                            // 获取消息内容
+                            AssistantMessage assistantMessage = streamingOutput.getChatResponse().getResult().getOutput();
 
-                    String content = JSONUtil.toJsonStr(messageVO); // {"node":"root","text":"xxx"}
+                            // 构造 MessageVO
+                            MessageVO messageVO = MessageVO.builder()
+                                    .role(assistantMessage.getMessageType().getValue())
+                                    .content(assistantMessage.getText())
+                                    .toolCalls(assistantMessage.getToolCalls().toString())
+                                    .build();
 
-                    // 构造 SSE 事件，格式必须为：data: xxx\n\n
-                    ServerSentEvent<String> sse = ServerSentEvent.<String>builder()
-                            .data(content)  // 这里的 content 会自动被包装为 "data: xxx\n\n"
-                            .id(String.valueOf(System.currentTimeMillis())) // 可选，事件ID
-                            .event("message") // 可选，自定义事件类型
-                            .build();
+                            String jsonContent = JSONUtil.toJsonStr(messageVO);
 
-                    System.out.println("✅ SSE 已推送: " + content);
-                    // 发送到 Sink
-                    sink.tryEmitNext(sse);
+                            log.info("✅ 推送消息: {}", jsonContent);
+
+                            // 立即发送数据
+                            emitter.send(SseEmitter.event()
+                                    .data(jsonContent)
+                                    .name("message"));
+
+                        } catch (IOException e) {
+                            log.error("❌ 发送消息失败", e);
+                            emitter.completeWithError(e);
+                            return; // 终止处理
+                        }
+                    }
                 }
+                
+                // 所有消息处理完毕，发送结束信号
+                log.info("✅ Generator 处理完毕");
 
+                try {
+                    // 发送结束信号
+                    MessageVO endMessage = MessageVO.builder()
+                            .role("system")
+                            .content("[STREAM_END]")
+                            .toolCalls("[]")
+                            .build();
+
+                    emitter.send(SseEmitter.event()
+                            .data(JSONUtil.toJsonStr(endMessage))
+                            .name("message"));
+
+                    log.info("✅ 已发送结束信号");
+
+                    // 完成流
+                    emitter.complete();
+                    log.info("✅ SSE 流已完成");
+
+                } catch (IOException e) {
+                    log.error("❌ 发送结束信号失败", e);
+                    emitter.completeWithError(e);
+                }
+                
             } catch (Exception e) {
-                sink.tryEmitError(e); // 出错时终止流
+                // 异常处理
+                log.error("❌ 流处理异常", e);
+                emitter.completeWithError(e);
             }
-        }).thenAccept(v -> {
-            // 正常完成时关闭流
-            sink.tryEmitComplete();
-        }).exceptionally(e -> {
-            // 异常时通知客户端
-            sink.tryEmitError(e);
-            return null;
         });
+        
+        // 监听超时和完成事件
+        emitter.onTimeout(() -> {
+            log.warn("⏰ SSE 连接超时");
+            emitter.complete();
+        });
+        
+        emitter.onCompletion(() -> {
+            log.info("🔚 SSE 连接已关闭");
+        });
+        
+        emitter.onError((e) -> {
+            log.error("❌ SSE 连接错误", e);
+        });
+        
+        return emitter;
     }
-
 }

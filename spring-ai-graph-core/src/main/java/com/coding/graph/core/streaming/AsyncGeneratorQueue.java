@@ -1,18 +1,3 @@
-/*
- * Copyright 2024-2025 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.coding.graph.core.streaming;
 
 import com.coding.graph.core.generator.AsyncGenerator;
@@ -26,14 +11,14 @@ import java.util.function.Consumer;
 import static java.util.concurrent.ForkJoinPool.commonPool;
 
 /**
- * Represents a queue-based asynchronous generator.
+ * 表示基于队列的异步生成器。
  */
 public class AsyncGeneratorQueue {
 
 	/**
-	 * Inner class to generate asynchronous elements from the queue.
+	 * 从队列生成异步元素的内部类。
 	 *
-	 * @param <E> the type of elements in the queue
+	 * @param <E> 队列中元素的类型
 	 */
 	public static class Generator<E> implements AsyncGenerator<E> {
 
@@ -42,8 +27,8 @@ public class AsyncGeneratorQueue {
 		final BlockingQueue<Data<E>> queue;
 
 		/**
-		 * Constructs a Generator with the specified queue.
-		 * @param queue the blocking queue to generate elements from
+		 * 使用指定的队列构造生成器。
+		 * @param queue 用于生成元素的阻塞队列
 		 */
 		public Generator(BlockingQueue<Data<E>> queue) {
 			this.queue = queue;
@@ -54,32 +39,36 @@ public class AsyncGeneratorQueue {
 		}
 
 		/**
-		 * Retrieves the next element from the queue asynchronously.
-		 * @return the next element from the queue
+		 * 异步从队列中检索下一个元素。
+		 * @return 队列中的下一个元素
 		 */
 		@Override
 		public Data<E> next() {
-			while (isEnd == null) {
-				Data<E> value = queue.poll();
-				if (value != null) {
-					if (value.isDone()) {
-						isEnd = value;
-					}
-					return value;
-				}
-			}
-			return isEnd;
-		}
+            try {
+                while (isEnd == null) {
+                    Data<E> value = queue.take();
+                    if (value != null) {
+                        if (value.isDone()) {
+                            isEnd = value;
+                        }
+                        return value;
+                    }
+                }
+                return isEnd;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
 
 	}
 
 	/**
-	 * Creates an AsyncGenerator from the provided blocking queue and consumer.
-	 * @param <E> the type of elements in the queue
-	 * @param <Q> the type of blocking queue
-	 * @param queue the blocking queue to generate elements from
-	 * @param consumer the consumer for processing elements from the queue
-	 * @return an AsyncGenerator instance
+	 * 从提供的阻塞队列和消费者创建 AsyncGenerator。
+	 * @param <E> 队列中元素的类型
+	 * @param <Q> 阻塞队列的类型
+	 * @param queue 用于生成元素的阻塞队列
+	 * @param consumer 用于处理队列中元素的消费者
+	 * @return AsyncGenerator 实例
 	 */
 	public static <E, Q extends BlockingQueue<AsyncGenerator.Data<E>>> AsyncGenerator<E> of(Q queue,
 			Consumer<Q> consumer) {
@@ -87,13 +76,13 @@ public class AsyncGeneratorQueue {
 	}
 
 	/**
-	 * Creates an AsyncGenerator from the provided queue, executor, and consumer.
-	 * @param <E> the type of elements in the queue
-	 * @param <Q> the type of blocking queue
-	 * @param queue the blocking queue to generate elements from
-	 * @param consumer the consumer for processing elements from the queue
-	 * @param executor the executor for asynchronous processing
-	 * @return an AsyncGenerator instance
+	 * 从提供的队列、执行器和消费者创建 AsyncGenerator。
+	 * @param <E> 队列中元素的类型
+	 * @param <Q> 阻塞队列的类型
+	 * @param queue 用于生成元素的阻塞队列
+	 * @param consumer 用于处理队列中元素的消费者
+	 * @param executor 用于异步处理的执行器
+	 * @return AsyncGenerator 实例
 	 */
 	public static <E, Q extends BlockingQueue<AsyncGenerator.Data<E>>> AsyncGenerator<E> of(Q queue,
 			Consumer<Q> consumer, Executor executor) {

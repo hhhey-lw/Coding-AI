@@ -1,6 +1,6 @@
 package com.coding.admin.service;
 
-import com.coding.admin.common.MessageVO;
+import com.coding.admin.model.vo.MessageVO;
 import reactor.core.publisher.Flux;
 
 public interface AgentService {

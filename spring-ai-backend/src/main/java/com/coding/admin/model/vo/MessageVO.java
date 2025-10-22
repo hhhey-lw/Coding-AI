@@ -1,4 +1,4 @@
-package com.coding.admin.common;
+package com.coding.admin.model.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

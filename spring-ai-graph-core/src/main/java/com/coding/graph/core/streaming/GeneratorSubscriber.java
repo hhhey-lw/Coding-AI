@@ -1,18 +1,3 @@
-/*
- * Copyright 2024-2025 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.coding.graph.core.streaming;
 
 import com.coding.graph.core.generator.AsyncGenerator;
@@ -23,15 +8,15 @@ import java.util.concurrent.Flow;
 import java.util.function.Supplier;
 
 /**
- * Represents a subscriber for generating asynchronous data streams.
+ * 用于生成异步数据流的订阅者。
  *
  * <p>
- * This class implements the {@link Flow.Subscriber} and {@link AsyncGenerator} interfaces
- * to handle data flow and produce asynchronous data. It is designed to subscribe to a
- * publisher, process incoming items, and manage error and completion signals.
+ * 该类实现了 {@link Flow.Subscriber} 和 {@link AsyncGenerator} 接口，
+ * 用于处理数据流并生成异步数据。它被设计用于订阅发布者、
+ * 处理传入的项目，并管理错误和完成信号。
  * </p>
  *
- * @param <T> The type of elements produced by this generator.
+ * @param <T> 此生成器产生的元素类型。
  */
 public class GeneratorSubscriber<T> implements Flow.Subscriber<T>, AsyncGenerator<T> {
 
@@ -44,11 +29,11 @@ public class GeneratorSubscriber<T> implements Flow.Subscriber<T>, AsyncGenerato
 	}
 
 	/**
-	 * Constructs a new instance of {@code GeneratorSubscriber}.
-	 * @param <P> the type of the publisher, which must extend {@link Flow.Publisher}
-	 * @param mapResult function that will set generator's result
-	 * @param publisher the source publisher that will push data to this subscriber
-	 * @param queue the blocking queue used for storing asynchronous generator data
+	 * 构造一个新的 {@code GeneratorSubscriber} 实例。
+	 * @param <P> 发布者的类型，必须扩展 {@link Flow.Publisher}
+	 * @param mapResult 用于设置生成器结果的函数
+	 * @param publisher 将向此订阅者推送数据的源发布者
+	 * @param queue 用于存储异步生成器数据的阻塞队列
 	 */
 	public <P extends Flow.Publisher<T>> GeneratorSubscriber(P publisher, Supplier<Object> mapResult,
 			BlockingQueue<Data<T>> queue) {
@@ -58,24 +43,22 @@ public class GeneratorSubscriber<T> implements Flow.Subscriber<T>, AsyncGenerato
 	}
 
 	/**
-	 * Constructs a new instance of {@code GeneratorSubscriber}.
-	 * @param <P> the type of the publisher, which must extend {@link Flow.Publisher}
-	 * @param publisher the source publisher that will push data to this subscriber
-	 * @param queue the blocking queue used for storing asynchronous generator data
+	 * 构造一个新的 {@code GeneratorSubscriber} 实例。
+	 * @param <P> 发布者的类型，必须扩展 {@link Flow.Publisher}
+	 * @param publisher 将向此订阅者推送数据的源发布者
+	 * @param queue 用于存储异步生成器数据的阻塞队列
 	 */
 	public <P extends Flow.Publisher<T>> GeneratorSubscriber(P publisher, BlockingQueue<Data<T>> queue) {
 		this(publisher, null, queue);
 	}
 
 	/**
-	 * Handles the subscription event from a Flux.
+	 * 处理来自 Flux 的订阅事件。
 	 * <p>
-	 * This method is called when a subscription to the source {@link Flow} has been
-	 * established. The provided {@code Flow.Subscription} can be used to manage and
-	 * control the flow of data emissions.
-	 * @param subscription The subscription object representing this resource owner
-	 * lifecycle. Used to signal that resources being subscribed to should not be released
-	 * until this subscription is disposed.
+	 * 当与源 {@link Flow} 的订阅已建立时，将调用此方法。
+	 * 提供的 {@code Flow.Subscription} 可用于管理和控制数据发射流。
+	 * @param subscription 表示此资源所有者生命周期的订阅对象。用于发出信号，
+	 * 表示在释放此订阅之前不应释放被订阅的资源。
 	 */
 	@Override
 	public void onSubscribe(Flow.Subscription subscription) {
@@ -83,8 +66,8 @@ public class GeneratorSubscriber<T> implements Flow.Subscriber<T>, AsyncGenerato
 	}
 
 	/**
-	 * Passes the received item to the delegated queue as an {@link Data} object.
-	 * @param item The item to be processed and queued.
+	 * 将接收到的项目作为 {@link Data} 对象传递给委托队列。
+	 * @param item 要处理并加入队列的项目。
 	 */
 	@Override
 	public void onNext(T item) {
@@ -92,8 +75,8 @@ public class GeneratorSubscriber<T> implements Flow.Subscriber<T>, AsyncGenerato
 	}
 
 	/**
-	 * Handles an error by queuing it in the delegate's queue with an errored data.
-	 * @param error The Throwable that represents the error to be handled.
+	 * 通过在委托队列中添加错误数据来处理错误。
+	 * @param error 表示要处理的错误的 Throwable。
 	 */
 	@Override
 	public void onError(Throwable error) {
@@ -101,9 +84,8 @@ public class GeneratorSubscriber<T> implements Flow.Subscriber<T>, AsyncGenerato
 	}
 
 	/**
-	 * This method is called when the asynchronous operation is completed successfully. It
-	 * notifies the delegate that no more data will be provided by adding a done marker to
-	 * the queue.
+	 * 当异步操作成功完成时调用此方法。它通过向队列添加完成标记来
+	 * 通知委托不再提供更多数据。
 	 */
 	@Override
 	public void onComplete() {
@@ -111,8 +93,8 @@ public class GeneratorSubscriber<T> implements Flow.Subscriber<T>, AsyncGenerato
 	}
 
 	/**
-	 * Returns the next {@code Data<T>} object from this iteration.
-	 * @return the next element in the iteration, or null if there is no such element
+	 * 从此迭代中返回下一个 {@code Data<T>} 对象。
+	 * @return 迭代中的下一个元素，如果没有这样的元素则返回 null
 	 */
 	@Override
 	public Data<T> next() {

@@ -17,16 +17,17 @@ import com.coding.graph.core.state.strategy.KeyStrategyFactory;
 import com.coding.graph.core.state.strategy.KeyStrategyFactoryBuilder;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.resolution.ToolCallbackResolver;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 
 import static com.coding.graph.core.common.NodeCodeConstants.END;
@@ -198,7 +199,7 @@ public class ReactAgent extends BaseAgent {
 
 	/**
 	 * 将智能体转换为同步节点操作
-	 * @param inputKeyFromParent 从��节点获取输入的键
+	 * @param inputKeyFromParent 从父节点获取输入的键
 	 * @param outputKeyToParent 输出到父节点的键
 	 * @return 节点操作实例
 	 * @throws GraphStateException 图状态异常
@@ -354,6 +355,48 @@ public class ReactAgent extends BaseAgent {
 		return description;
 	}
 
+	public static ReactAgent.Builder.BuilderBuilder builder() {
+		return Builder.builder();
+	}
+
+	public static ReactAgent build(ChatModel chatModel, ReactAgent.Builder builder) throws GraphStateException {
+		ChatClient chatClient = ChatClient.builder(Objects.requireNonNull(chatModel))
+				// 实现 Logger 的 Advisor
+				.defaultAdvisors(
+						new SimpleLoggerAdvisor()
+				)
+				// 设置 ChatClient 中 ChatModel 的 Options 参数
+				.defaultOptions(
+						OpenAiChatOptions.builder()
+								.internalToolExecutionEnabled(false)
+								.parallelToolCalls(false)
+								.model(builder.modelName)
+								.build()
+				)
+				.build();
+
+		return build(chatClient, builder);
+
+	}
+
+	public static ReactAgent build(ChatClient chatClient, Builder builder) throws GraphStateException {
+		LlmNode llmNode = LlmNode.builder()
+				.systemPrompt(builder.instruction)
+				.chatClient(chatClient)
+				.toolCallbacks(builder.tools)
+				.model(builder.modelName)
+				.messagesKey(builder.inputKey)
+				.stream(Objects.nonNull(builder.stream) ? builder.stream : true)
+				.build();
+
+		ToolNode toolNode = ToolNode.builder()
+				.llmResponseKey(LlmNode.LLM_RESPONSE_KEY)
+				.toolCallbackResolver(builder.resolver)
+				.toolCallbacks(builder.tools)
+				.build();
+
+		return new ReactAgent(llmNode, toolNode, builder);
+	}
 
 	/**
 	 * ReactAgent 的构建器类
@@ -362,6 +405,7 @@ public class ReactAgent extends BaseAgent {
 	public static class Builder {
 
 		private String name;
+		private String modelName;
 
 		private String description;
 
@@ -390,6 +434,7 @@ public class ReactAgent extends BaseAgent {
 		private NodeAction postToolHook;
 
 		private String inputKey = "messages";
+		private boolean stream;
 
 	}
 	/**

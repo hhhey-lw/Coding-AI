@@ -1,18 +1,3 @@
-/*
- * Copyright 2024-2025 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.coding.graph.core.streaming;
 
 import com.coding.graph.core.generator.AsyncGenerator;
@@ -22,20 +7,19 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Supplier;
 
 /**
- * Provides methods for converting between {@link FlowGenerator} and various
- * {@link Flow.Publisher} types.
+ * 提供在 {@link FlowGenerator} 和各种 {@link Flow.Publisher} 类型之间进行转换的方法。
  *
  * @since 3.0.0
  */
 public interface FlowGenerator {
 
 	/**
-	 * Creates an {@code AsyncGenerator} from a {@code Flow.Publisher}.
-	 * @param <T> the type of item emitted by the publisher
-	 * @param <P> the type of the publisher
-	 * @param publisher the publisher to subscribe to for retrieving items asynchronously
-	 * @param mapResult function that will set generator's result
-	 * @return an {@code AsyncGenerator} that emits items from the publisher
+	 * 从 {@code Flow.Publisher} 创建 {@code AsyncGenerator}。
+	 * @param <T> 发布者发出的项目类型
+	 * @param <P> 发布者的类型
+	 * @param publisher 要订阅以异步检索项目的发布者
+	 * @param mapResult 用于设置生成器结果的函数
+	 * @return 从发布者发出项目的 {@code AsyncGenerator}
 	 */
 	@SuppressWarnings("unchecked")
 	static <T, P extends Flow.Publisher<T>, R> AsyncGenerator<T> fromPublisher(P publisher, Supplier<R> mapResult) {
@@ -44,11 +28,11 @@ public interface FlowGenerator {
 	}
 
 	/**
-	 * Creates an {@code AsyncGenerator} from a {@code Flow.Publisher}.
-	 * @param <T> the type of item emitted by the publisher
-	 * @param <P> the type of the publisher
-	 * @param publisher the publisher to subscribe to for retrieving items asynchronously
-	 * @return an {@code AsyncGenerator} that emits items from the publisher
+	 * 从 {@code Flow.Publisher} 创建 {@code AsyncGenerator}。
+	 * @param <T> 发布者发出的项目类型
+	 * @param <P> 发布者的类型
+	 * @param publisher 要订阅以异步检索项目的发布者
+	 * @return 从发布者发出项目的 {@code AsyncGenerator}
 	 */
 	static <T, P extends Flow.Publisher<T>> AsyncGenerator<T> fromPublisher(P publisher) {
 		return fromPublisher(publisher, null);

@@ -12,8 +12,8 @@ public class ImageGenerateService implements Function<ImageGenerateService.Reque
     @Override
     public Response apply(Request request) {
         return "http://example.com/image.png".equals(request.prompt) ?
-                new Response("http://example.com/image.png") :
-                new Response("http://example.com/default_image.png");
+                new Response("https://p0.qhimg.com/bdm/970_600_85/t019212816a7f3b0f83.jpg") :
+                new Response("https://p0.qhimg.com/bdm/970_600_85/t019212816a7f3b0f83.jpg");
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

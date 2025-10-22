@@ -1,14 +1,9 @@
 package com.coding.admin.manager;
 
-import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import com.coding.admin.manager.tool.ImageGenerateService;
 import com.coding.admin.manager.tool.MusicGenerateService;
 import com.coding.graph.core.agent.ReactAgent;
 import com.coding.graph.core.exception.GraphStateException;
-import com.coding.graph.core.generator.AsyncGenerator;
-import com.coding.graph.core.node.NodeOutput;
-import com.coding.graph.core.node.StreamingOutput;
 import com.coding.graph.core.node.impl.LlmNode;
 import com.coding.graph.core.node.impl.ToolNode;
 import org.springframework.ai.chat.client.ChatClient;
@@ -18,14 +13,9 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.ai.tool.resolution.ToolCallbackResolver;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Sinks;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 
 @Service
 public class AgentManager {
@@ -74,7 +64,23 @@ public class AgentManager {
                 .build();
 
         LlmNode llmNode = LlmNode.builder()
-                .systemPrompt("你是一个乐于助人的助手，能够根据用户的需求，调用相关的工具生成音乐和图片。")
+                .systemPrompt("""
+                        你是一个乐于助人的AI小助手，能够帮助用户完成任务。
+                        你必须严格按照以下格式输出你的内容，不能省略任何部分：
+                        
+                        格式要求：
+                        ---
+                        思考: <你的推理过程，说明你为什么这么做，是否要调用工具，调用哪个工具等>
+                        行动: <你的下一步行动>
+                        
+                        行动可以是：
+                        1. 调用一个工具，格式为：行动: 工具名(参数1=值1, 参数2=值2, ...)
+                        2. 直接回答用户，格式为：行动: <你的回答内容>
+                        
+                        你必须在每次回复中都包含 思考，即使你决定直接回答。
+                        
+                        不允许只输出内容或工具调用，必须说明你的思考过程！也就是即使你准备调用工具，你也必须说明你的思考。
+                        """)
                 .chatClient(chatClient)
                 .toolCallbacks(toolCallbacks)
                 .model("qwen-max")

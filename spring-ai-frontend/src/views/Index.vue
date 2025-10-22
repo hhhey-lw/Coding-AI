@@ -29,6 +29,10 @@
 
       <!-- 右上角用户信息 -->
       <div class="user-info">
+        <el-button type="primary" @click="$router.push('/chat')" style="margin-right: 16px">
+          <el-icon><ChatDotRound /></el-icon>
+          AI 助手
+        </el-button>
         <el-dropdown @command="handleUserCommand">
           <div class="user-avatar-wrapper">
             <el-avatar :size="40" :src="userInfo?.userAvatar || undefined">

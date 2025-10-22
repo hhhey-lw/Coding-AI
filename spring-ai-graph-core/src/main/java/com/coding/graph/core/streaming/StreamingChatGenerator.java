@@ -19,6 +19,9 @@ import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * 流式聊天生成器接口。
+ */
 public interface StreamingChatGenerator {
 
     static Builder builder() {
@@ -56,6 +59,7 @@ public interface StreamingChatGenerator {
          * 下游消费者访问每个流式结果的完整 ChatResponse（而不仅仅是文本块），
          * 从而实现更丰富的输出处理，例如提取元数据、finishReason 或工具调用信息。
          * @param flux ChatResponse 对象的 Flux 流
+         * @param outputMapper 将 ChatResponse 映射为 StreamingOutput 的函数
          * @return 一个生成包含完整 ChatResponse 的 StreamingOutput 实例的 AsyncGenerator
          */
         private AsyncGenerator<? extends NodeOutput> buildInternal(Flux<ChatResponse> flux,
@@ -104,4 +108,3 @@ public interface StreamingChatGenerator {
     }
 
 }
-
