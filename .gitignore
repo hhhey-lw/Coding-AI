@@ -5,6 +5,7 @@ target/
 !**/src/test/**/target/
 
 /spring-ai-frontend/node_modules/**
+/../Java Project/VSCode-Plugin-Learning/**
 
 ### STS ###
 .apt_generated

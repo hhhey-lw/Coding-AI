@@ -1,4 +1,4 @@
-package com.coding.workflow.plan_execute;
+package com.coding.graph.core.agent.plan;
 
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
@@ -15,7 +15,10 @@ import org.springframework.ai.openai.api.OpenAiApi.FunctionTool;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.ai.tool.metadata.ToolMetadata;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -238,14 +241,33 @@ public class PlanningTool implements BiFunction<PlanningTool.PlanningToolRequest
 			stepStatus.put(stepIndex, status);
 		}
 
-		public String nextStepPrompt() {
+		public String nextStepPrompt(Map<String, String> stepStatusHistory) {
 			String nextStepDescription = steps.get(currentStep);
 			Map<String, Object> context = new HashMap<>();
 			context.put("task", task);
 			context.put("planWithSteps", steps);
 			context.put("stepIndex", currentStep);
 			context.put("nextStepDescription", nextStepDescription);
-			context.put("stepStatus", stepStatus);
+			// 修改这个字段为之前的描述
+			StringBuilder betterSb = new StringBuilder();
+			if (stepStatusHistory != null && !stepStatusHistory.isEmpty()) {
+				boolean isFirst = true;
+				for (Map.Entry<String, String> entry : stepStatusHistory.entrySet()) {
+					if (!isFirst) {
+						betterSb.append("\n"); // 换行分隔每一项
+					}
+					betterSb.append("步骤 ")
+							.append(entry.getKey())
+							.append(" 的结果为：")
+							.append(entry.getValue())
+							.append(";");
+					isFirst = false;
+				}
+				context.put("stepStatus", betterSb);
+			} else {
+				context.put("stepStatus", "没有前面步骤的结果");
+			}
+
 
 			currentStep++;
 
@@ -259,7 +281,6 @@ public class PlanningTool implements BiFunction<PlanningTool.PlanningToolRequest
 
 				Below are the result of the previous steps, which you can use as the context to help you complete the current step:
 				  {stepStatus}
-
 				""";
 			PromptTemplate promptTemplate = new PromptTemplate(template);
 			return promptTemplate.render(context);

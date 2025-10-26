@@ -1,4 +1,4 @@
-package com.coding.workflow.plan_execute;
+package com.coding.graph.core.agent.plan;
 
 import cn.hutool.json.JSONUtil;
 import com.coding.graph.core.node.action.NodeAction;
@@ -35,7 +35,7 @@ public class SupervisorAgent implements NodeAction {
 
         String promptForNextStep;
         if (!plan.isFinished()) {
-            promptForNextStep = plan.nextStepPrompt();
+            promptForNextStep = plan.nextStepPrompt((Map<String, String>) t.value("step_status_history").orElse(Map.of()));
         }
         else {
             promptForNextStep = "Plan completed.";

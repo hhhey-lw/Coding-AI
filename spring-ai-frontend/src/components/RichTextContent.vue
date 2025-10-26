@@ -23,16 +23,20 @@
       <!-- 音频 -->
       <div v-else-if="item.type === 'audio'" class="content-audio">
         <div class="audio-player">
-          <el-icon class="audio-icon" size="24"><Headset /></el-icon>
-          <audio :src="item.url" controls style="flex: 1; height: 40px;"></audio>
-          <a :href="item.url" target="_blank" class="audio-download">
-            <el-button size="small" type="primary" link>
+          <div class="audio-icon-wrapper">
+            <el-icon class="audio-icon" :size="20"><Headset /></el-icon>
+          </div>
+          <div class="audio-control">
+            <audio :src="item.url" controls class="audio-element"></audio>
+          </div>
+          <a :href="item.url" target="_blank" download class="audio-download">
+            <el-button size="small" type="primary" plain round>
               <el-icon><Download /></el-icon>
               下载
             </el-button>
           </a>
         </div>
-        <p v-if="item.text" class="audio-caption">{{ item.text }}</p>
+        <p v-if="item.text && item.text !== '音频文件'" class="audio-caption">{{ item.text }}</p>
       </div>
 
       <!-- 视频 -->
@@ -86,14 +90,36 @@ const parsedContent = computed<ContentItem[]>(() => {
   // 收集所有匹配项
   const matches: Array<{ index: number; length: number; item: ContentItem }> = []
   
-  // 匹配图片
+  // 匹配图片（需要检查URL是否为音频/视频文件）
   let match: RegExpExecArray | null
   while ((match = imageRegex.exec(remainingText)) !== null) {
-    matches.push({
-      index: match.index,
-      length: match[0].length,
-      item: { type: 'image', url: match[2], alt: match[1] }
-    })
+    const url = match[2]
+    const alt = match[1]
+    
+    // 检查是否是音频文件
+    if (/\.(mp3|wav|ogg|m4a|flac|aac)$/i.test(url)) {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        item: { type: 'audio', url: url, text: alt || '音频文件' }
+      })
+    }
+    // 检查是否是视频文件
+    else if (/\.(mp4|webm|ogg|avi|mov)$/i.test(url)) {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        item: { type: 'video', url: url, text: alt || '视频文件' }
+      })
+    }
+    // 否则作为图片处理
+    else {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        item: { type: 'image', url: url, alt: alt }
+      })
+    }
   }
   
   // 匹配音频链接（带文本）
@@ -239,41 +265,82 @@ const isInsideMarkdownLink = (text: string, urlIndex: number): boolean => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin: 8px 0;
 }
 
 .audio-player {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #fafafa;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+}
+
+.audio-player:hover {
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.audio-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  border: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  backdrop-filter: blur(10px);
 }
 
 .audio-icon {
-  color: #6b7280;
-  flex-shrink: 0;
+  color: white;
+}
+
+.audio-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.audio-element {
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+}
+
+/* 自定义音频控件样式 */
+.audio-element::-webkit-media-controls-panel {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
 }
 
 .audio-download {
   flex-shrink: 0;
+  text-decoration: none;
 }
 
 .audio-download :deep(.el-button) {
-  color: #6b7280;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: transparent;
+  color: #667eea;
+  font-weight: 500;
 }
 
 .audio-download :deep(.el-button:hover) {
-  color: #374151;
+  background: white;
+  color: #764ba2;
+  border-color: transparent;
 }
 
 .audio-caption {
-  font-size: 14px;
-  color: #666;
+  font-size: 13px;
+  color: #909399;
   margin: 0;
-  padding-left: 12px;
+  padding-left: 16px;
+  font-style: italic;
 }
 
 .content-video {

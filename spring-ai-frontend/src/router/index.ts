@@ -41,6 +41,12 @@ const routes: Array<RouteRecordRaw> = [
     name: 'Chat',
     component: Chat,
     meta: { requiresAuth: true, title: 'AI 聊天助手' }
+  },
+  {
+    path: '/chat-legacy',
+    name: 'ChatLegacy',
+    component: Chat,
+    meta: { requiresAuth: true, title: 'AI 聊天助手（旧版）' }
   }
 ]
 

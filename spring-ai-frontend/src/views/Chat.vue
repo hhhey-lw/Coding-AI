@@ -1,105 +1,147 @@
 <template>
-  <McLayout class="chat-container">
-    <!-- Header -->
-    <McHeader :title="'AI 智能助手'" :logoImg="'https://matechat.gitcode.com/logo.svg'">
-      <template #operationArea>
-        <div class="operations">
-          <el-tag v-if="isConnected" type="success" size="small">连接中</el-tag>
-          <el-button 
-            v-if="isConnected" 
-            type="danger" 
-            size="small" 
-            @click="disconnect"
-            style="margin-left: 8px"
-          >
-            断开连接
-          </el-button>
-        </div>
-      </template>
-    </McHeader>
+  <div class="chat-page">
+    <!-- 侧边栏 -->
+    <ConversationSidebar
+      :conversations="conversations"
+      :activeConversationId="activeConversationId"
+      @select-conversation="selectConversation"
+      @create-conversation="createNewConversation"
+      @toggle-collapse="onSidebarToggle"
+    />
 
-    <!-- 欢迎页 -->
-    <McLayoutContent
-      v-if="showWelcome && messages.length === 0"
-      style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px"
-    >
-      <McIntroduction
-        :logoImg="'https://matechat.gitcode.com/logo2x.svg'"
-        :title="'AI 智能助手'"
-        :subTitle="'Hi，欢迎使用 AI 助手'"
-        :description="description"
-      />
-      <McPrompt
-        :list="introPrompt.list"
-        :direction="introPrompt.direction"
-        @itemClick="onPromptClick($event.label)"
-      />
-    </McLayoutContent>
-
-    <!-- 消息列表 -->
-    <McLayoutContent class="content-container" v-else>
-      <template v-for="(msg, idx) in messages" :key="idx">
-        <!-- 用户消息 -->
-        <McBubble
-          v-if="msg.from === 'user'"
-          :content="msg.content"
-          :align="'right'"
-          :avatarConfig="{ imgSrc: userAvatar }"
-        />
-        <!-- AI 消息（支持富文本） -->
-        <div v-else class="ai-message-wrapper">
-          <div class="ai-avatar">
-            <img src="https://matechat.gitcode.com/logo.svg" alt="AI" />
-          </div>
-          <div class="ai-content">
-            <div v-if="msg.loading" class="loading-indicator">
-              <span class="loading-dot"></span>
-              <span class="loading-dot"></span>
-              <span class="loading-dot"></span>
-            </div>
-            <RichTextContent v-else :content="msg.content" />
-          </div>
-        </div>
-      </template>
-    </McLayoutContent>
-
-    <!-- 输入区域 -->
-    <McLayoutSender>
-      <McInput 
-        :value="inputValue" 
-        :maxLength="2000" 
-        :placeholder="'请输入您的问题...'"
-        @change="(e: string) => (inputValue = e)" 
-        @submit="onSubmit"
-      >
-        <template #extra>
-          <div class="input-foot-wrapper">
-            <div class="input-foot-left">
-              <span class="input-foot-maxlength">{{ inputValue.length }}/2000</span>
-            </div>
-            <div class="input-foot-right">
-              <el-button 
-                icon="Delete" 
-                size="small" 
-                :disabled="!inputValue" 
-                @click="inputValue = ''"
-              >
-                清空
-              </el-button>
-            </div>
+    <!-- 主聊天区域 -->
+    <McLayout class="chat-container">
+      <!-- Header -->
+      <McHeader :title="'AI 智能助手'" :logoImg="'https://matechat.gitcode.com/logo.svg'">
+        <template #operationArea>
+          <div class="operations">
+            <!-- 模型选择 -->
+            <el-select v-model="selectedModel" placeholder="选择模型" size="small" style="width: 150px">
+              <el-option label="React Agent" value="react" />
+              <el-option label="Plan-Execute" value="plan-execute" />
+            </el-select>
+            
+            <el-tag v-if="isConnected" type="success" size="small">连接中</el-tag>
+            <el-button 
+              v-if="isConnected" 
+              type="danger" 
+              size="small" 
+              @click="disconnect"
+            >
+              断开连接
+            </el-button>
           </div>
         </template>
-      </McInput>
-    </McLayoutSender>
-  </McLayout>
+      </McHeader>
+
+      <!-- 欢迎页 -->
+      <McLayoutContent
+        v-if="showWelcome && messageBlocks.length === 0"
+        style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px"
+      >
+        <McIntroduction
+          :logoImg="'https://matechat.gitcode.com/logo2x.svg'"
+          :title="'AI 智能助手'"
+          :subTitle="'Hi，欢迎使用 AI 助手'"
+          :description="description"
+        />
+        <McPrompt
+          :list="introPrompt.list"
+          :direction="introPrompt.direction"
+          @itemClick="onPromptClick($event.label)"
+        />
+      </McLayoutContent>
+
+      <!-- 消息列表 -->
+      <McLayoutContent class="content-container" v-else>
+        <template v-for="(block, idx) in messageBlocks" :key="idx">
+          <!-- 用户消息 -->
+          <McBubble
+            v-if="block.type === 'user'"
+            :content="block.content"
+            :align="'right'"
+            :avatarConfig="{ imgSrc: userAvatar }"
+          />
+          
+          <!-- AI 消息块 -->
+          <div v-else-if="block.type === 'assistant'" class="ai-message-wrapper">
+            <div class="ai-avatar">
+              <img src="https://matechat.gitcode.com/logo.svg" alt="AI" />
+            </div>
+            <div class="ai-content-wrapper">
+              <!-- 加载状态 -->
+              <div v-if="block.loading" class="loading-indicator">
+                <span class="loading-dot"></span>
+                <span class="loading-dot"></span>
+                <span class="loading-dot"></span>
+              </div>
+              
+              <!-- 文本内容 -->
+              <div v-else-if="block.content" class="ai-content">
+                <RichTextContent :content="block.content" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 计划卡片 -->
+          <div v-else-if="block.type === 'plan'" class="plan-wrapper">
+            <PlanCard
+              :planData="block.planData"
+              :currentStep="block.currentStep"
+              :totalSteps="block.totalSteps"
+              :percentage="block.percentage"
+              :isFinished="block.isFinished"
+            />
+          </div>
+
+          <!-- 工具调用卡片 -->
+          <div v-else-if="block.type === 'tool'" class="tool-wrapper">
+            <ToolCallCard :toolCall="block.toolCall" />
+          </div>
+        </template>
+      </McLayoutContent>
+
+      <!-- 输入区域 -->
+      <McLayoutSender>
+        <McInput 
+          :value="inputValue" 
+          :maxLength="2000" 
+          :placeholder="'请输入您的问题...'"
+          @change="(e: string) => (inputValue = e)" 
+          @submit="onSubmit"
+        >
+          <template #extra>
+            <div class="input-foot-wrapper">
+              <div class="input-foot-left">
+                <span class="input-foot-maxlength">{{ inputValue.length }}/2000</span>
+              </div>
+              <div class="input-foot-right">
+                <el-button 
+                  icon="Delete" 
+                  size="small" 
+                  :disabled="!inputValue" 
+                  @click="inputValue = ''"
+                >
+                  清空
+                </el-button>
+              </div>
+            </div>
+          </template>
+        </McInput>
+      </McLayoutSender>
+    </McLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { ChatAPI } from '@/api/chat'
+import { ChatAPI, PlanExecuteEvent } from '@/api/chat'
 import RichTextContent from '@/components/RichTextContent.vue'
+import ConversationSidebar from '@/components/ConversationSidebar.vue'
+import PlanCard from '@/components/PlanCard.vue'
+import ToolCallCard from '@/components/ToolCallCard.vue'
 
 const authStore = useAuthStore()
 
@@ -109,7 +151,7 @@ const userAvatar = computed(() => authStore.userInfo?.userAvatar || 'https://mat
 // 欢迎描述
 const description = [
   'AI 智能助手可以帮助您解答问题、生成内容、处理任务等。',
-  '作为 AI 模型，提供的答案可能不总是准确的，您的反馈可以帮助我们做得更好。',
+  '支持 React Agent 和 Plan-Execute 两种模式，满足不同的需求场景。',
 ]
 
 // 欢迎提示词
@@ -124,25 +166,76 @@ const introPrompt = {
     },
     {
       value: 'generate',
-      label: '帮我生成一张图片',
+      label: '帮我生成一张落日沙滩图片',
       iconConfig: { name: 'icon-info-o', color: 'rgb(255, 215, 0)' },
       desc: '测试图片生成功能',
     },
     {
       value: 'music',
-      label: '创作一段音乐',
+      label: '帮我生成一幅落日沙滩图片，创作100字左右积极向上的歌词，然后生成一首歌曲',
       iconConfig: { name: 'icon-priority', color: '#3ac295' },
-      desc: '测试音乐生成功能',
+      desc: '测试 Plan-Execute 模式',
     },
   ],
+}
+
+// 消息块类型
+interface MessageBlock {
+  type: 'user' | 'assistant' | 'plan' | 'tool'
+  content?: string
+  loading?: boolean
+  planData?: any
+  currentStep?: number
+  totalSteps?: number
+  percentage?: number
+  isFinished?: boolean
+  toolCall?: any
 }
 
 // 响应式数据
 const showWelcome = ref(true)
 const inputValue = ref('')
 const isConnected = ref(false)
-const messages = ref<any[]>([])
+const selectedModel = ref<'react' | 'plan-execute'>('react')
+const messageBlocks = ref<MessageBlock[]>([])
+const activeConversationId = ref('default')
+const conversations = ref([
+  { id: 'default', title: '新对话', time: new Date().toISOString() }
+])
 let currentAbortController: AbortController | null = null
+
+// 计划管理 Map - 根据 planId 快速索引
+const plansMap = ref<Map<string, number>>(new Map())
+
+// 当前正在构建的文本块索引
+let currentTextBlockIndex = -1
+
+// 侧边栏折叠状态
+const onSidebarToggle = (collapsed: boolean) => {
+  console.log('侧边栏折叠状态:', collapsed)
+}
+
+// 选择对话
+const selectConversation = (id: string) => {
+  activeConversationId.value = id
+  console.log('选择对话:', id)
+}
+
+// 创建新对话
+const createNewConversation = () => {
+  const newConv = {
+    id: `conv_${Date.now()}`,
+    title: '新对话',
+    time: new Date().toISOString()
+  }
+  conversations.value.unshift(newConv)
+  activeConversationId.value = newConv.id
+  messageBlocks.value = []
+  plansMap.value.clear()
+  showWelcome.value = true
+  currentTextBlockIndex = -1
+  console.log('创建新对话:', newConv.id)
+}
 
 // 提示词点击
 const onPromptClick = (label: string) => {
@@ -162,107 +255,100 @@ const onSubmit = (text?: string) => {
   inputValue.value = ''
 
   // 添加用户消息
-  messages.value.push({
-    from: 'user',
+  messageBlocks.value.push({
+    type: 'user',
     content: content,
   })
 
-  // 创建 AI 消息占位符
-  const aiMessageIndex = messages.value.length
-  messages.value.push({
-    from: 'model',
+  // 创建加载占位符
+  messageBlocks.value.push({
+    type: 'assistant',
     content: '',
     loading: true,
   })
+  currentTextBlockIndex = messageBlocks.value.length - 1
 
-  // 连接 SSE 并流式接收
-  fetchStreamData(content, aiMessageIndex)
+  // 根据选择的模型调用不同的接口
+  if (selectedModel.value === 'plan-execute') {
+    fetchPlanExecuteData(content)
+  } else {
+    fetchStreamData(content)
+  }
 }
 
-// 流式获取数据
-const fetchStreamData = async (userMessage: string, aiMessageIndex: number) => {
+// React Agent 流式获取数据（使用统一的事件处理）
+const fetchStreamData = async (userMessage: string) => {
   try {
-    const abortController = ChatAPI.streamChat(userMessage, {
-      onMessage: (data) => {
-        console.log('💬 Chat.vue 收到消息:', {
-          role: data.role,
-          content: data.content,
-          toolCallsCount: data.toolCalls?.length || 0,
-          aiMessageIndex: aiMessageIndex,
-          currentContent: messages.value[aiMessageIndex]?.content || '',
-          currentContentLength: messages.value[aiMessageIndex]?.content?.length || 0
-        })
+    const abortController = ChatAPI.streamReactChat(userMessage, {
+      onEvent: (event: PlanExecuteEvent) => {
+        console.log('📬 收到 React 事件:', event)
         
         // 关闭加载状态
-        messages.value[aiMessageIndex].loading = false
-        
-        // 累积内容
-        const oldContent = messages.value[aiMessageIndex].content
-        messages.value[aiMessageIndex].content += data.content || ''
-        
-        console.log('✏️ 内容更新:', {
-          before: oldContent,
-          after: messages.value[aiMessageIndex].content,
-          added: data.content,
-          beforeLength: oldContent.length,
-          afterLength: messages.value[aiMessageIndex].content.length
-        })
-        
-        // 如果有工具调用，添加观察信息
-        if (data.toolCalls && data.toolCalls.length > 0) {
-          const observations = data.toolCalls.map((toolCall: any) => {
-            // 从toolCall中提取function信息
-            const func = toolCall.function || {}
-            const toolName = func.name || toolCall.name || '未知工具'
-            const toolOutput = func.output || toolCall.output || ''
-            const toolArguments = func.arguments || toolCall.arguments || ''
-            
-            // 格式化工具结果
-            let resultText = toolOutput
-            if (!resultText && toolArguments) {
-              // 如果没有output，显示参数信息
-              try {
-                const args = JSON.parse(toolArguments)
-                resultText = Object.entries(args).map(([k, v]) => `${k}: ${v}`).join(', ')
-              } catch {
-                resultText = toolArguments
+        if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+          messageBlocks.value[currentTextBlockIndex].loading = false
+        }
+
+        // 处理不同类型的事件
+        switch (event.type) {
+          case 'STEP_EXECUTION':
+            // 流式文本内容
+            if (event.content) {
+              if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+                messageBlocks.value[currentTextBlockIndex].content += event.content
               }
             }
-            
-            // 如果结果是对象，格式化输出
-            if (typeof resultText === 'object') {
-              resultText = JSON.stringify(resultText, null, 2)
+            break
+
+          case 'TOOL_CALL':
+            // 工具调用
+            if (event.toolCalls && event.toolCalls.length > 0) {
+              event.toolCalls.forEach(toolCall => {
+                // 检查是否已添加
+                const exists = messageBlocks.value.some(
+                  (block) => block.type === 'tool' && block.toolCall?.id === toolCall.id
+                )
+                if (!exists) {
+                  messageBlocks.value.push({
+                    type: 'tool',
+                    toolCall: toolCall
+                  })
+                  
+                  // 创建新的文本块
+                  messageBlocks.value.push({
+                    type: 'assistant',
+                    content: '',
+                    loading: false,
+                  })
+                  currentTextBlockIndex = messageBlocks.value.length - 1
+                }
+              })
             }
-            
-            // 构建观察信息
-            if (toolOutput) {
-              return `**观察：**${toolName}工具已经完成，结果为：${resultText}`
-            } else {
-              return `**观察：**${toolName}工具正在执行中...`
-            }
-          }).join('\n\n')
-          
-          // 在内容后面添加观察信息（用两个换行分隔）
-          if (observations) {
-            messages.value[aiMessageIndex].content += '\n' + observations + '\n'
-          }
-          
-          console.log('🛠️ 添加工具调用观察信息:', observations)
+            break
+
+          case 'STREAM_END':
+            // 流结束
+            console.log('✅ React Agent 流结束')
+            break
+
+          default:
+            console.log('未处理的事件类型:', event.type)
         }
-        
-        console.log('📊 当前消息数组:', messages.value)
       },
       onError: (error) => {
-        console.error('SSE 错误:', error)
-        messages.value[aiMessageIndex].loading = false
-        messages.value[aiMessageIndex].content = '抱歉，连接失败: ' + error.message
+        console.error('React Agent SSE 错误:', error)
+        if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+          messageBlocks.value[currentTextBlockIndex].loading = false
+          messageBlocks.value[currentTextBlockIndex].content = '抱歉，连接失败: ' + error.message
+        }
         isConnected.value = false
         currentAbortController = null
         ElMessage.error('连接失败: ' + error.message)
       },
       onComplete: () => {
-        console.log('✅ SSE 连接完成')
-        messages.value[aiMessageIndex].loading = false
+        console.log('✅ React Agent SSE 连接完成')
+        if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+          messageBlocks.value[currentTextBlockIndex].loading = false
+        }
         isConnected.value = false
         currentAbortController = null
       }
@@ -272,9 +358,175 @@ const fetchStreamData = async (userMessage: string, aiMessageIndex: number) => {
     isConnected.value = true
     
   } catch (error: any) {
-    console.error('连接 SSE 失败:', error)
-    messages.value[aiMessageIndex].loading = false
-    messages.value[aiMessageIndex].content = '抱歉，发送失败，请重试。'
+    console.error('连接 React Agent SSE 失败:', error)
+    if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+      messageBlocks.value[currentTextBlockIndex].loading = false
+      messageBlocks.value[currentTextBlockIndex].content = '抱歉，发送失败，请重试。'
+    }
+    isConnected.value = false
+    ElMessage.error('连接失败')
+  }
+}
+
+// Plan-Execute Agent 流式获取数据
+const fetchPlanExecuteData = async (userMessage: string) => {
+  try {
+    const abortController = ChatAPI.streamPlanExecuteChat(userMessage, {
+      onEvent: (event: PlanExecuteEvent) => {
+        console.log('📬 收到事件:', event)
+        
+        // 关闭加载状态
+        if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+          messageBlocks.value[currentTextBlockIndex].loading = false
+        }
+
+        // 处理不同类型的事件
+        switch (event.type) {
+          case 'STEP_EXECUTION':
+            // 流式文本内容
+            if (event.content) {
+              if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+                messageBlocks.value[currentTextBlockIndex].content += event.content
+              }
+            }
+            break
+
+          case 'TOOL_CALL':
+            // 工具调用
+            if (event.toolCalls && event.toolCalls.length > 0) {
+              event.toolCalls.forEach(toolCall => {
+                // 检查是否是 planning 工具
+                if (toolCall.name === 'planning') {
+                  try {
+                    const args = JSON.parse(toolCall.arguments)
+                    if (args.command === 'create') {
+                      // 创建新的计划块
+                      const planBlock: MessageBlock = {
+                        type: 'plan',
+                        planData: {
+                          planId: '', // 等待 PLAN_PROGRESS 更新
+                          title: args.title || '执行计划',
+                          steps: args.steps || []
+                        },
+                        currentStep: 0,
+                        totalSteps: args.steps?.length || 0,
+                        percentage: 0,
+                        isFinished: false
+                      }
+                      messageBlocks.value.push(planBlock)
+                      
+                      // 创建新的文本块
+                      messageBlocks.value.push({
+                        type: 'assistant',
+                        content: '',
+                        loading: false,
+                      })
+                      currentTextBlockIndex = messageBlocks.value.length - 1
+                    }
+                  } catch (e) {
+                    console.error('解析 planning 参数失败:', e)
+                  }
+                } else {
+                  // 其他工具调用，创建工具块
+                  const exists = messageBlocks.value.some(
+                    (block) => block.type === 'tool' && block.toolCall?.id === toolCall.id
+                  )
+                  if (!exists) {
+                    messageBlocks.value.push({
+                      type: 'tool',
+                      toolCall: toolCall
+                    })
+                    
+                    // 创建新的文本块
+                    messageBlocks.value.push({
+                      type: 'assistant',
+                      content: '',
+                      loading: false,
+                    })
+                    currentTextBlockIndex = messageBlocks.value.length - 1
+                  }
+                }
+              })
+            }
+            break
+
+          case 'PLAN_PROGRESS':
+            // 更新计划进度
+            if (event.planId) {
+              // 查找对应的计划块
+              let planBlockIndex = plansMap.value.get(event.planId)
+              
+              if (planBlockIndex === undefined) {
+                // 首次接收到该计划ID，查找最近的计划块
+                for (let i = messageBlocks.value.length - 1; i >= 0; i--) {
+                  if (messageBlocks.value[i].type === 'plan' && !messageBlocks.value[i].planData?.planId) {
+                    planBlockIndex = i
+                    plansMap.value.set(event.planId, i)
+                    break
+                  }
+                }
+              }
+              
+              if (planBlockIndex !== undefined && messageBlocks.value[planBlockIndex]) {
+                const planBlock = messageBlocks.value[planBlockIndex]
+                if (planBlock.planData) {
+                  planBlock.planData.planId = event.planId
+                }
+                planBlock.currentStep = event.currentStep || 0
+                planBlock.totalSteps = event.totalSteps || 0
+                planBlock.percentage = event.percentage || 0
+                planBlock.isFinished = event.isFinished || false
+              }
+            }
+            break
+
+          case 'TOOL_RESULT':
+          case 'STEP_COMPLETED':
+            // 工具返回结果或步骤完成，累积到当前文本块
+            const resultContent = event.result || event.output
+            if (resultContent && currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+              messageBlocks.value[currentTextBlockIndex].content += `\n\n${resultContent}\n\n`
+            }
+            break
+
+          case 'STREAM_END':
+            // 流结束
+            console.log('✅ Plan-Execute 流结束')
+            break
+
+          default:
+            console.log('未处理的事件类型:', event.type)
+        }
+      },
+      onError: (error) => {
+        console.error('Plan-Execute SSE 错误:', error)
+        if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+          messageBlocks.value[currentTextBlockIndex].loading = false
+          messageBlocks.value[currentTextBlockIndex].content = '抱歉，连接失败: ' + error.message
+        }
+        isConnected.value = false
+        currentAbortController = null
+        ElMessage.error('连接失败: ' + error.message)
+      },
+      onComplete: () => {
+        console.log('✅ Plan-Execute SSE 连接完成')
+        if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+          messageBlocks.value[currentTextBlockIndex].loading = false
+        }
+        isConnected.value = false
+        currentAbortController = null
+      }
+    })
+
+    currentAbortController = abortController
+    isConnected.value = true
+    
+  } catch (error: any) {
+    console.error('连接 Plan-Execute SSE 失败:', error)
+    if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+      messageBlocks.value[currentTextBlockIndex].loading = false
+      messageBlocks.value[currentTextBlockIndex].content = '抱歉，发送失败，请重试。'
+    }
     isConnected.value = false
     ElMessage.error('连接失败')
   }
@@ -297,13 +549,18 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.chat-container {
+.chat-page {
+  display: flex;
   width: 100%;
   height: 100vh;
-  margin: 0 auto;
+  background: #fff;
+}
+
+.chat-container {
+  flex: 1;
+  height: 100vh;
   padding: 20px;
   gap: 8px;
-  background: #fff;
 }
 
 .operations {
@@ -370,11 +627,21 @@ onUnmounted(() => {
   object-fit: cover;
 }
 
-.ai-content {
+.ai-content-wrapper {
   flex: 1;
+  max-width: calc(100% - 60px);
+}
+
+.ai-content {
   background: #f7f8fa;
   border-radius: 12px;
   padding: 12px 16px;
+}
+
+/* 计划和工具包装器 */
+.plan-wrapper,
+.tool-wrapper {
+  margin-left: 52px;
   max-width: calc(100% - 60px);
 }
 
