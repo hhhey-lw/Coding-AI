@@ -191,71 +191,83 @@ const handleDragStart = (event: DragEvent, nodeType: NodeTypeInfo) => {
 </script>
 
 <style scoped>
+/* OpenAI 风格 - 简洁、现代、扁平化 */
 .node-palette {
-  width: 280px;
+  width: 300px;
   height: 100%;
-  background: white;
-  border-right: 1px solid #e4e7ed;
+  background: #f9fafb;
+  border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
 }
 
 .palette-header {
-  padding: 16px;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 20px 16px 16px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
 }
 
 .palette-header h3 {
   margin: 0 0 12px 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 
 .palette-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 12px;
 }
 
 .node-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .node-item {
   display: flex;
   align-items: center;
-  padding: 12px;
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   cursor: grab;
-  transition: all 0.2s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   background: white;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .node-item:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 4px rgba(64, 158, 255, 0.1);
+  border-color: #d1d5db;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   transform: translateY(-1px);
 }
 
 .node-item:active {
   cursor: grabbing;
-  transform: translateY(0);
+  transform: scale(0.98);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .node-icon {
   margin-right: 12px;
-  color: #409eff;
+  color: #6b7280;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: #f0f9ff;
-  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.node-item:hover .node-icon {
+  background: #e5e7eb;
+  color: #374151;
 }
 
 .node-info {
@@ -264,15 +276,16 @@ const handleDragStart = (event: DragEvent, nodeType: NodeTypeInfo) => {
 }
 
 .node-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #303133;
+  color: #111827;
   margin-bottom: 2px;
+  letter-spacing: -0.01em;
 }
 
 .node-desc {
-  font-size: 12px;
-  color: #909399;
+  font-size: 11px;
+  color: #6b7280;
   line-height: 1.4;
   word-break: break-all;
 }
@@ -282,13 +295,21 @@ const handleDragStart = (event: DragEvent, nodeType: NodeTypeInfo) => {
 }
 
 :deep(.el-collapse-item__header) {
-  height: 40px;
-  line-height: 40px;
-  background: #f5f7fa;
+  height: 36px;
+  line-height: 36px;
+  background: transparent;
   border: none;
-  font-weight: 500;
-  color: #606266;
+  font-weight: 600;
+  font-size: 12px;
+  color: #6b7280;
   padding: 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: color 0.15s ease;
+}
+
+:deep(.el-collapse-item__header:hover) {
+  color: #111827;
 }
 
 :deep(.el-collapse-item__wrap) {
@@ -300,22 +321,47 @@ const handleDragStart = (event: DragEvent, nodeType: NodeTypeInfo) => {
   padding: 8px 0;
 }
 
-/* 滚动条样式 */
+/* 搜索框样式优化 */
+:deep(.el-input__wrapper) {
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+  transition: all 0.15s ease;
+}
+
+:deep(.el-input__wrapper:hover) {
+  border-color: #d1d5db;
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  border-color: #9ca3af;
+  box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+}
+
+:deep(.el-input__inner) {
+  font-size: 13px;
+  color: #111827;
+}
+
+:deep(.el-input__inner::placeholder) {
+  color: #9ca3af;
+}
+
+/* 滚动条样式 - 细腻的OpenAI风格 */
 .palette-content::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .palette-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
+  background: transparent;
 }
 
 .palette-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
+  background: #d1d5db;
+  border-radius: 2px;
 }
 
 .palette-content::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #9ca3af;
 }
 </style>

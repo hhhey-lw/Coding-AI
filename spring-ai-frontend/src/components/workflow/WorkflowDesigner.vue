@@ -868,46 +868,62 @@ const handleSettingsSave = async () => {
 </script>
 
 <style scoped>
+/* OpenAI 风格 - 简洁优雅的顶部导航栏 */
 .workflow-designer {
   width: 100vw;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: #f9fafb;
   overflow: hidden;
 }
 
 .designer-header {
-  height: 60px;
+  height: 56px;
   background: white;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  padding: 0 24px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
 }
 
 .header-left {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .back-button {
-  height: 32px;
-  padding: 0 12px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  background: white;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.back-button:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
 }
 
 .workflow-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: #111827;
   display: flex;
   align-items: center;
   gap: 8px;
+  letter-spacing: -0.01em;
 }
 
 .header-center {
@@ -921,6 +937,54 @@ const handleSettingsSave = async () => {
   gap: 8px;
 }
 
+/* 按钮组样式优化 */
+:deep(.el-button-group) {
+  display: flex;
+  gap: 6px;
+  border: none;
+}
+
+:deep(.el-button-group .el-button) {
+  margin: 0;
+  border-radius: 8px !important;
+  font-size: 13px;
+  font-weight: 500;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #374151;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:deep(.el-button-group .el-button:hover) {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+:deep(.el-button-group .el-button:active) {
+  transform: translateY(0);
+}
+
+:deep(.el-button.is-circle) {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px !important;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #6b7280;
+  transition: all 0.15s ease;
+}
+
+:deep(.el-button.is-circle:hover) {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
 .designer-content {
   flex: 1;
   display: flex;
@@ -931,8 +995,8 @@ const handleSettingsSave = async () => {
   flex: 1;
   position: relative;
   background: white;
-  border-left: 1px solid #e4e7ed;
-  border-right: 1px solid #e4e7ed;
+  border-left: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
 }
 
 /* 运行对话框样式 */
