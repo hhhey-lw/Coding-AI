@@ -508,9 +508,14 @@ public class ReactAgent extends BaseAgent {
 		 */
 		@Override
 		public Map<String, Object> apply(OverAllState parentState) throws Exception {
-			String input = (String) parentState.value(inputKeyFromParent).orElseThrow();
-			Message message = new UserMessage(input);
-			List<Message> messages = List.of(message);
+			Object input = parentState.value(inputKeyFromParent).orElseThrow();
+			List<Message> messages;
+			if (input instanceof List<?> ms) {
+				messages = (List<Message>) ms;
+			} else {
+				Message message = new UserMessage((String) input);
+			 	messages = List.of(message);
+			}
 
 			AsyncGenerator<NodeOutput> child = childGraph.stream(Map.of("messages", messages));
 

@@ -1,5 +1,6 @@
 package com.coding.admin.model.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -25,6 +26,7 @@ public class PageRequest {
     /**
      * 获取MyBatis-Plus的offset
      */
+    @JsonIgnore
     public long getOffset() {
         return (long) (pageNum - 1) * pageSize;
     }
@@ -32,6 +34,7 @@ public class PageRequest {
     /**
      * 获取limit
      */
+    @JsonIgnore
     public long getLimit() {
         return pageSize;
     }

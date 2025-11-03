@@ -110,29 +110,5 @@ public class PlanExecuteEventVO {
      * 消息（STREAM_END 时使用）
      */
     private String message;
-    
-    /**
-     * 工具调用信息
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ToolCallVO {
-        /**
-         * 工具调用 ID
-         */
-        private String id;
-        
-        /**
-         * 工具名称
-         */
-        private String name;
-        
-        /**
-         * 工具参数（JSON 字符串）
-         */
-        private String arguments;
-    }
 }
 

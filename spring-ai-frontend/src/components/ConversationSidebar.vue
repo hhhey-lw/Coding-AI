@@ -11,6 +11,11 @@
     <div v-show="!isCollapsed" class="sidebar-content">
       <!-- 标题 -->
       <div class="sidebar-header">
+        <div class="back-btn" @click="goToHome" title="返回首页">
+          <el-icon>
+            <ArrowLeft />
+          </el-icon>
+        </div>
         <h3>对话历史</h3>
       </div>
 
@@ -26,20 +31,39 @@
       </div>
 
       <!-- 对话列表 -->
-      <div class="conversation-list">
+      <div class="conversation-list" ref="conversationListRef" @scroll="handleScroll">
         <div
           v-for="conversation in filteredConversations"
           :key="conversation.id"
           class="conversation-item"
           :class="{ 'active': conversation.id === activeConversationId }"
-          @click="selectConversation(conversation.id)"
         >
-          <div class="conversation-title">{{ conversation.title }}</div>
-          <div class="conversation-time">{{ formatTime(conversation.time) }}</div>
+          <div class="conversation-content" @click="selectConversation(conversation.id)">
+            <div class="conversation-title">{{ conversation.title }}</div>
+            <div class="conversation-time">{{ formatTime(conversation.updatedAt || conversation.createdAt || '') }}</div>
+          </div>
+          <el-icon 
+            class="delete-icon" 
+            @click.stop="handleDeleteConversation(conversation.id)"
+            title="删除会话"
+          >
+            <Delete />
+          </el-icon>
+        </div>
+
+        <!-- 加载更多 -->
+        <div v-if="hasMore && !loading" class="load-more">
+          <el-button text size="small" @click="loadMore">加载更多</el-button>
+        </div>
+
+        <!-- 加载中 -->
+        <div v-if="loading" class="loading-state">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>加载中...</span>
         </div>
 
         <!-- 空状态 -->
-        <div v-if="filteredConversations.length === 0" class="empty-state">
+        <div v-if="!loading && filteredConversations.length === 0" class="empty-state">
           <el-empty description="暂无对话记录" :image-size="80" />
         </div>
       </div>
@@ -57,23 +81,34 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Search, Plus, Expand, Fold } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { Search, Plus, Expand, Fold, Delete, Loading, ArrowLeft } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
+
+const router = useRouter()
 
 // Props
 interface Conversation {
   id: string
   title: string
-  time: string
+  createdAt?: string
+  updatedAt?: string
+  time?: string
+  status?: string
 }
 
 interface Props {
   conversations?: Conversation[]
   activeConversationId?: string
+  loading?: boolean
+  hasMore?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   conversations: () => [],
-  activeConversationId: ''
+  activeConversationId: '',
+  loading: false,
+  hasMore: false
 })
 
 // Emits
@@ -81,11 +116,15 @@ const emit = defineEmits<{
   'select-conversation': [id: string]
   'create-conversation': []
   'toggle-collapse': [collapsed: boolean]
+  'delete-conversation': [id: string]
+  'load-more': []
+  'refresh': []
 }>()
 
 // 响应式数据
 const isCollapsed = ref(false)
 const searchKeyword = ref('')
+const conversationListRef = ref<HTMLElement | null>(null)
 
 // 计算属性 - 折叠/展开图标
 const collapseIcon = computed(() => isCollapsed.value ? Expand : Fold)
@@ -114,7 +153,44 @@ const createNewConversation = () => {
   emit('create-conversation')
 }
 
+const goToHome = () => {
+  router.push('/')
+}
+
+const loadMore = () => {
+  emit('load-more')
+}
+
+const handleDeleteConversation = async (id: string) => {
+  try {
+    await ElMessageBox.confirm(
+      '删除后将无法恢复，确定要删除这个会话吗？',
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    emit('delete-conversation', id)
+  } catch {
+    // 用户取消删除
+  }
+}
+
+const handleScroll = () => {
+  if (!conversationListRef.value || props.loading || !props.hasMore) return
+  
+  const { scrollTop, scrollHeight, clientHeight } = conversationListRef.value
+  // 滚动到底部时自动加载更多
+  if (scrollTop + clientHeight >= scrollHeight - 50) {
+    loadMore()
+  }
+}
+
 const formatTime = (time: string) => {
+  if (!time) return ''
+  
   const date = new Date(time)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
@@ -144,6 +220,7 @@ const formatTime = (time: string) => {
 .sidebar-container {
   position: relative;
   width: 280px;
+  min-width: 280px;
   height: 100%;
   background: #f5f7fa;
   border-right: 1px solid #e4e7ed;
@@ -182,6 +259,25 @@ const formatTime = (time: string) => {
   transform: scale(1.1);
 }
 
+.back-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+
+.back-btn:hover {
+  background: #f0f2f5;
+  transform: scale(1.1);
+}
+
 .sidebar-content {
   display: flex;
   flex-direction: column;
@@ -192,6 +288,9 @@ const formatTime = (time: string) => {
 .sidebar-header {
   margin-bottom: 16px;
   padding-right: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .sidebar-header h3 {
@@ -212,11 +311,13 @@ const formatTime = (time: string) => {
 }
 
 .conversation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 12px;
   background: white;
   border-radius: 8px;
   margin-bottom: 8px;
-  cursor: pointer;
   transition: all 0.3s;
   border: 1px solid transparent;
 }
@@ -230,6 +331,25 @@ const formatTime = (time: string) => {
 .conversation-item.active {
   background: #ecf5ff;
   border-color: #409eff;
+}
+
+.conversation-content {
+  flex: 1;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.delete-icon {
+  color: #909399;
+  cursor: pointer;
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-left: 8px;
+  transition: color 0.3s;
+}
+
+.delete-icon:hover {
+  color: #f56c6c;
 }
 
 .conversation-title {
@@ -252,6 +372,22 @@ const formatTime = (time: string) => {
   align-items: center;
   justify-content: center;
   height: 200px;
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0;
+  color: #909399;
+  font-size: 14px;
 }
 
 .sidebar-footer {

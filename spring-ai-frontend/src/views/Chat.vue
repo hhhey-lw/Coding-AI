@@ -4,9 +4,14 @@
     <ConversationSidebar
       :conversations="conversations"
       :activeConversationId="activeConversationId"
+      :loading="conversationLoading"
+      :hasMore="hasMore"
       @select-conversation="selectConversation"
       @create-conversation="createNewConversation"
       @toggle-collapse="onSidebarToggle"
+      @delete-conversation="deleteConversation"
+      @load-more="loadMoreConversations"
+      @refresh="refreshConversations"
     />
 
     <!-- 主聊天区域 -->
@@ -134,16 +139,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { ChatAPI, PlanExecuteEvent } from '@/api/chat'
+import { ConversationAPI, ChatConversation } from '@/api/conversation'
 import RichTextContent from '@/components/RichTextContent.vue'
 import ConversationSidebar from '@/components/ConversationSidebar.vue'
 import PlanCard from '@/components/PlanCard.vue'
 import ToolCallCard from '@/components/ToolCallCard.vue'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 // 用户头像
 const userAvatar = computed(() => authStore.userInfo?.userAvatar || 'https://matechat.gitcode.com/png/demo/userAvatar.svg')
@@ -198,10 +206,12 @@ const inputValue = ref('')
 const isConnected = ref(false)
 const selectedModel = ref<'react' | 'plan-execute'>('react')
 const messageBlocks = ref<MessageBlock[]>([])
-const activeConversationId = ref('default')
-const conversations = ref([
-  { id: 'default', title: '新对话', time: new Date().toISOString() }
-])
+const activeConversationId = ref<string>('')
+const conversations = ref<ChatConversation[]>([])
+const conversationLoading = ref(false)
+const hasMore = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(20)
 let currentAbortController: AbortController | null = null
 
 // 计划管理 Map - 根据 planId 快速索引
@@ -210,31 +220,190 @@ const plansMap = ref<Map<string, number>>(new Map())
 // 当前正在构建的文本块索引
 let currentTextBlockIndex = -1
 
+// 初始化：加载会话列表和设置模型
+onMounted(async () => {
+  // 从URL参数中获取模型类型
+  const route = router.currentRoute.value
+  const modelParam = route.query.model as string
+  if (modelParam === 'react' || modelParam === 'plan-execute') {
+    selectedModel.value = modelParam
+    console.log('✅ 从URL参数设置模型:', modelParam)
+  }
+  
+  await loadConversations()
+})
+
+// 加载会话列表
+const loadConversations = async (append = false) => {
+  try {
+    conversationLoading.value = true
+    const page = append ? currentPage.value : 1
+    
+    const response = await ConversationAPI.getConversationPage({
+      pageNum: page,
+      pageSize: pageSize.value,
+      status: 'active'
+    })
+    
+    if (response.code === 1 && response.data) {
+      const pageData = response.data
+      if (append) {
+        conversations.value.push(...pageData.list)
+      } else {
+        conversations.value = pageData.list
+      }
+      
+      currentPage.value = pageData.pageNum
+      hasMore.value = pageData.list.length >= pageSize.value && conversations.value.length < pageData.total
+      
+      console.log('✅ 加载会话列表成功:', pageData)
+    }
+  } catch (error: any) {
+    console.error('❌ 加载会话列表失败:', error)
+    ElMessage.error(error.message || '加载会话列表失败')
+  } finally {
+    conversationLoading.value = false
+  }
+}
+
+// 加载更多会话
+const loadMoreConversations = async () => {
+  if (conversationLoading.value || !hasMore.value) return
+  currentPage.value++
+  await loadConversations(true)
+}
+
+// 刷新会话列表
+const refreshConversations = async () => {
+  currentPage.value = 1
+  await loadConversations(false)
+}
+
 // 侧边栏折叠状态
 const onSidebarToggle = (collapsed: boolean) => {
   console.log('侧边栏折叠状态:', collapsed)
 }
 
 // 选择对话
-const selectConversation = (id: string) => {
+const selectConversation = async (id: string) => {
+  if (activeConversationId.value === id) return
+  
   activeConversationId.value = id
+  messageBlocks.value = []
+  plansMap.value.clear()
+  showWelcome.value = false
+  currentTextBlockIndex = -1
+  
+  // 加载会话历史消息
+  try {
+    const response = await ConversationAPI.getConversationDetail(id)
+    if (response.code === 1 && response.data && response.data.messages && response.data.messages.length > 0) {
+      console.log('📜 加载历史消息:', response.data.messages.length, '条')
+      
+      // 将历史消息转换为 messageBlocks 显示
+      const historyBlocks: MessageBlock[] = []
+      
+      for (const msg of response.data.messages) {
+        if (msg.role === 'user') {
+          // 用户消息
+          historyBlocks.push({
+            type: 'user',
+            content: msg.content
+          })
+        } else if (msg.role === 'assistant') {
+          // 助手消息
+          if (msg.toolCalls && msg.toolCalls.length > 0) {
+            // 如果有工具调用，创建工具调用块
+            msg.toolCalls.forEach(toolCall => {
+              historyBlocks.push({
+                type: 'tool',
+                toolCall: {
+                  id: toolCall.id,
+                  name: toolCall.name,
+                  arguments: toolCall.arguments
+                }
+              })
+            })
+          }
+          
+          // 添加助手文本内容（如果有）
+          if (msg.content && msg.content.trim()) {
+            historyBlocks.push({
+              type: 'assistant',
+              content: msg.content,
+              loading: false
+            })
+          }
+        } else if (msg.role === 'tool') {
+          // 工具响应消息（通常已经被处理为助手消息的一部分，这里可以跳过或特殊处理）
+          console.log('🔧 工具响应消息:', msg.responses)
+        }
+      }
+      
+      messageBlocks.value = historyBlocks
+      console.log('✅ 历史消息渲染完成，共', historyBlocks.length, '个消息块')
+    }
+  } catch (error: any) {
+    console.warn('⚠️ 加载历史消息失败:', error)
+  }
+  
   console.log('选择对话:', id)
 }
 
 // 创建新对话
-const createNewConversation = () => {
-  const newConv = {
-    id: `conv_${Date.now()}`,
-    title: '新对话',
-    time: new Date().toISOString()
+const createNewConversation = async () => {
+  try {
+    const response = await ConversationAPI.createConversation({
+      title: '新对话'
+    })
+    
+    if (response.code === 1 && response.data) {
+      const conversationId = response.data
+      console.log('✅ 创建新对话成功:', conversationId)
+      
+      // 刷新会话列表
+      await refreshConversations()
+      
+      // 切换到新会话
+      activeConversationId.value = conversationId
+      messageBlocks.value = []
+      plansMap.value.clear()
+      showWelcome.value = true
+      currentTextBlockIndex = -1
+      
+      ElMessage.success('创建新对话成功')
+    }
+  } catch (error: any) {
+    console.error('❌ 创建新对话失败:', error)
+    ElMessage.error(error.message || '创建新对话失败')
   }
-  conversations.value.unshift(newConv)
-  activeConversationId.value = newConv.id
-  messageBlocks.value = []
-  plansMap.value.clear()
-  showWelcome.value = true
-  currentTextBlockIndex = -1
-  console.log('创建新对话:', newConv.id)
+}
+
+// 删除会话
+const deleteConversation = async (id: string) => {
+  try {
+    const response = await ConversationAPI.deleteConversation(id)
+    
+    if (response.code === 1) {
+      console.log('✅ 删除会话成功:', id)
+      ElMessage.success('删除会话成功')
+      
+      // 从列表中移除
+      conversations.value = conversations.value.filter(conv => conv.id !== id)
+      
+      // 如果删除的是当前会话，切换到第一个会话或创建新会话
+      if (activeConversationId.value === id) {
+        if (conversations.value.length > 0) {
+          activeConversationId.value = conversations.value[0].id
+        } else {
+          await createNewConversation()
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('❌ 删除会话失败:', error)
+    ElMessage.error(error.message || '删除会话失败')
+  }
 }
 
 // 提示词点击
@@ -244,9 +413,34 @@ const onPromptClick = (label: string) => {
 }
 
 // 提交消息
-const onSubmit = (text?: string) => {
+const onSubmit = async (text?: string) => {
   const content = text || inputValue.value
   if (!content.trim()) return
+
+  // 🔑 关键：如果没有会话ID，先创建会话
+  if (!activeConversationId.value) {
+    console.log('⚠️ 没有会话ID，先创建新会话...')
+    try {
+      const response = await ConversationAPI.createConversation({
+        title: content.substring(0, 20) + (content.length > 20 ? '...' : '') // 使用消息前20字符作为标题
+      })
+      
+      if (response.code === 1 && response.data) {
+        activeConversationId.value = response.data
+        console.log('✅ 创建新会话成功，会话ID:', activeConversationId.value)
+        
+        // 刷新会话列表
+        await refreshConversations()
+      } else {
+        ElMessage.error('创建会话失败')
+        return
+      }
+    } catch (error: any) {
+      console.error('❌ 创建会话失败:', error)
+      ElMessage.error(error.message || '创建会话失败')
+      return
+    }
+  }
 
   // 隐藏欢迎页
   showWelcome.value = false
@@ -269,6 +463,7 @@ const onSubmit = (text?: string) => {
   currentTextBlockIndex = messageBlocks.value.length - 1
 
   // 根据选择的模型调用不同的接口
+  console.log('📤 发送消息到会话:', activeConversationId.value)
   if (selectedModel.value === 'plan-execute') {
     fetchPlanExecuteData(content)
   } else {
@@ -279,8 +474,10 @@ const onSubmit = (text?: string) => {
 // React Agent 流式获取数据（使用统一的事件处理）
 const fetchStreamData = async (userMessage: string) => {
   try {
-    const abortController = ChatAPI.streamReactChat(userMessage, {
-      onEvent: (event: PlanExecuteEvent) => {
+    const abortController = ChatAPI.streamReactChat(
+      userMessage, 
+      {
+        onEvent: (event: PlanExecuteEvent) => {
         console.log('📬 收到 React 事件:', event)
         
         // 关闭加载状态
@@ -352,7 +549,9 @@ const fetchStreamData = async (userMessage: string) => {
         isConnected.value = false
         currentAbortController = null
       }
-    })
+    },
+    activeConversationId.value // 传递会话ID
+    )
 
     currentAbortController = abortController
     isConnected.value = true
@@ -371,7 +570,9 @@ const fetchStreamData = async (userMessage: string) => {
 // Plan-Execute Agent 流式获取数据
 const fetchPlanExecuteData = async (userMessage: string) => {
   try {
-    const abortController = ChatAPI.streamPlanExecuteChat(userMessage, {
+    const abortController = ChatAPI.streamPlanExecuteChat(
+      userMessage,
+      {
       onEvent: (event: PlanExecuteEvent) => {
         console.log('📬 收到事件:', event)
         
@@ -516,7 +717,9 @@ const fetchPlanExecuteData = async (userMessage: string) => {
         isConnected.value = false
         currentAbortController = null
       }
-    })
+    },
+    activeConversationId.value // 传递会话ID
+    )
 
     currentAbortController = abortController
     isConnected.value = true

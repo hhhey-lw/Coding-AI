@@ -55,7 +55,7 @@ export interface PlanExecuteCallbacks {
 /**
  * React Agent 流式聊天 - 使用统一的事件格式
  */
-function streamReactChat(message: string, callbacks: PlanExecuteCallbacks): AbortController {
+function streamReactChat(message: string, callbacks: PlanExecuteCallbacks, conversationId?: string): AbortController {
   const authStore = useAuthStore()
   const accessToken = authStore.getAccessToken()
   
@@ -63,9 +63,14 @@ function streamReactChat(message: string, callbacks: PlanExecuteCallbacks): Abor
   const abortController = new AbortController()
 
   // 构建 URL
-  const url = `${API_BASE_URL}/ai/agent/react?prompt=${encodeURIComponent(message)}`
+  const params = new URLSearchParams()
+  params.append('prompt', message)
+  if (conversationId) {
+    params.append('conversationId', conversationId)
+  }
+  const url = `${API_BASE_URL}/ai/agent/react?${params.toString()}`
 
-  console.log('🔗 开始 React Agent SSE 流式请求:', url)
+  console.log('🔗 开始 React Agent SSE 流式请求:', url, conversationId ? `(会话ID: ${conversationId})` : '')
 
   // 使用 fetch 发起请求
   fetch(url, {
@@ -362,7 +367,7 @@ async function sendMessage(message: string): Promise<any> {
 /**
  * Plan-Execute Agent 流式聊天
  */
-function streamPlanExecuteChat(message: string, callbacks: PlanExecuteCallbacks): AbortController {
+function streamPlanExecuteChat(message: string, callbacks: PlanExecuteCallbacks, conversationId?: string): AbortController {
   const authStore = useAuthStore()
   const accessToken = authStore.getAccessToken()
   
@@ -370,9 +375,14 @@ function streamPlanExecuteChat(message: string, callbacks: PlanExecuteCallbacks)
   const abortController = new AbortController()
 
   // 构建 URL
-  const url = `${API_BASE_URL}/ai/agent/plan-execute?prompt=${encodeURIComponent(message)}`
+  const params = new URLSearchParams()
+  params.append('prompt', message)
+  if (conversationId) {
+    params.append('conversationId', conversationId)
+  }
+  const url = `${API_BASE_URL}/ai/agent/plan-execute?${params.toString()}`
 
-  console.log('🔗 开始 Plan-Execute SSE 流式请求:', url)
+  console.log('🔗 开始 Plan-Execute SSE 流式请求:', url, conversationId ? `(会话ID: ${conversationId})` : '')
 
   // 使用 fetch 发起请求
   fetch(url, {

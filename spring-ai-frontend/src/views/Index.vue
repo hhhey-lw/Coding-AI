@@ -29,10 +29,6 @@
 
       <!-- 右上角用户信息 -->
       <div class="user-info">
-        <el-button type="primary" @click="$router.push('/chat')" style="margin-right: 16px">
-          <el-icon><ChatDotRound /></el-icon>
-          AI 助手
-        </el-button>
         <el-dropdown @command="handleUserCommand">
           <div class="user-avatar-wrapper">
             <el-avatar :size="40" :src="userInfo?.userAvatar || undefined">
@@ -63,10 +59,48 @@
     <div class="main-content">
       <!-- 探索页 -->
       <div v-show="currentTab === 'explore'" class="tab-content">
-        <div class="empty-state">
-          <el-icon :size="80" color="#909399"><Compass /></el-icon>
-          <h2>暂未开发</h2>
-          <p>探索功能正在开发中，敬请期待...</p>
+        <div class="explore-header">
+          <h2>Agent 智能体</h2>
+          <p class="explore-subtitle">探索强大的AI智能助手，帮助您完成各种任务</p>
+        </div>
+
+        <!-- Agent卡片网格 -->
+        <div class="agent-grid">
+          <!-- React Agent 卡片 -->
+          <div class="agent-card" @click="handleOpenAgent('react')">
+            <div class="agent-card-icon">
+              <el-icon :size="40" color="#409eff"><ChatDotRound /></el-icon>
+            </div>
+            <div class="agent-card-content">
+              <h3>React Agent</h3>
+              <p class="agent-description">
+                基于ReAct架构的智能对话助手，能够理解上下文并通过工具调用完成复杂任务
+              </p>
+              <div class="agent-features">
+                <span class="feature-tag">对话理解</span>
+                <span class="feature-tag">工具调用</span>
+                <span class="feature-tag">上下文记忆</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Plan-Execute Agent 卡片 -->
+          <div class="agent-card" @click="handleOpenAgent('plan-execute')">
+            <div class="agent-card-icon">
+              <el-icon :size="40" color="#67c23a"><Operation /></el-icon>
+            </div>
+            <div class="agent-card-content">
+              <h3>Plan-Execute Agent</h3>
+              <p class="agent-description">
+                规划执行型智能助手，擅长将复杂任务分解为步骤，逐步执行并生成高质量结果
+              </p>
+              <div class="agent-features">
+                <span class="feature-tag">任务规划</span>
+                <span class="feature-tag">分步执行</span>
+                <span class="feature-tag">进度追踪</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -115,7 +149,7 @@
             >
               <div class="workflow-card-header">
                 <h3 @click="handleOpenWorkflow(workflow)">{{ workflow.name }}</h3>
-                <el-dropdown trigger="click" @command="(cmd) => handleCardAction(cmd, workflow)">
+                <el-dropdown trigger="click" @command="(cmd: string) => handleCardAction(cmd, workflow)">
                   <el-icon class="card-menu-icon"><MoreFilled /></el-icon>
                   <template #dropdown>
                     <el-dropdown-menu>
@@ -194,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -205,7 +239,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 // 响应式数据
-const currentTab = ref('workbench')
+const currentTab = ref('explore')
 const showAccountDialog = ref(false)
 const loading = ref(false)
 const searchKeyword = ref('')
@@ -327,6 +361,14 @@ const handleOpenWorkflow = (workflow: WorkflowConfigVO) => {
   })
 }
 
+// 打开Agent
+const handleOpenAgent = (type: string) => {
+  router.push({
+    path: '/chat',
+    query: { model: type }
+  })
+}
+
 // 处理卡片操作
 const handleCardAction = async (command: string, workflow: WorkflowConfigVO) => {
   if (command === 'delete') {
@@ -359,7 +401,14 @@ const handleCardAction = async (command: string, workflow: WorkflowConfigVO) => 
   }
 }
 
-// 组件挂载时加载数据
+// 监听tab切换，切换到工作台时加载工作流列表
+watch(currentTab, (newTab) => {
+  if (newTab === 'workbench' && workflowList.value.length === 0) {
+    loadWorkflowList()
+  }
+})
+
+// 组件挂载时，如果默认是工作台则加载数据
 onMounted(() => {
   if (currentTab.value === 'workbench') {
     loadWorkflowList()
@@ -463,6 +512,108 @@ onMounted(() => {
   font-size: 14px;
 }
 
+/* 探索页 */
+.explore-header {
+  margin-bottom: 32px;
+}
+
+.explore-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.explore-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #909399;
+}
+
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.agent-card {
+  background: white;
+  border: 1px solid #e4e7ed;
+  border-radius: 12px;
+  padding: 24px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  gap: 20px;
+}
+
+.agent-card:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.agent-card-icon {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
+  border-radius: 12px;
+}
+
+.agent-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-card-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  transition: color 0.2s;
+}
+
+.agent-card:hover .agent-card-content h3 {
+  color: #409eff;
+}
+
+.agent-description {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.agent-features {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.feature-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #409eff;
+  background: #ecf5ff;
+  border: 1px solid #d9ecff;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.agent-card:hover .feature-tag {
+  background: #409eff;
+  color: white;
+  border-color: #409eff;
+}
+
 /* 工作台 */
 .workbench-header {
   display: flex;
@@ -555,6 +706,7 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   min-height: 42px;

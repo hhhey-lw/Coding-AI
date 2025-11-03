@@ -20,10 +20,7 @@ public class SupervisorAgent implements NodeAction {
 
     @Override
     public Map<String, Object> apply(OverAllState t) throws Exception {
-
-        String planStr = (String) t.value("plan").orElseThrow();
-        PlanningTool.Plan tempPlan = parsePlan(planStr);
-        PlanningTool.Plan plan = planningTool.getGraphPlan(tempPlan.getPlanId());
+        PlanningTool.Plan plan = planningTool.getGraphPlan();
 
         Optional<Object> optionalOutput = t.value("step_output");
 

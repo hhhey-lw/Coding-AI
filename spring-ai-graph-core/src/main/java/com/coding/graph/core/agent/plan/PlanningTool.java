@@ -114,8 +114,8 @@ public class PlanningTool implements BiFunction<PlanningTool.PlanningToolRequest
 	// 工具内部状态
 	// ======================
 	private final Map<String, Map<String, Object>> plans = new HashMap<>();     // 所有计划元数据
-	private final Map<String, Plan> graphPlans = new HashMap<>();              // 所有计划执行模型
-	private String currentPlanId;                                              // 当前活跃计划
+	private final Map<String, Plan> graphPlans = new HashMap<>();               // 所有计划执行模型
+	private final static ThreadLocal<String> currentPlanId = new ThreadLocal<>();      // 当前活跃计划
 
 	// ======================
 	// 工具注册与定义（Spring AI）
@@ -180,7 +180,7 @@ public class PlanningTool implements BiFunction<PlanningTool.PlanningToolRequest
 		Plan planModel = new Plan(title, planId, steps);
 		graphPlans.put(planId, planModel);
 
-		this.currentPlanId = planId;
+		this.currentPlanId.set(planId);
 
 		// 构造完整的计划信息JSON（字段与 Plan 类匹配）
 		Map<String, Object> planOutput = new HashMap<>();
@@ -195,13 +195,11 @@ public class PlanningTool implements BiFunction<PlanningTool.PlanningToolRequest
 		return new PlanningToolResponse(planJson, planId);
 	}
 
-	public Plan getGraphPlan(String planId) {
-		if (planId == null || planId.isEmpty()) {
-			if (currentPlanId == null) {
-				throw new RuntimeException("No active plan. Please specify a plan_id or set an active plan.");
-			}
-			planId = currentPlanId;
+	public Plan getGraphPlan() {
+		if (currentPlanId.get() == null) {
+			throw new RuntimeException("No active plan. Please specify a plan_id or set an active plan.");
 		}
+		String planId = currentPlanId.get();
 
 		if (!plans.containsKey(planId)) {
 			throw new RuntimeException("No plan found with ID: " + planId);
@@ -341,6 +339,10 @@ public class PlanningTool implements BiFunction<PlanningTool.PlanningToolRequest
 	}
 
 	public String getCurrentPlanId() {
-		return currentPlanId;
+		return currentPlanId.get();
+	}
+
+	public static void removeCurrentPlan() {
+		currentPlanId.remove();
 	}
 }
