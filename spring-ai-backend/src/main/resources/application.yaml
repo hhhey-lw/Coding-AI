@@ -8,10 +8,17 @@ server:
 
 spring:
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://121.40.252.207:3306/coding_oj?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai
-    password: longcoding
-    username: root
+    mysql:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://121.40.252.207:3306/coding_oj?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai
+      password: longcoding
+      username: root
+
+    postgresql:
+      driver-class-name: org.postgresql.Driver
+      url: jdbc:postgresql://121.4.116.162:5432/postgres
+      username: postgres
+      password: postgres
 
   # Web MVC配置
   mvc:
@@ -26,6 +33,16 @@ spring:
         chat:
           options:
             model: qwen-max
+        embedding:
+          options:
+            model: text-embedding-v3
+            dimensions: 1024
+#    vectorstore:
+#      pgvector:
+#        table-name: test_rag_vector
+#        initialize-schema: true
+#        dimensions: 1024
+#        index-type: hnsw
 
   data:
     redis:

@@ -1,17 +1,23 @@
 package com.coding.admin.config;
 
+import com.coding.admin.interceptor.AuthInterceptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
+
+    @Resource
+    private AuthInterceptor authInterceptor;
 
     /**
      * 配置全局 Jackson ObjectMapper，让所有 Long 类型字段在序列化为 JSON 时，变成字符串
@@ -48,5 +54,33 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedHeaders("*") // 允许所有请求头
                 .allowCredentials(false) // 是否允许发送 cookie，一般设为 false 除非需要 session/cookie
                 .maxAge(3600); // 预检请求缓存时间（单位：秒），减少重复预检
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(authInterceptor)
+                // 拦截所有请求
+                .addPathPatterns("/**")
+                // 排除登录注册相关接口
+                .excludePathPatterns(
+                        "/user/login",
+                        "/user/register",
+                        "/user/send-code",
+                        "/user/refresh-token",
+                        "/user/logout",
+                        // 排除Swagger相关路径
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/swagger-resources/**",
+                        "/webjars/**",
+                        "/doc.html",
+                        // 排除静态资源
+                        "/favicon.ico",
+                        "/error",
+                        // 测试接口
+                        "/ai/agent/**",
+                        // 知识库
+                        "/ai/knowledge/**"
+                );
     }
 }
