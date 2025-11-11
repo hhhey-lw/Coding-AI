@@ -19,19 +19,8 @@
 <!--        <spring-ai.version>1.0.0</spring-ai.version>-->
     </properties>
 
-<!--    <dependencyManagement>-->
-<!--        <dependencies>-->
-<!--            <dependency>-->
-<!--                <groupId>org.springframework.ai</groupId>-->
-<!--                <artifactId>spring-ai-bom</artifactId>-->
-<!--                <version>${spring-ai.version}</version>-->
-<!--                <type>pom</type>-->
-<!--                <scope>import</scope>-->
-<!--            </dependency>-->
-<!--        </dependencies>-->
-<!--    </dependencyManagement>-->
-
     <repositories>
+        <!-- spring central snapshots repository -->
         <repository>
             <id>spring-snapshots</id>
             <name>Spring Snapshots</name>
@@ -40,6 +29,7 @@
                 <enabled>false</enabled>
             </releases>
         </repository>
+        <!-- Maven central snapshots repository -->
         <repository>
             <name>Central Portal Snapshots</name>
             <id>central-portal-snapshots</id>
@@ -52,11 +42,11 @@
             </snapshots>
         </repository>
         <!-- GraalVM 官方 Maven 仓库 -->
-        <repository>
-            <id>graalvm-repo</id>
-            <name>GraalVM Maven Repository</name>
-            <url>https://maven.graalvm.org/maven2/</url>
-        </repository>
+<!--        <repository>-->
+<!--            <id>graalvm-repo</id>-->
+<!--            <name>GraalVM Maven Repository</name>-->
+<!--            <url>https://maven.graalvm.org/maven2/</url>-->
+<!--        </repository>-->
     </repositories>
 
     <dependencies>
@@ -171,6 +161,12 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-jsqlparser</artifactId>
             <version>3.5.9</version>
+        </dependency>
+        <!-- Dynamic DataSource -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>dynamic-datasource-spring-boot3-starter</artifactId>
+            <version>4.3.1</version>
         </dependency>
 
         <!-- 工具类 -->

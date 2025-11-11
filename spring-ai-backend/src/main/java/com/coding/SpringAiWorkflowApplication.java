@@ -9,8 +9,10 @@ import org.springframework.context.ConfigurableApplicationContext;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-@SpringBootApplication
-@MapperScan("com.coding.admin.mapper")
+@SpringBootApplication(exclude = {
+        org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration.class
+})
+@MapperScan({"com.coding.admin.mapper", "com.coding.admin.mapper.postgresql"})
 public class SpringAiWorkflowApplication {
 
     public static void main(String[] args) throws UnknownHostException {

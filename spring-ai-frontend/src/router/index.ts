@@ -9,6 +9,7 @@ import WorkflowDesigner from '../components/workflow/WorkflowDesigner.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import Chat from '../views/Chat.vue'
+import KnowledgeBaseDetail from '../views/KnowledgeBaseDetail.vue'
 
 // 定义路由配置
 const routes: Array<RouteRecordRaw> = [
@@ -47,6 +48,12 @@ const routes: Array<RouteRecordRaw> = [
     name: 'ChatLegacy',
     component: Chat,
     meta: { requiresAuth: true, title: 'AI 聊天助手（旧版）' }
+  },
+  {
+    path: '/knowledge-base/:id',
+    name: 'KnowledgeBaseDetail',
+    component: KnowledgeBaseDetail,
+    meta: { requiresAuth: true, title: '知识库详情' }
   }
 ]
 

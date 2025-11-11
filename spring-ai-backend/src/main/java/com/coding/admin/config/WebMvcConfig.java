@@ -80,7 +80,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 测试接口
                         "/ai/agent/**",
                         // 知识库
-                        "/ai/knowledge/**"
+                        "/ai/knowledge/**",
+                        "/api/knowledge-base/**",
+                        "/api/knowledge-vector/**"
                 );
     }
 }

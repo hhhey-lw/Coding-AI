@@ -195,11 +195,108 @@
       </div>
 
       <!-- 知识库 -->
-      <div v-show="currentTab === 'knowledge'" class="tab-content">
-        <div class="empty-state">
-          <el-icon :size="80" color="#909399"><Reading /></el-icon>
-          <h2>暂未开发</h2>
-          <p>知识库功能正在开发中，敬请期待...</p>
+      <div v-show="currentTab === 'knowledge'" class="tab-content knowledge-tab">
+        <!-- 头部操作栏 -->
+        <div class="knowledge-header">
+          <h2>知识库管理</h2>
+          <el-button type="primary" @click="showKnowledgeBaseDialog">
+            <el-icon><Plus /></el-icon>
+            新建知识库
+          </el-button>
+        </div>
+
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+          <el-input
+            v-model="knowledgeSearchForm.name"
+            placeholder="搜索知识库名称..."
+            clearable
+            style="width: 400px"
+            @keyup.enter="loadKnowledgeBaseList"
+            @clear="loadKnowledgeBaseList"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-button type="primary" @click="loadKnowledgeBaseList">
+            <el-icon><Search /></el-icon>
+            搜索
+          </el-button>
+        </div>
+
+        <!-- 知识库列表 -->
+        <div v-loading="knowledgeLoading" class="knowledge-list">
+          <div v-if="knowledgeBaseList.length === 0" class="empty-state">
+            <el-icon :size="60" color="#909399"><FolderOpened /></el-icon>
+            <p>暂无知识库，点击"新建知识库"开始创建</p>
+          </div>
+
+          <div v-else class="knowledge-grid">
+            <div
+              v-for="kb in knowledgeBaseList"
+              :key="kb.id"
+              class="knowledge-card"
+              @click="handleOpenKnowledgeBase(kb)"
+            >
+              <div class="card-header">
+                <div class="card-title-wrapper">
+                  <el-icon :size="20" color="#409eff"><Collection /></el-icon>
+                  <h3>{{ kb.name }}</h3>
+                </div>
+                <el-dropdown trigger="click" @command="(cmd: string) => handleKnowledgeCardAction(cmd, kb)">
+                  <el-icon class="card-menu-icon" @click.stop><MoreFilled /></el-icon>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="edit">
+                        <el-icon><Edit /></el-icon>
+                        编辑
+                      </el-dropdown-item>
+                      <el-dropdown-item command="delete" divided>
+                        <el-icon><Delete /></el-icon>
+                        删除
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+              <p class="card-description">
+                {{ kb.description || '暂无描述' }}
+              </p>
+              <div class="card-meta">
+                <span class="meta-item">
+                  <el-icon><Document /></el-icon>
+                  {{ kb.vectorCount }} 个向量
+                </span>
+                <span class="meta-item">
+                  <el-tag :type="kb.status === 1 ? 'success' : 'danger'" size="small" effect="plain">
+                    {{ kb.status === 1 ? '启用' : '禁用' }}
+                  </el-tag>
+                </span>
+              </div>
+              <div class="card-footer">
+                <span class="footer-time">
+                  <el-icon><Clock /></el-icon>
+                  {{ formatTime(kb.updateTime) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页 -->
+        <div v-if="knowledgeBaseList.length > 0" class="pagination-wrapper">
+          <div class="pagination-info">
+            <span>共 {{ knowledgeTotal }} 个知识库</span>
+          </div>
+          <el-pagination
+            v-model:current-page="knowledgeCurrentPage"
+            v-model:page-size="knowledgePageSize"
+            :total="knowledgeTotal"
+            layout="prev, pager, next"
+            background
+            @current-change="loadKnowledgeBaseList"
+          />
         </div>
       </div>
     </div>
@@ -224,16 +321,64 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 知识库新增/编辑对话框 -->
+    <el-dialog
+      v-model="knowledgeBaseDialogVisible"
+      :title="knowledgeBaseDialogTitle"
+      width="600px"
+      @close="() => knowledgeBaseFormRef?.resetFields()"
+    >
+      <el-form
+        ref="knowledgeBaseFormRef"
+        :model="knowledgeBaseForm"
+        :rules="knowledgeBaseRules"
+        label-width="100px"
+      >
+        <el-form-item label="知识库名称" prop="name">
+          <el-input
+            v-model="knowledgeBaseForm.name"
+            placeholder="请输入知识库名称"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input
+            v-model="knowledgeBaseForm.description"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入知识库描述"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-radio-group v-model="knowledgeBaseForm.status">
+            <el-radio :label="1">启用</el-radio>
+            <el-radio :label="0">禁用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="knowledgeBaseDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleKnowledgeBaseSubmit" :loading="knowledgeBaseSubmitLoading">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, reactive, type FormInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { AuthAPI } from '@/api/auth'
 import WorkflowAPI, { type WorkflowConfigVO } from '@/api/workflow'
+import { KnowledgeBaseAPI } from '@/api/knowledge'
+import type { KnowledgeBase, KnowledgeBaseAddRequest, KnowledgeBaseUpdateRequest } from '@/types/knowledge'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -247,6 +392,34 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const workflowList = ref<WorkflowConfigVO[]>([])
+
+// 知识库相关
+const knowledgeLoading = ref(false)
+const knowledgeBaseList = ref<KnowledgeBase[]>([])
+const knowledgeCurrentPage = ref(1)
+const knowledgePageSize = ref(12)
+const knowledgeTotal = ref(0)
+const knowledgeSearchForm = reactive({
+  name: ''
+})
+
+// 知识库对话框
+const knowledgeBaseDialogVisible = ref(false)
+const knowledgeBaseDialogTitle = ref('新建知识库')
+const knowledgeBaseFormRef = ref<FormInstance>()
+const knowledgeBaseSubmitLoading = ref(false)
+const knowledgeBaseForm = reactive<KnowledgeBaseAddRequest & { id?: number }>({
+  name: '',
+  description: '',
+  status: 1
+})
+
+const knowledgeBaseRules = {
+  name: [
+    { required: true, message: '请输入知识库名称', trigger: 'blur' },
+    { min: 1, max: 200, message: '长度在 1 到 200 个字符', trigger: 'blur' }
+  ]
+}
 
 // 计算属性
 const userInfo = computed(() => authStore.userInfo)
@@ -401,10 +574,129 @@ const handleCardAction = async (command: string, workflow: WorkflowConfigVO) => 
   }
 }
 
-// 监听tab切换，切换到工作台时加载工作流列表
+// ========== 知识库管理 ==========
+
+// 加载知识库列表
+const loadKnowledgeBaseList = async () => {
+  knowledgeLoading.value = true
+  try {
+    const response = await KnowledgeBaseAPI.page({
+      pageNum: knowledgeCurrentPage.value,
+      pageSize: knowledgePageSize.value,
+      name: knowledgeSearchForm.name || undefined
+    })
+
+    if (response.code === 1 && response.data) {
+      knowledgeBaseList.value = response.data.records
+      knowledgeTotal.value = response.data.total
+    } else {
+      ElMessage.error(response.message || '加载知识库列表失败')
+    }
+  } catch (error) {
+    console.error('加载知识库列表失败:', error)
+    ElMessage.error('加载知识库列表失败')
+  } finally {
+    knowledgeLoading.value = false
+  }
+}
+
+// 打开知识库详情
+const handleOpenKnowledgeBase = (kb: KnowledgeBase) => {
+  router.push(`/knowledge-base/${kb.id}`)
+}
+
+// 显示知识库对话框
+const showKnowledgeBaseDialog = () => {
+  knowledgeBaseDialogTitle.value = '新建知识库'
+  Object.assign(knowledgeBaseForm, {
+    name: '',
+    description: '',
+    status: 1
+  })
+  delete knowledgeBaseForm.id
+  knowledgeBaseDialogVisible.value = true
+}
+
+// 编辑知识库
+const handleEditKnowledgeBase = (kb: KnowledgeBase) => {
+  knowledgeBaseDialogTitle.value = '编辑知识库'
+  Object.assign(knowledgeBaseForm, {
+    id: kb.id,
+    name: kb.name,
+    description: kb.description,
+    status: kb.status
+  })
+  knowledgeBaseDialogVisible.value = true
+}
+
+// 知识库卡片操作
+const handleKnowledgeCardAction = async (command: string, kb: KnowledgeBase) => {
+  if (command === 'edit') {
+    handleEditKnowledgeBase(kb)
+  } else if (command === 'delete') {
+    try {
+      await ElMessageBox.confirm(
+        `确定要删除知识库 "${kb.name}" 吗？删除后将无法恢复。`,
+        '确认删除',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+      
+      const response = await KnowledgeBaseAPI.delete(kb.id)
+      if (response.code === 1) {
+        ElMessage.success('删除成功')
+        loadKnowledgeBaseList()
+      } else {
+        ElMessage.error(response.message || '删除失败')
+      }
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        console.error('删除知识库失败:', error)
+        ElMessage.error('删除失败')
+      }
+    }
+  }
+}
+
+// 提交知识库表单
+const handleKnowledgeBaseSubmit = async () => {
+  if (!knowledgeBaseFormRef.value) return
+
+  await knowledgeBaseFormRef.value.validate(async (valid) => {
+    if (valid) {
+      knowledgeBaseSubmitLoading.value = true
+      try {
+        const response = knowledgeBaseForm.id
+          ? await KnowledgeBaseAPI.update(knowledgeBaseForm as KnowledgeBaseUpdateRequest)
+          : await KnowledgeBaseAPI.add(knowledgeBaseForm)
+
+        if (response.code === 1) {
+          ElMessage.success(knowledgeBaseForm.id ? '更新成功' : '创建成功')
+          knowledgeBaseDialogVisible.value = false
+          loadKnowledgeBaseList()
+        } else {
+          ElMessage.error(response.message || '操作失败')
+        }
+      } catch (error) {
+        console.error('提交失败:', error)
+        ElMessage.error('操作失败')
+      } finally {
+        knowledgeBaseSubmitLoading.value = false
+      }
+    }
+  })
+}
+
+// 监听tab切换
 watch(currentTab, (newTab) => {
   if (newTab === 'workbench' && workflowList.value.length === 0) {
     loadWorkflowList()
+  }
+  if (newTab === 'knowledge' && knowledgeBaseList.value.length === 0) {
+    loadKnowledgeBaseList()
   }
 })
 
@@ -633,6 +925,7 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   margin-bottom: 24px;
+  margin-left: 24px;
 }
 
 .workflow-list {
@@ -811,6 +1104,162 @@ onMounted(() => {
 }
 
 .tab-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 知识库tab */
+.knowledge-tab {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+}
+
+.knowledge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 24px 0 24px;
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #303133;
+  }
+}
+
+.knowledge-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px;
+  min-height: 400px;
+}
+
+.knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.knowledge-card {
+  background: white;
+  border: 1px solid #e4e7ed;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+
+.knowledge-card:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.card-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color 0.2s;
+  }
+}
+
+.knowledge-card:hover .card-title-wrapper h3 {
+  color: #409eff;
+}
+
+.card-menu-icon {
+  font-size: 20px;
+  color: #909399;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.card-menu-icon:hover {
+  color: #303133;
+  background: #f5f7fa;
+}
+
+.card-description {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-height: 42px;
+  flex: 1;
+}
+
+.card-meta {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #909399;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #f5f7fa;
+}
+
+.footer-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #909399;
+}
+
+/* 知识库列表滚动条 */
+.knowledge-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.knowledge-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.knowledge-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.knowledge-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 </style>

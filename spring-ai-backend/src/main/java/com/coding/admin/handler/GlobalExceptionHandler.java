@@ -1,6 +1,7 @@
 package com.coding.admin.handler;
 
 import com.coding.admin.common.Result;
+import com.coding.workflow.exception.BizException;
 import io.swagger.v3.oas.annotations.Hidden;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,6 +32,15 @@ public class GlobalExceptionHandler {
     public Result<Void> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("参数异常: {}", e.getMessage());
         return Result.error(e.getMessage());
+    }
+
+    /**
+     * 业务异常
+     */
+    @ExceptionHandler(BizException.class)
+    public Result<Void> handleIllegalArgumentException(BizException e) {
+        log.warn("参数异常: {}", e.getError().getMessage());
+        return Result.error(e.getError().getMessage());
     }
 
     /**
