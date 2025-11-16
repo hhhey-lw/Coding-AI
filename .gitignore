@@ -4,7 +4,7 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-/spring-ai-frontend/node_modules/**
+/coding-ai-frontend/node_modules/**
 /../Java Project/VSCode-Plugin-Learning/**
 
 ### STS ###
@@ -34,6 +34,3 @@ build/
 
 ### VS Code ###
 .vscode/
-
-### Front node_modules ###
-/spring-ai-front/node_modules/**
