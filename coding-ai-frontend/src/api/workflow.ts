@@ -97,6 +97,26 @@ export interface WorkflowListParams {
   status?: number
 }
 
+// 工作流实例相关类型
+export interface WorkflowInstanceVO {
+  id: number
+  workflowConfigId: number
+  appId: number
+  version: string
+  inputParams: Record<string, any>
+  status: string
+  startTime: string
+  endTime: string
+  creator: number
+}
+
+export interface WorkflowInstanceListParams {
+  pageNum?: number
+  pageSize?: number
+  workflowConfigId?: number | string  // 支持字符串类型，避免大数字精度丢失
+  status?: string
+}
+
 // API 路径统一管理
 const API_PATHS = {
   // 工作流管理
@@ -107,7 +127,8 @@ const API_PATHS = {
     GET: '/ai/workflow/{id}',
     MY_LIST: '/ai/workflow/my/list',
     RUN: '/ai/workflow/run/{workflowId}',
-    RESULT: '/ai/workflow/result/{workflowInstanceId}'
+    RESULT: '/ai/workflow/result/{workflowInstanceId}',
+    INSTANCES: '/ai/workflow/instances'
   },
   // 模型管理
   MODEL: {
@@ -197,6 +218,13 @@ export class WorkflowAPI {
   static async getWorkflowResult(workflowInstanceId: string) {
     const url = API_PATHS.WORKFLOW.RESULT.replace('{workflowInstanceId}', workflowInstanceId)
     return get<{ data: any }>(url)
+  }
+
+  /**
+   * 获取工作流运行记录列表（分页）
+   */
+  static async getWorkflowInstances(params?: WorkflowInstanceListParams) {
+    return get<PageVO<WorkflowInstanceVO>>(API_PATHS.WORKFLOW.INSTANCES, params)
   }
 
   /**

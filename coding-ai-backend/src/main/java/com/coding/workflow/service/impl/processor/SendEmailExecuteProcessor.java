@@ -10,17 +10,13 @@ import com.coding.workflow.model.workflow.NodeResult;
 import com.coding.workflow.model.workflow.WorkflowContext;
 import com.coding.workflow.service.AbstractExecuteProcessor;
 import com.coding.workflow.utils.JsonUtils;
+import jakarta.mail.*;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.jgrapht.graph.DirectedAcyclicGraph;
 import org.springframework.stereotype.Component;
 
 import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.Authenticator;
-import jakarta.mail.PasswordAuthentication;
-import jakarta.mail.Session;
-import jakarta.mail.Transport;
-import jakarta.mail.Message;
 import jakarta.mail.internet.InternetAddress;
 
 import java.util.Map;
@@ -95,7 +91,7 @@ public class SendEmailExecuteProcessor extends AbstractExecuteProcessor {
     /**
      * 使用自定义认证信息发送邮件
      */
-    private boolean sendEmailWithAuth(String to, String subject, String content, String from, String authorization, boolean isHtml) {
+    private boolean sendEmailWithAuth(String to, String subject, String content, String from, String authorization, boolean isHtml) throws MessagingException {
         try {
             // 确定邮件服务器配置
             String mailHost = getMailHostFromEmail(from);
@@ -140,7 +136,7 @@ public class SendEmailExecuteProcessor extends AbstractExecuteProcessor {
 
         } catch (Exception e) {
             log.error("使用自定义认证发送邮件失败, from: {}, to: {}, error: {}", from, to, e.getMessage(), e);
-            return false;
+            throw e;
         }
     }
 

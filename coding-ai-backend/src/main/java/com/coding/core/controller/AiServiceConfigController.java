@@ -23,7 +23,7 @@ import java.util.List;
 @Tag(name = "服务管理")
 @RestController
 @RequiredArgsConstructor
-public class ServiceController {
+public class AiServiceConfigController {
 
     private final AiMcpConfigService aiMcpConfigService;
     private final AiModelConfigService aiModelConfigService;

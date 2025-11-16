@@ -11,7 +11,7 @@
     <groupId>com.coding</groupId>
     <artifactId>coding-ai-graph-core</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>spring-ai-graph-core</name>
+    <name>coding-ai-graph-core</name>
     <description>coding-ai-graph-core</description>
 
     <properties>
@@ -20,6 +20,8 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-ai.version>1.0.0</spring-ai.version>
+        <commons-collections4.version>4.4</commons-collections4.version>
+        <hutool.version>5.8.38</hutool.version>
     </properties>
 
     <dependencyManagement>
@@ -66,12 +68,12 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
-            <version>4.4</version>
+            <version>${commons-collections4.version}</version>
         </dependency>
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
-            <version>5.8.38</version>
+            <version>${hutool.version}</version>
         </dependency>
 
         <dependency>

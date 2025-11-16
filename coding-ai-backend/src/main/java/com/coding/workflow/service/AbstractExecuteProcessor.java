@@ -184,7 +184,7 @@ public abstract class AbstractExecuteProcessor implements ExecuteProcessor{
         }
 
         if (valueFrom.equals(ValueFromEnum.refer.name())) {
-            String expression = String.valueOf(value);
+            String expression = String.valueOf(value).trim();
             if (expression.startsWith("${") && expression.endsWith("}")) {
                 expression = expression.substring(2, expression.length() - 1);
             }
@@ -209,6 +209,11 @@ public abstract class AbstractExecuteProcessor implements ExecuteProcessor{
         if (StringUtils.isBlank(expression) || payload == null) {
             return null;
         }
+
+        if (expression.startsWith("${") && expression.endsWith("}")) {
+            expression = expression.substring(2, expression.length() - 1);
+        }
+
         Matcher matcher = VALID_EXPRESSION_PATTERN.matcher(expression);
         if (matcher.matches()) {
             // 将[]转为{}，适配array下的获取逻辑
@@ -359,6 +364,12 @@ public abstract class AbstractExecuteProcessor implements ExecuteProcessor{
         }
     }
 
+    /**
+     * 构建数组内容
+     * @param sourceList
+     * @param targetList
+     * @param outputParamsRefs
+     */
     private static void constructArray(List sourceList, List targetList, List<Node.OutputParam> outputParamsRefs) {
         if (sourceList == null || outputParamsRefs == null) {
             return;

@@ -118,6 +118,16 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
         return workflowConfigRepository.pageByUserId(userId, workflowName, pageNum, pageSize);
     }
 
+    @Override
+    public Page<WorkflowInstanceModel> getMyWorkflowInstancePage(Long workflowConfigId, String status, Integer pageNum, Integer pageSize) {
+        // 从UserContextHolder获取当前登录用户ID
+        Long userId = UserContextHolder.getUserId();
+        AssertUtil.isNotNull(userId, "用户未登录");
+
+        // 调用Repository分页查询工作流运行记录
+        return workflowInstanceRepository.pageByUserId(userId, workflowConfigId, status, pageNum, pageSize);
+    }
+
     // ==========> 辅助方法 <==========
 
     @PostConstruct

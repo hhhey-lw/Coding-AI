@@ -2,13 +2,16 @@ package com.coding.core.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.core.model.converter.WorkflowConfigConverter;
+import com.coding.core.model.converter.WorkflowInstanceConverter;
 import com.coding.core.model.model.WorkflowConfigModel;
+import com.coding.core.model.model.WorkflowInstanceModel;
 import com.coding.core.model.request.WorkflowConfigAddRequest;
 import com.coding.core.model.request.WorkflowConfigUpdateRequest;
 import com.coding.core.model.request.WorkflowConfigUpdateStatusRequest;
 import com.coding.core.model.response.WorkflowRunningResult;
 import com.coding.core.model.vo.PageVO;
 import com.coding.core.model.vo.WorkflowConfigVO;
+import com.coding.core.model.vo.WorkflowInstanceVO;
 import com.coding.core.service.WorkflowConfigService;
 import com.coding.core.common.Result;
 import com.coding.workflow.utils.AssertUtil;
@@ -111,6 +114,32 @@ public class WorkflowController {
             @Parameter(description = "工作流实例ID") @PathVariable String workflowInstanceId) {
         AssertUtil.isNotNull(workflowInstanceId, "工作流实例ID不能为空");
         return Result.success(workflowConfigService.getWorkflowRunningResult(workflowInstanceId));
+    }
+
+    @GetMapping("/instances")
+    @Operation(summary = "查询工作流运行记录", description = "分页查询当前用户的工作流运行记录")
+    public Result<PageVO<WorkflowInstanceVO>> getWorkflowInstancePage(
+            @Parameter(description = "页码，从1开始") @RequestParam(defaultValue = "1") Integer pageNum,
+            @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") Integer pageSize,
+            @Parameter(description = "工作流配置ID（可选）") @RequestParam(required = false) Long workflowConfigId,
+            @Parameter(description = "执行状态（可选）：RUNNING/SUCCESS/FAILED/PAUSED/STOPPED") @RequestParam(required = false) String status) {
+
+        Page<WorkflowInstanceModel> page = workflowConfigService.getMyWorkflowInstancePage(workflowConfigId, status, pageNum, pageSize);
+
+        // 结果转换为VO
+        List<WorkflowInstanceVO> voList = page.getRecords().stream()
+                .map(WorkflowInstanceConverter.INSTANCE::modelToVO)
+                .collect(java.util.stream.Collectors.toList());
+
+        // 构建分页响应
+        PageVO<WorkflowInstanceVO> pageVO = PageVO.of(
+                (int) page.getCurrent(),
+                (int) page.getSize(),
+                page.getTotal(),
+                voList
+        );
+
+        return Result.success("查询成功", pageVO);
     }
 
 }

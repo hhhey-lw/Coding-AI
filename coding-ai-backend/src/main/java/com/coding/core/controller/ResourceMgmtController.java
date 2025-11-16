@@ -13,14 +13,14 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 文件上传控制器
+ * 资源控制器
  */
 @Slf4j
 @RestController
 @RequestMapping("/file")
 @RequiredArgsConstructor
-@Tag(name = "文件管理")
-public class FileController {
+@Tag(name = "资源管理")
+public class ResourceMgmtController {
 
     private final ResourceRecordService resourceRecordService;
 

@@ -206,7 +206,7 @@
         </div>
 
         <!-- 搜索栏 -->
-        <div class="search-bar">
+        <div class="search-bar search-margin">
           <el-input
             v-model="knowledgeSearchForm.name"
             placeholder="搜索知识库名称..."
@@ -353,12 +353,12 @@
             show-word-limit
           />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="knowledgeBaseForm.status">
-            <el-radio :label="1">启用</el-radio>
-            <el-radio :label="0">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
+<!--        <el-form-item label="状态" prop="status">-->
+<!--          <el-radio-group v-model="knowledgeBaseForm.status">-->
+<!--            <el-radio :label="1">启用</el-radio>-->
+<!--            <el-radio :label="0">禁用</el-radio>-->
+<!--          </el-radio-group>-->
+<!--        </el-form-item>-->
       </el-form>
       <template #footer>
         <el-button @click="knowledgeBaseDialogVisible = false">取消</el-button>
@@ -925,6 +925,9 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   margin-bottom: 24px;
+}
+
+.search-margin {
   margin-left: 24px;
 }
 

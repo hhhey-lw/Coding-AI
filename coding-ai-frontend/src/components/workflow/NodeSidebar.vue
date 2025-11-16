@@ -3,7 +3,7 @@
     v-model="visible"
     title="节点配置"
     direction="rtl"
-    size="400px"
+    :size="drawerSize"
     :before-close="handleClose"
   >
     <template #header>
@@ -818,14 +818,25 @@
             </el-form-item>
             
             <el-form-item label="脚本内容">
-              <VariableInput
-                v-model="scriptConfig.scriptContent"
-                type="textarea"
-                :rows="12"
-                placeholder="请输入脚本内容，支持 $ 触发变量列表"
-                :available-variables="availableVariables"
-                @change="handleScriptConfigChange"
-              />
+              <div class="code-editor-container">
+                <CodeEditor
+                  v-model="scriptConfig.scriptContent"
+                  :language="scriptConfig.scriptType"
+                  placeholder="请输入脚本内容..."
+                  height="400px"
+                  @change="handleScriptConfigChange"
+                />
+                <el-button
+                  class="fullscreen-btn"
+                  size="small"
+                  type="primary"
+                  circle
+                  @click="openFullscreenEditor"
+                  title="全屏编辑"
+                >
+                  <el-icon><FullScreen /></el-icon>
+                </el-button>
+              </div>
             </el-form-item>
           </el-form>
           
@@ -1434,6 +1445,33 @@
       </div>
     </template>
   </el-drawer>
+
+  <!-- 全屏代码编辑器对话框 -->
+  <el-dialog
+    v-model="showFullscreenEditor"
+    title="脚本编辑器"
+    fullscreen
+    :close-on-click-modal="false"
+    class="fullscreen-editor-dialog"
+  >
+    <div class="fullscreen-editor-content">
+      <CodeEditor
+        v-model="fullscreenCode"
+        :language="scriptConfig.scriptType"
+        placeholder="请输入脚本内容..."
+        height="calc(100vh - 180px)"
+      />
+    </div>
+    
+    <template #footer>
+      <div class="fullscreen-editor-footer">
+        <el-button @click="showFullscreenEditor = false">取消</el-button>
+        <el-button type="primary" @click="saveFullscreenCode">
+          保存
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -1441,7 +1479,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { WorkflowNode } from '@/types/workflow'
 import VariableInput from './VariableInput.vue'
-import WorkflowAPI, { type McpServer, type ModelInfo, type FileUploadResponse } from '@/api/workflow'
+import CodeEditor from '../common/CodeEditor.vue'
+import WorkflowAPI, { type McpServer, type ModelInfo } from '@/api/workflow'
 
 // Props
 interface Props {
@@ -1473,6 +1512,19 @@ const nodeForm = ref({
 })
 
 const nodeConfig = ref<Record<string, any>>({})
+
+// 全屏编辑器相关
+const showFullscreenEditor = ref(false)
+const fullscreenCode = ref('')
+
+// 动态侧边栏宽度
+const drawerSize = computed(() => {
+  // 如果是脚本节点，使用更大的宽度
+  if (currentNode.value?.data?.type === 'Script') {
+    return '600px'
+  }
+  return '400px'
+})
 
 // 监听节点变化
 watch(() => props.node, (newNode) => {
@@ -2458,6 +2510,20 @@ const handleScriptConfigChange = () => {
       node_param: scriptConfig.value
     }
   }
+}
+
+// 打开全屏编辑器
+const openFullscreenEditor = () => {
+  fullscreenCode.value = scriptConfig.value.scriptContent || ''
+  showFullscreenEditor.value = true
+}
+
+// 保存全屏编辑器的代码
+const saveFullscreenCode = () => {
+  scriptConfig.value.scriptContent = fullscreenCode.value
+  handleScriptConfigChange()
+  showFullscreenEditor.value = false
+  ElMessage.success('代码已保存')
 }
 
 // 脚本节点输入参数方法
@@ -3726,6 +3792,44 @@ onMounted(() => {
   padding: 8px 0;
 }
 
+.code-editor-container {
+  position: relative;
+  width: 100%;
+}
+
+.fullscreen-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  opacity: 0.8;
+  transition: opacity 0.3s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.fullscreen-btn:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.script-node-config :deep(.code-editor-wrapper) {
+  margin-top: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.script-node-config :deep(.cm-editor) {
+  border-radius: 6px;
+  width: 100%;
+}
+
+.script-node-config :deep(.cm-scroller) {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
 .script-input-params {
   margin-top: 8px;
 }
@@ -3781,5 +3885,73 @@ onMounted(() => {
 
 .model-param-item :deep(.el-input) {
   flex: 1;
+}
+
+/* 全屏编辑器对话框样式 */
+.fullscreen-editor-dialog :deep(.el-dialog__header) {
+  padding: 0;
+  margin: 0;
+}
+
+.fullscreen-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.fullscreen-editor-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fullscreen-editor-header .title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.fullscreen-editor-header .header-right .el-button {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+}
+
+.fullscreen-editor-header .header-right .el-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.fullscreen-editor-content {
+  padding: 4px;
+  background: #1e1e1e;
+  height: calc(100vh - 180px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreen-editor-content :deep(.code-editor-wrapper) {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+}
+
+.fullscreen-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #f5f7fa;
+  border-top: 1px solid #e4e7ed;
+}
+
+.fullscreen-editor-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+
+.fullscreen-editor-dialog :deep(.el-dialog__footer) {
+  padding: 0;
 }
 </style>

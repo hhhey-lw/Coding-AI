@@ -1,5 +1,6 @@
 package com.coding.core.repository;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.core.model.model.WorkflowInstanceModel;
 
 /**
@@ -28,4 +29,15 @@ public interface WorkflowInstanceRepository {
      * 根据ID查询
      */
     WorkflowInstanceModel getById(String id);
+
+    /**
+     * 分页查询用户的工作流运行记录
+     * @param userId 用户ID
+     * @param workflowConfigId 工作流配置ID（可选）
+     * @param status 执行状态（可选）
+     * @param pageNum 页码
+     * @param pageSize 每页数量
+     * @return 分页结果
+     */
+    Page<WorkflowInstanceModel> pageByUserId(Long userId, Long workflowConfigId, String status, Integer pageNum, Integer pageSize);
 }

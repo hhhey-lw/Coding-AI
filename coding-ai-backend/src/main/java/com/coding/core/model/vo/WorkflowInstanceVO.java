@@ -1,5 +1,6 @@
 package com.coding.core.model.vo;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -33,9 +34,11 @@ public class WorkflowInstanceVO {
     @Schema(description = "执行状态：RUNNING / SUCCESS / FAILED / PAUSED / STOPPED")
     private String status;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @Schema(description = "工作流开始执行时间")
     private LocalDateTime startTime;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @Schema(description = "工作流结束执行时间")
     private LocalDateTime endTime;
 

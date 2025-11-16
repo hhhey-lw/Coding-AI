@@ -20,7 +20,7 @@ public class SandBoxManager {
     private static final String OUTPUT_DECORATE_PARAM_KEY = "output";
 
     private static final String SCRIPT_TYPE_PYTHON = "python";
-    private static final String SCRIPT_TYPE_JS = "javascript";
+    private static final String SCRIPT_TYPE_JS = "js";
 
     public Result<String> executePythonScript(String scriptContent, Map<String, Object> variables, String requestId) {
         return executeScript(SCRIPT_TYPE_PYTHON, scriptContent, variables, requestId);

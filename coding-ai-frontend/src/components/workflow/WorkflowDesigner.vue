@@ -28,6 +28,10 @@
             <el-icon><Delete /></el-icon>
             清空
           </el-button>
+          <el-button size="small" @click="handleShowRunHistory">
+            <el-icon><Document /></el-icon>
+            运行记录
+          </el-button>
         </el-button-group>
       </div>
       
@@ -218,36 +222,50 @@
               <p><strong>结束时间:</strong> {{ runResults.workflowInstanceVO.endTime }}</p>
             </div>
             
-            <h4>节点执行详情：</h4>
-            <div v-if="runResults?.workflowNodeInstanceVOList" class="node-results">
-              <div 
-                v-for="node in runResults.workflowNodeInstanceVOList" 
-                :key="node.id"
-                class="node-result-item"
-                :class="{
-                  'node-success': node.status === 'success',
-                  'node-executing': node.status === 'executing',
-                  'node-failed': node.status === 'failed'
-                }"
-              >
-                <div class="node-header">
-                  <span class="node-name">{{ node.nodeName }} ({{ node.nodeId }})</span>
-                  <span class="node-status">{{ node.status }}</span>
-                  <span v-if="node.executeTime" class="node-time">{{ node.executeTime }}</span>
-                </div>
-                <div v-if="node.output" class="node-output">
-                  <strong>输出:</strong> {{ node.output }}
-                </div>
-                <div v-if="node.errorInfo" class="node-error">
-                  <strong>错误:</strong> {{ node.errorInfo }}
-                </div>
+            <!-- 结束节点输出结果 -->
+            <div v-if="endNodeOutput" class="end-node-output">
+              <h4>输出结果：</h4>
+              <div class="output-content">
+                {{ endNodeOutput }}
               </div>
             </div>
             
-            <details class="raw-data">
-              <summary>原始数据</summary>
-              <pre>{{ JSON.stringify(runResults, null, 2) }}</pre>
-            </details>
+            <!-- 节点执行详情（可折叠） -->
+            <div class="node-details-section">
+              <div class="details-header" @click="showNodeDetails = !showNodeDetails">
+                <h4>节点执行详情</h4>
+                <el-icon class="toggle-icon" :class="{ 'expanded': showNodeDetails }">
+                  <ArrowRight />
+                </el-icon>
+              </div>
+              
+              <el-collapse-transition>
+                <div v-show="showNodeDetails" v-if="runResults?.workflowNodeInstanceVOList" class="node-results">
+                  <div 
+                    v-for="node in runResults.workflowNodeInstanceVOList" 
+                    :key="node.id"
+                    class="node-result-item"
+                    :class="{
+                      'node-success': node.status === 'success',
+                      'node-executing': node.status === 'executing',
+                      'node-failed': node.status === 'failed'
+                    }"
+                  >
+                    <div class="node-header">
+                      <span class="node-name">{{ node.nodeName }} ({{ node.nodeId }})</span>
+                      <span class="node-status">{{ node.status }}</span>
+                      <span v-if="node.executeTime" class="node-time">{{ node.executeTime }}</span>
+                    </div>
+                    <div v-if="node.output" class="node-output">
+                      <strong>输出:</strong> {{ node.output }}
+                    </div>
+                    <div v-if="node.errorInfo" class="node-error">
+                      <strong>错误:</strong> {{ node.errorInfo }}
+                    </div>
+                  </div>
+                </div>
+              </el-collapse-transition>
+            </div>
           </div>
         </div>
         
@@ -270,6 +288,55 @@
       </template>
     </el-dialog>
 
+    <!-- 运行记录对话框 -->
+    <el-dialog v-model="showRunHistoryDialog" title="工作流运行记录" width="900px">
+      <div class="run-history-content">
+        <el-table :data="runHistoryList" style="width: 100%" v-loading="isLoadingHistory">
+          <el-table-column prop="id" label="实例ID" min-width="100" />
+          <el-table-column prop="status" label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag 
+                :type="getStatusTagType(row.status)"
+                size="small"
+              >
+                {{ getStatusText(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="startTime" label="开始时间" min-width="160" />
+          <el-table-column prop="endTime" label="结束时间" min-width="160" />
+          <el-table-column label="操作" width="100" align="center">
+            <template #default="{ row }">
+              <el-button 
+                type="primary" 
+                size="small" 
+                @click="handleViewRunResult(row.id)"
+              >
+                查看结果
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        
+        <!-- 分页 -->
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="historyPageNum"
+            v-model:page-size="historyPageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="historyTotal"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleHistoryPageSizeChange"
+            @current-change="handleHistoryPageChange"
+          />
+        </div>
+      </div>
+      
+      <template #footer>
+        <el-button @click="showRunHistoryDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -278,6 +345,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { WorkflowConfig, WorkflowNode, WorkflowEdge, WorkflowConfigAddRequest } from '@/types/workflow'
+import type { WorkflowInstanceVO } from '@/api/workflow'
 import { WorkflowTransform } from '@/utils/workflowTransform'
 import WorkflowAPI from '@/api/workflow'
 import NodePalette from './NodePalette.vue'
@@ -298,10 +366,17 @@ const runStatus = ref<'idle' | 'running' | 'completed' | 'error'>('idle')
 const runResults = ref<any>(null)
 const runError = ref<string>('')
 const workflowEditorRef = ref<any>(null)
+const showNodeDetails = ref(false)
 const isLoading = ref(false)
 const inputParams = ref<Record<string, any>>({})
 const inputParamModes = ref<Record<string, 'upload' | 'url'>>({})
 const isUploadingParam = ref(false)
+const showRunHistoryDialog = ref(false)
+const runHistoryList = ref<WorkflowInstanceVO[]>([])
+const isLoadingHistory = ref(false)
+const historyPageNum = ref(1)
+const historyPageSize = ref(10)
+const historyTotal = ref(0)
 
 // 工作流配置
 const workflowConfig = ref<WorkflowConfig>({
@@ -339,6 +414,18 @@ const startNodeParams = computed(() => {
   
   const params = startNode.data.config?.input_params || []
   return params
+})
+
+// 获取结束节点的输出结果
+const endNodeOutput = computed(() => {
+  if (!runResults.value?.workflowNodeInstanceVOList) return null
+  
+  // 查找类型为 End 的节点
+  const endNode = runResults.value.workflowNodeInstanceVOList.find(
+    (node: any) => node.nodeType === 'End' || node.nodeName?.includes('结束')
+  )
+  
+  return endNode?.output || null
 })
 
 // 监听工作流配置变化，同步到设置表单
@@ -613,6 +700,7 @@ const handleRunWithParams = async () => {
     runStatus.value = 'running'
     runResults.value = null
     runError.value = ''
+    showNodeDetails.value = false  // 重置节点详情折叠状态
     showRunDialog.value = true
     
     // 调用API运行工作流，传递输入参数
@@ -865,6 +953,104 @@ const handleSettingsSave = async () => {
     ElMessage.error('保存失败，请稍后重试')
   }
 }
+
+// 显示运行记录
+const handleShowRunHistory = async () => {
+  if (!workflowConfig.value.id) {
+    ElMessage.warning('请先保存工作流')
+    return
+  }
+  
+  showRunHistoryDialog.value = true
+  await loadRunHistory()
+}
+
+// 加载运行记录
+const loadRunHistory = async () => {
+  try {
+    isLoadingHistory.value = true
+    
+    const response = await WorkflowAPI.getWorkflowInstances({
+      workflowConfigId: workflowConfig.value.id!,  // 直接传字符串，避免精度丢失
+      pageNum: historyPageNum.value,
+      pageSize: historyPageSize.value
+    })
+    
+    if (response.code === 1 && response.data) {
+      runHistoryList.value = response.data.list
+      historyTotal.value = parseInt(response.data.total)
+    } else {
+      ElMessage.error(response.message || '加载运行记录失败')
+    }
+  } catch (error) {
+    console.error('加载运行记录失败:', error)
+    ElMessage.error('加载运行记录失败')
+  } finally {
+    isLoadingHistory.value = false
+  }
+}
+
+// 分页变化
+const handleHistoryPageChange = (page: number) => {
+  historyPageNum.value = page
+  loadRunHistory()
+}
+
+const handleHistoryPageSizeChange = (size: number) => {
+  historyPageSize.value = size
+  historyPageNum.value = 1
+  loadRunHistory()
+}
+
+// 查看运行结果
+const handleViewRunResult = async (instanceId: number) => {
+  try {
+    console.log('查看运行结果，实例ID:', instanceId)
+    
+    const resultResponse = await WorkflowAPI.getWorkflowResult(instanceId.toString())
+    console.log('运行结果响应:', resultResponse)
+    
+    if (resultResponse.code === 1 && resultResponse.data) {
+      // 关闭运行记录对话框
+      showRunHistoryDialog.value = false
+      
+      // 设置运行结果并显示结果对话框
+      runResults.value = resultResponse.data
+      runStatus.value = 'completed'
+      showNodeDetails.value = false
+      showRunDialog.value = true
+    } else {
+      ElMessage.error(resultResponse.message || '获取运行结果失败')
+    }
+  } catch (error) {
+    console.error('获取运行结果失败:', error)
+    ElMessage.error('获取运行结果失败')
+  }
+}
+
+// 获取状态标签类型
+const getStatusTagType = (status: string) => {
+  const statusMap: Record<string, any> = {
+    'SUCCESS': 'success',
+    'EXECUTING': 'warning',
+    'FAIL': 'danger',
+    'STOP': 'info',
+    'TIMEOUT': 'danger'
+  }
+  return statusMap[status] || 'info'
+}
+
+// 获取状态文本
+const getStatusText = (status: string) => {
+  const statusMap: Record<string, string> = {
+    'SUCCESS': '成功',
+    'EXECUTING': '执行中',
+    'FAIL': '失败',
+    'STOP': '已停止',
+    'TIMEOUT': '超时'
+  }
+  return statusMap[status] || status
+}
 </script>
 
 <style scoped>
@@ -1073,6 +1259,7 @@ const handleSettingsSave = async () => {
 
 /* 节点执行结果样式 */
 .node-results {
+  margin-top: 12px;
   margin-bottom: 16px;
 }
 
@@ -1159,22 +1346,77 @@ const handleSettingsSave = async () => {
   color: #991b1b;
 }
 
-/* 原始数据折叠样式 */
-.raw-data {
-  margin-top: 16px;
+/* 结束节点输出结果样式 */
+.end-node-output {
+  margin-top: 20px;
+  padding: 0;
+  background: transparent;
 }
 
-.raw-data summary {
+.end-node-output h4 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.end-node-output .output-content {
+  background: linear-gradient(to bottom right, #f0f9ff, #e0f2fe);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+  color: #0c4a6e;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.end-node-output .output-content:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  border-color: #7dd3fc;
+}
+
+/* 节点详情折叠区域样式 */
+.node-details-section {
+  margin-top: 20px;
+}
+
+.details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
   cursor: pointer;
-  padding: 8px;
+  transition: all 0.2s ease;
+}
+
+.details-header:hover {
   background: #f3f4f6;
-  border-radius: 4px;
-  font-weight: 500;
+  border-color: #d1d5db;
+}
+
+.details-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
   color: #374151;
 }
 
-.raw-data summary:hover {
-  background: #e5e7eb;
+.toggle-icon {
+  transition: transform 0.3s ease;
+  color: #6b7280;
+}
+
+.toggle-icon.expanded {
+  transform: rotate(90deg);
 }
 
 /* 输入参数描述样式 */
@@ -1238,5 +1480,35 @@ const handleSettingsSave = async () => {
   height: 100%;
   background: #f5f7fa;
   color: #909399;
+}
+
+/* 运行记录对话框样式 */
+.run-history-content {
+  padding: 0;
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+:deep(.el-table) {
+  font-size: 14px;
+}
+
+:deep(.el-table th) {
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+}
+
+:deep(.el-table td) {
+  color: #6b7280;
+}
+
+:deep(.el-table .el-button--small) {
+  padding: 5px 12px;
+  font-size: 13px;
 }
 </style>

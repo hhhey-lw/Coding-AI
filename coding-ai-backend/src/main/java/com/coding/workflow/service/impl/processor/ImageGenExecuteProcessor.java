@@ -73,7 +73,9 @@ public class ImageGenExecuteProcessor extends AbstractExecuteProcessor {
                     .modelId(param.getModel())
                     .prompt(finalPrompt)
                     .size(param.getImgSize())
-                    .imageUrls(param.getImageUrls())
+                    .imageUrls(param.getImageUrls().stream()
+                            .map(urlVar -> getValueFromPayload(urlVar, context.getVariablesMap()).toString())
+                            .toList())
                     .maxImages(param.getMaxImages())
                     .watermark(param.getWatermark())
                     .build();

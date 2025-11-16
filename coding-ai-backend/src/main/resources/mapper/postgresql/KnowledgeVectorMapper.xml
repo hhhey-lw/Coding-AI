@@ -33,13 +33,13 @@
     <update id="updateById" parameterType="com.coding.core.model.entity.KnowledgeVectorDO">
         UPDATE knowledge_vector
         SET
-            <if test="content != null">content = #{content},</if>
-            <if test="metadata != null">metadata = #{metadata},</if>
-            <if test="embedding != null">embedding = #{embedding}::vector,</if>
-            <if test="fileName != null">file_name = #{fileName},</if>
-            <if test="fileType != null">file_type = #{fileType},</if>
-            update_time = #{updateTime}
-        WHERE id = #{id}
+            <if test="et.content != null">content = #{et.content},</if>
+            <if test="et.metadata != null">metadata = #{et.metadata},</if>
+            <if test="et.embedding != null">embedding = #{et.embedding}::vector,</if>
+            <if test="et.fileName != null">file_name = #{et.fileName},</if>
+            <if test="et.fileType != null">file_type = #{et.fileType},</if>
+            update_time = #{et.updateTime}
+        WHERE id = #{et.id}
     </update>
 
     <select id="countByKnowledgeBaseId" resultType="java.lang.Long">

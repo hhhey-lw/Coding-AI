@@ -2,6 +2,7 @@ package com.coding.core.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.core.model.model.WorkflowConfigModel;
+import com.coding.core.model.model.WorkflowInstanceModel;
 import com.coding.core.model.response.WorkflowRunningResult;
 
 import java.util.List;
@@ -58,4 +59,14 @@ public interface WorkflowConfigService {
      * @return 分页结果
      */
     Page<WorkflowConfigModel> getMyWorkflowPage(String workflowName, Integer pageNum, Integer pageSize);
+
+    /**
+     * 分页查询当前用户的工作流运行记录
+     * @param workflowConfigId 工作流配置ID（可选）
+     * @param status 执行状态（可选）
+     * @param pageNum 页码
+     * @param pageSize 每页数量
+     * @return 分页结果
+     */
+    Page<WorkflowInstanceModel> getMyWorkflowInstancePage(Long workflowConfigId, String status, Integer pageNum, Integer pageSize);
 }
