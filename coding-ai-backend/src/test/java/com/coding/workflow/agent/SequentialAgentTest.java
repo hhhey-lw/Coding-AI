@@ -43,7 +43,8 @@ public class SequentialAgentTest {
 
         boolean isStream = true;
 
-        ReactAgent proseWriterAgent = ReactAgent.build(chatModel, ReactAgent.builder()
+        ReactAgent proseWriterAgent = ReactAgent.builder()
+                .chatModel(chatModel)
                 .name("writer_agent")
                 .modelName("qwen-plus")
                 .description("可以写文章。")
@@ -51,9 +52,10 @@ public class SequentialAgentTest {
                 .stream(isStream)
                 .inputKey("messages")
                 .outputKey("article")
-                .build());
+                .build();
 
-        ReactAgent poemWriterAgent = ReactAgent.build(chatModel, ReactAgent.builder()
+        ReactAgent poemWriterAgent = ReactAgent.builder()
+                .chatModel(chatModel)
                 .name("reviewer_agent")
                 .modelName("qwen-plus")
                 .description("可以对文章进行评论和修改。")
@@ -61,7 +63,7 @@ public class SequentialAgentTest {
                 .stream(isStream)
                 .inputKey("messages")
                 .outputKey("reviewed_article")
-                .build());
+                .build();
 
         SequentialAgent blogAgent = SequentialAgent.builder()
                 .name("blog_agent")
@@ -80,8 +82,7 @@ public class SequentialAgentTest {
             Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().unicast().onBackpressureBuffer();
             processStream(stream, sink).get();
             Thread.sleep(10000L);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -94,8 +95,7 @@ public class SequentialAgentTest {
                 String content;
                 if (output instanceof StreamingOutput streamingOutput) {
                     content = JSONUtil.toJsonStr(Map.of(nodeName, streamingOutput.getChatResponse().getResult().getOutput().getText()));
-                }
-                else {
+                } else {
                     JSONObject nodeOutput = new JSONObject();
                     nodeOutput.put("data", output.getState().data());
                     nodeOutput.put("node", nodeName);
@@ -103,8 +103,7 @@ public class SequentialAgentTest {
                 }
                 System.out.println("Received output: " + content);
                 sink.tryEmitNext(ServerSentEvent.builder(content).build());
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 throw new CompletionException(e);
             }
         }).thenAccept(v -> {

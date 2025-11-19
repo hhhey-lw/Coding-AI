@@ -4,12 +4,14 @@ import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import org.springframework.stereotype.Component;
 
 import java.util.function.Function;
 
 /**
  * 调整为音乐生成服务
  */
+@Component
 public class MusicGenerateService implements Function<MusicGenerateService.Request, MusicGenerateService.Response> {
 
     @Override

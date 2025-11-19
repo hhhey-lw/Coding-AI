@@ -64,7 +64,7 @@ public class AiAgentController {
 
     @PostConstruct
     private void init() throws GraphStateException {
-        this.reactAgent = agentManager.buildAgent();
+        this.reactAgent = agentManager.buildReactAgent();
         this.planExecuteAgent = agentManager.buildPlanExecuteAgent();
     }
 
@@ -157,7 +157,7 @@ public class AiAgentController {
                                         .reasoning(message.getText() != null && !message.getText().isEmpty() ? message.getText() : null)
                                         .build();
                                 
-                                log.info("🛠️ [React 工具调用] tools: {}", event.getToolCalls().size());
+                                // log.info("🛠️ [React 工具调用] tools: {}", event.getToolCalls().size());
                             } else {
                                 // 普通流式文本内容，累积到 StringBuilder 中
                                 String content = message.getText();
@@ -178,7 +178,7 @@ public class AiAgentController {
                                     .data(jsonContent)
                                     .name("react-agent"));
 
-                            log.info("📝 [React 执行] content: {}", jsonContent);
+                            // log.info("📝 [React 执行] content: {}", jsonContent);
 
                         } catch (IOException e) {
                             log.error("❌ 发送消息失败", e);

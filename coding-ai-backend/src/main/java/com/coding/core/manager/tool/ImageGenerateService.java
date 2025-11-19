@@ -4,12 +4,14 @@ import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import org.springframework.stereotype.Component;
 
 import java.util.function.Function;
 
 /**
  * TODO 调整为图片生成服务
  */
+@Component
 public class ImageGenerateService implements Function<ImageGenerateService.Request, ImageGenerateService.Response> {
     
     @Override
@@ -22,7 +24,7 @@ public class ImageGenerateService implements Function<ImageGenerateService.Reque
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonClassDescription("图片生成请求")
     public record Request(@JsonProperty(required = true, value = "prompt") @JsonPropertyDescription("生成图片的提示词") String prompt,
-                          @JsonProperty(required = true, value = "referenceImage") @JsonPropertyDescription("参考图URL地址") String referenceImage){}
+                          @JsonProperty(required = false, value = "referenceImage") @JsonPropertyDescription("参考图URL地址") String referenceImage){}
 
     public record Response(String imageUrl){}
 }

@@ -355,87 +355,291 @@ public class ReactAgent extends BaseAgent {
 		return description;
 	}
 
-	public static ReactAgent.Builder.BuilderBuilder builder() {
-		return Builder.builder();
-	}
-
-	public static ReactAgent build(ChatModel chatModel, ReactAgent.Builder builder) throws GraphStateException {
-		ChatClient chatClient = ChatClient.builder(Objects.requireNonNull(chatModel))
-				// 实现 Logger 的 Advisor
-				.defaultAdvisors(
-						new SimpleLoggerAdvisor()
-				)
-				// 设置 ChatClient 中 ChatModel 的 Options 参数
-				.defaultOptions(
-						OpenAiChatOptions.builder()
-								.internalToolExecutionEnabled(false)
-								.parallelToolCalls(false)
-								.model(builder.modelName)
-								.build()
-				)
-				.build();
-
-		return build(chatClient, builder);
-
-	}
-
-	public static ReactAgent build(ChatClient chatClient, Builder builder) throws GraphStateException {
-		LlmNode llmNode = LlmNode.builder()
-				.systemPrompt(builder.instruction)
-				.chatClient(chatClient)
-				.toolCallbacks(builder.tools)
-				.model(builder.modelName)
-				.messagesKey(builder.inputKey)
-				.stream(Objects.nonNull(builder.stream) ? builder.stream : true)
-				.build();
-
-		ToolNode toolNode = ToolNode.builder()
-				.llmResponseKey(LlmNode.LLM_RESPONSE_KEY)
-				.toolCallbackResolver(builder.resolver)
-				.toolCallbacks(builder.tools)
-				.build();
-
-		return new ReactAgent(llmNode, toolNode, builder);
+	/**
+	 * 创建 ReactAgent 构建器
+	 * @return Builder 实例
+	 */
+	public static Builder builder() {
+		return new Builder();
 	}
 
 	/**
 	 * ReactAgent 的构建器类
+	 * 支持链式调用，一次 build() 完成所有构建
 	 */
-	@lombok.Builder
 	public static class Builder {
 
+		// 必需参数
 		private String name;
 		private String modelName;
-
-		private String description;
-
 		private String instruction;
 
+		// 可选参数 - 基本配置
+		private String description;
 		private String outputKey;
+		private String inputKey = "messages";
+		private int maxIterations = 10;
+		private Boolean stream = true;
 
+		// 可选参数 - 工具相关
 		private List<ToolCallback> tools;
-
 		private ToolCallbackResolver resolver;
 
-		private int maxIterations = 10;
-
+		// 可选参数 - 高级配置
 		private CompileConfig compileConfig;
-
 		private KeyStrategyFactory keyStrategyFactory;
-
 		private Function<OverAllState, Boolean> shouldContinueFunc;
 
+		// 可选参数 - 钩子函数
 		private NodeAction preLlmHook;
-
 		private NodeAction postLlmHook;
-
 		private NodeAction preToolHook;
-
 		private NodeAction postToolHook;
 
-		private String inputKey = "messages";
-		private boolean stream;
+		// 可选参数 - 外部依赖（如果提供，则不自动创建）
+		private ChatClient chatClient;
+		private ChatModel chatModel;
+		private LlmNode llmNode;
+		private ToolNode toolNode;
 
+		private Builder() {
+		}
+
+		// ==================== 必需参数 ====================
+
+		public Builder name(String name) {
+			this.name = name;
+			return this;
+		}
+
+		public Builder modelName(String modelName) {
+			this.modelName = modelName;
+			return this;
+		}
+
+		public Builder instruction(String instruction) {
+			this.instruction = instruction;
+			return this;
+		}
+
+		// ==================== 可选参数 - 基本配置 ====================
+
+		public Builder description(String description) {
+			this.description = description;
+			return this;
+		}
+
+		public Builder outputKey(String outputKey) {
+			this.outputKey = outputKey;
+			return this;
+		}
+
+		public Builder inputKey(String inputKey) {
+			this.inputKey = inputKey;
+			return this;
+		}
+
+		public Builder maxIterations(int maxIterations) {
+			this.maxIterations = maxIterations;
+			return this;
+		}
+
+		public Builder stream(boolean stream) {
+			this.stream = stream;
+			return this;
+		}
+
+		// ==================== 可选参数 - 工具相关 ====================
+
+		public Builder tools(List<ToolCallback> tools) {
+			this.tools = tools;
+			return this;
+		}
+
+		public Builder resolver(ToolCallbackResolver resolver) {
+			this.resolver = resolver;
+			return this;
+		}
+
+		// ==================== 可选参数 - 高级配置 ====================
+
+		public Builder compileConfig(CompileConfig compileConfig) {
+			this.compileConfig = compileConfig;
+			return this;
+		}
+
+		public Builder keyStrategyFactory(KeyStrategyFactory keyStrategyFactory) {
+			this.keyStrategyFactory = keyStrategyFactory;
+			return this;
+		}
+
+		public Builder shouldContinueFunc(Function<OverAllState, Boolean> shouldContinueFunc) {
+			this.shouldContinueFunc = shouldContinueFunc;
+			return this;
+		}
+
+		// ==================== 可选参数 - 钩子函数 ====================
+
+		public Builder preLlmHook(NodeAction preLlmHook) {
+			this.preLlmHook = preLlmHook;
+			return this;
+		}
+
+		public Builder postLlmHook(NodeAction postLlmHook) {
+			this.postLlmHook = postLlmHook;
+			return this;
+		}
+
+		public Builder preToolHook(NodeAction preToolHook) {
+			this.preToolHook = preToolHook;
+			return this;
+		}
+
+		public Builder postToolHook(NodeAction postToolHook) {
+			this.postToolHook = postToolHook;
+			return this;
+		}
+
+		// ==================== 可选参数 - 外部依赖 ====================
+
+		/**
+		 * 提供外部创建的 ChatClient
+		 * 如果提供，将使用此 ChatClient 而不是从 ChatModel 创建
+		 */
+		public Builder chatClient(ChatClient chatClient) {
+			this.chatClient = chatClient;
+			return this;
+		}
+
+		/**
+		 * 提供 ChatModel，Builder 将自动创建 ChatClient
+		 * 如果已提供 chatClient，此参数将被忽略
+		 */
+		public Builder chatModel(ChatModel chatModel) {
+			this.chatModel = chatModel;
+			return this;
+		}
+
+		/**
+		 * 提供外部创建的 LlmNode
+		 * 如果提供，将使用此 LlmNode 而不是自动创建
+		 */
+		public Builder llmNode(LlmNode llmNode) {
+			this.llmNode = llmNode;
+			return this;
+		}
+
+		/**
+		 * 提供外部创建的 ToolNode
+		 * 如果提供，将使用此 ToolNode 而不是自动创建
+		 */
+		public Builder toolNode(ToolNode toolNode) {
+			this.toolNode = toolNode;
+			return this;
+		}
+
+		// ==================== 构建方法 ====================
+
+		/**
+		 * 构建 ReactAgent 实例
+		 * @return ReactAgent 实例
+		 * @throws GraphStateException 图状态异常
+		 * @throws IllegalStateException 如果必需参数未设置
+		 */
+		public ReactAgent build() throws GraphStateException {
+			// 验证必需参数
+			validateRequiredParameters();
+
+			// 创建或使用提供的 LlmNode
+			LlmNode finalLlmNode = this.llmNode != null ? this.llmNode : createLlmNode();
+
+			// 创建或使用提供的 ToolNode
+			ToolNode finalToolNode = this.toolNode != null ? this.toolNode : createToolNode();
+
+			// 创建内部 Builder 对象（用于传递给 ReactAgent 构造函数）
+			Builder internalBuilder = new Builder();
+			internalBuilder.name = this.name;
+			internalBuilder.description = this.description;
+			internalBuilder.instruction = this.instruction;
+			internalBuilder.outputKey = this.outputKey;
+			internalBuilder.inputKey = this.inputKey;
+			internalBuilder.maxIterations = this.maxIterations;
+			internalBuilder.compileConfig = this.compileConfig;
+			internalBuilder.keyStrategyFactory = this.keyStrategyFactory;
+			internalBuilder.shouldContinueFunc = this.shouldContinueFunc;
+			internalBuilder.preLlmHook = this.preLlmHook;
+			internalBuilder.postLlmHook = this.postLlmHook;
+			internalBuilder.preToolHook = this.preToolHook;
+			internalBuilder.postToolHook = this.postToolHook;
+
+			return new ReactAgent(finalLlmNode, finalToolNode, internalBuilder);
+		}
+
+		/**
+		 * 验证必需参数
+		 */
+		private void validateRequiredParameters() {
+			// 如果没有提供外部的 LlmNode，则需要验证创建 LlmNode 所需的参数
+			if (this.llmNode == null) {
+				if (this.name == null || this.name.trim().isEmpty()) {
+					throw new IllegalStateException("name is required");
+				}
+				if (this.instruction == null || this.instruction.trim().isEmpty()) {
+					throw new IllegalStateException("instruction is required");
+				}
+				if (this.chatClient == null && this.chatModel == null) {
+					throw new IllegalStateException("Either chatClient or chatModel must be provided");
+				}
+			}
+		}
+
+		/**
+		 * 创建 LlmNode
+		 */
+		private LlmNode createLlmNode() {
+			// 获取或创建 ChatClient
+			ChatClient finalChatClient = this.chatClient != null ? this.chatClient : createChatClient();
+
+			return LlmNode.builder()
+					.systemPrompt(this.instruction)
+					.chatClient(finalChatClient)
+					.toolCallbacks(this.tools)
+					.model(this.modelName)
+					.messagesKey(this.inputKey)
+					.stream(this.stream)
+					.build();
+		}
+
+		/**
+		 * 从 ChatModel 创建 ChatClient
+		 */
+		private ChatClient createChatClient() {
+			if (this.chatModel == null) {
+				throw new IllegalStateException("chatModel is required when chatClient is not provided");
+			}
+
+			return ChatClient.builder(this.chatModel)
+					.defaultAdvisors(new SimpleLoggerAdvisor())
+					.defaultOptions(
+							OpenAiChatOptions.builder()
+									.internalToolExecutionEnabled(false)
+									.parallelToolCalls(false)
+									.model(this.modelName)
+									.build()
+					)
+					.build();
+		}
+
+		/**
+		 * 创建 ToolNode
+		 */
+		private ToolNode createToolNode() {
+			return ToolNode.builder()
+					.llmResponseKey(LlmNode.LLM_RESPONSE_KEY)
+					.toolCallbackResolver(this.resolver)
+					.toolCallbacks(this.tools)
+					.build();
+		}
 	}
 	/**
 	 * 子图节点适配器，用于将子图封装为同步节点操作。

@@ -4,7 +4,10 @@ import com.coding.graph.core.generator.AsyncGenerator;
 import com.coding.graph.core.node.NodeOutput;
 import com.coding.graph.core.node.StreamingOutput;
 import com.coding.graph.core.state.OverAllState;
+import org.apache.commons.lang3.StringUtils;
 import org.reactivestreams.FlowAdapters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -23,6 +26,8 @@ import static java.util.Objects.requireNonNull;
  * 流式聊天生成器接口。
  */
 public interface StreamingChatGenerator {
+
+    Logger log = LoggerFactory.getLogger(StreamingChatGenerator.class);
 
     static Builder builder() {
         return new Builder();

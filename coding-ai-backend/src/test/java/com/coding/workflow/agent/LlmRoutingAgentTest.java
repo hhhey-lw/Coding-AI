@@ -43,25 +43,27 @@ public class LlmRoutingAgentTest {
 
         boolean isStream = true;
 
-        ReactAgent proseWriterAgent = ReactAgent.build(chatModel, ReactAgent.builder()
-                        .name("prose_writer_agent")
-                        .modelName("qwen-plus")
-                        .description("可以写散文文章。")
-                        .instruction("你是一个知名的作家，擅长写散文。请根据用户的提问进行回答。")
-                        .stream(isStream)
-                        .inputKey("messages")
-                        .outputKey("prose_article")
-                        .build());
+        ReactAgent proseWriterAgent = ReactAgent.builder()
+                .name("prose_writer_agent")
+                .modelName("qwen-plus")
+                .description("可以写散文文章。")
+                .instruction("你是一个知名的作家，擅长写散文。请根据用户的提问进行回答。")
+                .chatModel(chatModel)
+                .stream(isStream)
+                .inputKey("messages")
+                .outputKey("prose_article")
+                .build();
 
-        ReactAgent poemWriterAgent = ReactAgent.build(chatModel, ReactAgent.builder()
-                        .name("poem_writer_agent")
-                        .modelName("qwen-plus")
-                        .description("可以写现代诗。")
-                        .instruction("你是一个知名的诗人，擅长写现代诗。请根据用户的提问进行回答。")
-                        .stream(isStream)
-                        .inputKey("messages")
-                        .outputKey("poem_article")
-                        .build());
+        ReactAgent poemWriterAgent = ReactAgent.builder()
+                .name("poem_writer_agent")
+                .modelName("qwen-plus")
+                .description("可以写现代诗。")
+                .instruction("你是一个知名的诗人，擅长写现代诗。请根据用户的提问进行回答。")
+                .chatModel(chatModel)
+                .stream(isStream)
+                .inputKey("messages")
+                .outputKey("poem_article")
+                .build();
 
         LlmRoutingAgent blogAgent = LlmRoutingAgent.builder()
                 .name("blog_agent")
@@ -81,8 +83,7 @@ public class LlmRoutingAgentTest {
             Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().unicast().onBackpressureBuffer();
             processStream(stream, sink).get();
             Thread.sleep(10000L);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -95,8 +96,7 @@ public class LlmRoutingAgentTest {
                 String content;
                 if (output instanceof StreamingOutput streamingOutput) {
                     content = JSONUtil.toJsonStr(Map.of(nodeName, streamingOutput.getChatResponse().getResult().getOutput().getText()));
-                }
-                else {
+                } else {
                     JSONObject nodeOutput = new JSONObject();
                     nodeOutput.put("data", output.getState().data());
                     nodeOutput.put("node", nodeName);
@@ -104,8 +104,7 @@ public class LlmRoutingAgentTest {
                 }
                 System.out.println("Received output: " + content);
                 sink.tryEmitNext(ServerSentEvent.builder(content).build());
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 throw new CompletionException(e);
             }
         }).thenAccept(v -> {

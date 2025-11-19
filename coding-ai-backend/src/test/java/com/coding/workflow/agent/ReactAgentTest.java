@@ -73,15 +73,10 @@ public class ReactAgentTest {
                 .inputType(ImageGenerateService.Request.class)
                 .build());
 
-        ReactAgent.Builder builder = ReactAgent.Builder.builder()
+        ReactAgent reactAgent = ReactAgent.builder()
                 .name("react-agent")
-                .inputKey("messages")
-                .resolver(resolver)
-                .maxIterations(10)
-                .build();
-
-        LlmNode llmNode = LlmNode.builder()
-                .systemPrompt("""
+                .modelName("qwen-max")
+                .instruction("""
                         你是一个乐于助人、聪明且细心的 AI 助手，你的目标是尽可能准确、高效地帮助用户解决问题。
                         你具备调用特定工具的能力，可以帮助你更好地完成用户请求。当你认为调用某个工具能够推进任务时，你应该明确说明你的思考过程，并按照规定的格式调用工具。
                         请遵循以下规则：
@@ -96,20 +91,13 @@ public class ReactAgentTest {
                         - 当你获得工具的执行结果后，结合上下文，给出清晰、完整的最终回复。
                         （如果工具被调用，后续你可能还会收到工具的返回结果，然后继续输出下一轮的 Thought 和 Action）
                         """)
+                .inputKey("messages")
                 .chatClient(chatClient)
-                .toolCallbacks(toolCallbacks)
-                .model("qwen-max")
-                .messagesKey("messages")
+                .tools(toolCallbacks)
+                .resolver(resolver)
+                .maxIterations(10)
                 .stream(true)
                 .build();
-
-        ToolNode toolNode = ToolNode.builder()
-                .llmResponseKey(LlmNode.LLM_RESPONSE_KEY)
-                .toolCallbackResolver(resolver)
-                .toolCallbacks(toolCallbacks)
-                .build();
-
-        ReactAgent reactAgent = new ReactAgent(llmNode, toolNode, builder);
 //        Optional<OverAllState> result = reactAgent.invoke(Map.of(
 //                "messages", List.of(new UserMessage("""
 //                         你好呀！！
