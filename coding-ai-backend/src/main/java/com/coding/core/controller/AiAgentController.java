@@ -7,7 +7,6 @@ import com.coding.core.manager.AgentManager;
 import com.coding.core.service.ChatConversationService;
 import com.coding.core.service.ChatMessageService;
 import com.coding.graph.core.agent.ReactAgent;
-import com.coding.graph.core.agent.plan.PlanningTool;
 import com.coding.graph.core.exception.GraphRunnerException;
 import com.coding.graph.core.exception.GraphStateException;
 import com.coding.graph.core.generator.AsyncGenerator;
@@ -588,8 +587,6 @@ public class AiAgentController {
                 // 异常处理
                 log.error("❌ Plan-Execute 流处理异常", e);
                 emitter.completeWithError(e);
-            } finally {
-                PlanningTool.removeCurrentPlan();
             }
         });
         

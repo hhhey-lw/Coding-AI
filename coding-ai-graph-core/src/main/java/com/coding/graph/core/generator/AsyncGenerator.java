@@ -100,6 +100,9 @@ public interface AsyncGenerator<E> extends Iterable<E>, AsyncGeneratorOperators<
             return new Data<>(completedFuture(data), null, null);
         }
 
+        /**
+         * 完成时触发，写入嵌套生成器的最终输出
+         */
         public static <E> Data<E> composeWith(AsyncGenerator<E> generator, EmbedCompletionHandler onCompletion) {
             return new Data<>(null, new Embed<>(generator, onCompletion), null);
         }

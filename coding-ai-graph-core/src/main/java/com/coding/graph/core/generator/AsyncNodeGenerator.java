@@ -9,6 +9,7 @@ import com.coding.graph.core.node.config.RunnableConfig;
 import com.coding.graph.core.state.OverAllState;
 import com.coding.graph.core.utils.LifeListenerUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.Message;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -36,9 +37,9 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
     private static final int MAX_ITERATIONS = 25;
     // 运行配置
     private final RunnableConfig config;
-    // 当前节点的状态 TODO 确定这个的作用！
-    Map<String, Object> currentState;
-    // 全局状态
+    // 当前节点的状态(当前子图的数据状态)
+    private Map<String, Object> currentState;
+    // 全局状态(最外层图的数据状态)
     private final OverAllState overAllState;
 
     // 构造函数
@@ -107,7 +108,6 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                 // updateState 是具体节点返回的Map结果
                 .thenApply((updateState) -> {
                     try {
-                        // FIX: SUPPORT STREAM CHAT
                         Optional<Data<Output>> embed = getEmbedGenerator(updateState);
                         if (embed.isPresent()) {
                             return embed.get();
@@ -146,6 +146,7 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                         if (data != null) {
 
                             if (data instanceof Map<?, ?>) {
+                                // 过滤掉生成器本身的迭代
                                 var partialStateWithoutGenerator = partialState.entrySet()
                                         .stream()
                                         .filter(e -> !Objects.equals(e.getKey(), generatorEntry.getKey()))
@@ -156,7 +157,29 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
 
                                 currentState = OverAllState.updateState(intermediateState, (Map<String, Object>) data,
                                         this.overAllState.keyStrategies());
-                                this.overAllState.updateState(currentState);
+                                // 嵌套子图 -> 更新全局状态
+                                // 过滤掉重复的数据 【目前仅过滤messages Key】
+                                Map<String, Object> tempState = new HashMap<>(currentState);
+                                if (tempState.containsKey("messages")) {
+                                    // 获取 overAllState 中已有的消息（使用 IdentityHashMap 基于对象引用）
+                                    Set<Message> existingMessages = Collections.newSetFromMap(new IdentityHashMap<>());
+                                    if (this.overAllState.value("messages").isPresent()) {
+                                        List<Message> overAllMessages = (List<Message>) this.overAllState.value("messages").get();
+                                        existingMessages.addAll(overAllMessages);
+                                    }
+
+                                    // 遍历过滤 currentState 中的消息
+                                    List<Message> currentMessages = (List<Message>) tempState.get("messages");
+                                    List<Message> filteredMessages = new ArrayList<>();
+                                    for (Message msg : currentMessages) {
+                                        if (!existingMessages.contains(msg)) {
+                                            filteredMessages.add(msg);
+                                        }
+                                    }
+
+                                    tempState.put("messages", filteredMessages);
+                                }
+                                this.overAllState.updateState(tempState);
                             }
                             else {
                                 throw new IllegalArgumentException("Embedded generator must return a Map");

@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 /**
  * SupervisorAgent 负责监督和管理规划工具（PlanningTool）生成的计划执行过程。
- *
+ * <p>
  * 设计目标：通过与 PlanningTool 的集成，SupervisorAgent 能够动态跟踪计划的执行状态，
  */
 public class SupervisorAgent implements NodeAction {
@@ -25,7 +25,11 @@ public class SupervisorAgent implements NodeAction {
 
     @Override
     public Map<String, Object> apply(OverAllState t) throws Exception {
-        PlanningTool.Plan plan = planningTool.getGraphPlan();
+        // 直接从状态中读取 planId（由 PlanningTool 写入）
+        String planId = (String) t.value("planId")
+                .orElseThrow(() -> new RuntimeException("planId not found in state"));
+        
+        PlanningTool.Plan plan = planningTool.getGraphPlan(planId);
 
         Optional<Object> optionalOutput = t.value("step_output");
 
@@ -38,8 +42,7 @@ public class SupervisorAgent implements NodeAction {
         String promptForNextStep;
         if (!plan.isFinished()) {
             promptForNextStep = plan.nextStepPrompt((Map<String, String>) t.value("step_status_history").orElse(Map.of()));
-        }
-        else {
+        } else {
             promptForNextStep = "Plan completed.";
         }
 
@@ -47,15 +50,15 @@ public class SupervisorAgent implements NodeAction {
         Map<String, Object> result = new java.util.HashMap<>();
         result.put("step_prompt", promptForNextStep);
         result.put("plan_id", plan.getPlanId());
-        result.put("current_step_index", Integer.parseInt(plan.getCurrentStep()));
+        result.put("current_step_index", plan.getCurrentStepIndex());
         result.put("total_steps", plan.getSteps().size());
         result.put("is_finished", plan.isFinished());
         result.put("step_status_history", plan.getStepStatus());
         result.put("task", plan.getTask());
-        
+
         // 如果还有下一步，添加当前步骤描述
-        if (!plan.isFinished() && Integer.parseInt(plan.getCurrentStep()) < plan.getSteps().size()) {
-            result.put("current_step_description", plan.getSteps().get(Integer.parseInt(plan.getCurrentStep())));
+        if (!plan.isFinished() && plan.getCurrentStepIndex() < plan.getSteps().size()) {
+            result.put("current_step_description", plan.getSteps().get(plan.getCurrentStepIndex()));
         }
 
         return result;
@@ -80,6 +83,7 @@ public class SupervisorAgent implements NodeAction {
 
     /**
      * 移除字符串中的Markdown代码块标记（```json 和 ```） 如果字符串不包含这些标记，则返回原始字符串
+     *
      * @param input 可能包含Markdown代码块标记的字符串
      * @return 去除了代码块标记的字符串
      */

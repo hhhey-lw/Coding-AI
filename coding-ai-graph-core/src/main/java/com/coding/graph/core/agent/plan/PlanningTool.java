@@ -1,6 +1,7 @@
 package com.coding.graph.core.agent.plan;
 
 import cn.hutool.json.JSONUtil;
+import com.coding.graph.core.state.OverAllState;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -30,319 +31,298 @@ import java.util.stream.Collectors;
 @Slf4j
 public class PlanningTool implements BiFunction<PlanningTool.PlanningToolRequest, ToolContext, PlanningTool.PlanningToolResponse> {
 
-	public static final String NAME = "planning";
-	public static final String DESCRIPTION = "A tool for creating and managing multi-step plans to solve complex tasks.";
+    public static final String NAME = "planning";
+    public static final String DESCRIPTION = "A tool for creating and managing multi-step plans to solve complex tasks.";
 
-	// Singleton instance
-	public static final PlanningTool INSTANCE = new PlanningTool();
+    // Singleton instance
+    public static final PlanningTool INSTANCE = new PlanningTool();
 
-	// ======================
-	// 枚举：步骤状态
-	// ======================
-	/**
-	 * 表示计划中某个步骤的当前执行状态。
-	 */
-	public enum StepStatus {
-		NOT_STARTED,  // 未开始
-		IN_PROGRESS,  // 进行中
-		COMPLETED,    // 已完成
-		BLOCKED       // 阻塞/受阻
-	}
+    // ======================
+    // 枚举：步骤状态
+    // ======================
 
-	// ======================
-	// 请求类：结构化工具输入
-	// ======================
-	/**
-	 * 封装 PlanningTool 的工具调用请求参数。
-	 */
-	@Data
-	@NoArgsConstructor
-	@AllArgsConstructor
-	@JsonInclude(JsonInclude.Include.NON_NULL) // 序列化时忽略 null 值字段
-	@JsonClassDescription("PlanningTool 的工具调用请求参数，用于创建、更新、管理任务计划")
-	public static class PlanningToolRequest {
+    /**
+     * 表示计划中某个步骤的当前执行状态。
+     */
+    public enum StepStatus {
+        NOT_STARTED,  // 未开始
+        IN_PROGRESS,  // 进行中
+        COMPLETED,    // 已完成
+        BLOCKED       // 阻塞/受阻
+    }
 
-		@JsonProperty(value = "command", required = true) // 指定 JSON 字段名，标注必填（部分 JSON 库支持）
-		@JsonPropertyDescription("操作命令，如：create, update, mark_step, list, get, set_active, delete。该字段为必填。")
-		private String command;
+    // ======================
+    // 请求类：结构化工具输入
+    // ======================
 
-		@JsonPropertyDescription("计划唯一标识符。如果未提供，将自动生成。创建时不需要提供。")
-		private String planId;
+    /**
+     * 封装 PlanningTool 的工具调用请求参数。
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL) // 序列化时忽略 null 值字段
+    @JsonClassDescription("PlanningTool 的工具调用请求参数，用于创建、更新、管理任务计划")
+    public static class PlanningToolRequest {
 
-		@JsonPropertyDescription("计划标题，创建计划时必填，用于描述计划的目标或主题。")
-		private String title;
+        @JsonProperty(value = "command", required = true) // 指定 JSON 字段名，标注必填（部分 JSON 库支持）
+        @JsonPropertyDescription("操作命令，如：create, update, mark_step, list, get, set_active, delete。该字段为必填。")
+        private String command;
 
-		@JsonPropertyDescription("计划步骤列表，每个元素为字符串，表示一个执行步骤。创建计划时必填。")
-		private List<String> steps;
+        @JsonPropertyDescription("计划唯一标识符。如果未提供，将自动生成。创建时不需要提供。")
+        private String planId;
 
-		@JsonPropertyDescription("要更新的步骤索引（从0开始）。仅在 mark_step 命令中有效。")
-		private Integer stepIndex;
+        @JsonPropertyDescription("计划标题，创建计划时必填，用于描述计划的目标或主题。")
+        private String title;
 
-		@JsonPropertyDescription("步骤的当前状态，如：NOT_STARTED, IN_PROGRESS, COMPLETED, BLOCKED。仅在 mark_step 命令中有效。")
-		private StepStatus stepStatus;
+        @JsonPropertyDescription("计划步骤列表，每个元素为字符串，表示一个执行步骤。创建计划时必填。")
+        private List<String> steps;
 
-		@JsonPropertyDescription("步骤的附加备注信息，用于补充说明。为可选字段。")
-		private String stepNotes;
-	}
+        @JsonPropertyDescription("要更新的步骤索引（从0开始）。仅在 mark_step 命令中有效。")
+        private Integer stepIndex;
 
-	// ======================
-	// 响应类：结构化工具输出
-	// ======================
-	/**
-	 * PlanningTool 工具的标准响应结构。
-	 */
-	@Data
-	@NoArgsConstructor
-	@AllArgsConstructor
-	@JsonInclude(JsonInclude.Include.NON_NULL) // 忽略 null 字段，使输出更干净
-	@JsonClassDescription("PlanningTool 工具调用的标准响应结构，包含输出内容和关联的计划ID")
-	public static class PlanningToolResponse {
+        @JsonPropertyDescription("步骤的当前状态，如：NOT_STARTED, IN_PROGRESS, COMPLETED, BLOCKED。仅在 mark_step 命令中有效。")
+        private StepStatus stepStatus;
 
-		@JsonPropertyDescription("工具执行结果的文本描述，通常为给用户的反馈信息。")
-		private String output;
+        @JsonPropertyDescription("步骤的附加备注信息，用于补充说明。为可选字段。")
+        private String stepNotes;
+    }
 
-		@JsonPropertyDescription("与该响应关联的计划ID。如果操作涉及某个具体计划，则返回该计划的唯一标识符。")
-		private String planId;
+    // ======================
+    // 响应类：结构化工具输出
+    // ======================
 
-		@Override
-		public String toString() {
-			return output;
-		}
-	}
+    /**
+     * PlanningTool 工具的标准响应结构。
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL) // 忽略 null 字段，使输出更干净
+    @JsonClassDescription("PlanningTool 工具调用的标准响应结构，包含输出内容和关联的计划ID")
+    public static class PlanningToolResponse {
 
-	// ======================
-	// 工具内部状态
-	// ======================
-	private final Map<String, Map<String, Object>> plans = new HashMap<>();     // 所有计划元数据
-	private final Map<String, Plan> graphPlans = new HashMap<>();               // 所有计划执行模型
-	private final static ThreadLocal<String> currentPlanId = new ThreadLocal<>();      // 当前活跃计划
+        @JsonPropertyDescription("工具执行结果的文本描述，通常为给用户的反馈信息。")
+        private String output;
 
-	// ======================
-	// 工具注册与定义（Spring AI）
-	// ======================
-	@Override
-	public PlanningToolResponse apply(PlanningToolRequest toolRequest, ToolContext context) {
-		System.out.println("🔧 PlanningTool invoked with request: " + JSONUtil.toJsonStr(toolRequest));
-		return run(toolRequest, context);
-	}
+        @JsonPropertyDescription("与该响应关联的计划ID。如果操作涉及某个具体计划，则返回该计划的唯一标识符。")
+        private String planId;
 
-	public PlanningToolResponse run(PlanningToolRequest request, ToolContext context) {
-		try {
-			String command = request.getCommand();
-			String planId = request.getPlanId();
-			if (planId == null || planId.trim().isEmpty()) {
-				planId = "plan_" + UUID.randomUUID();
-			}
+        @Override
+        public String toString() {
+            return output;
+        }
+    }
 
-			switch (command != null ? command.toLowerCase() : "") {
-				case "create":
-					String title = request.getTitle();
-					List<String> steps = request.getSteps();
-					return createPlan(planId, title, steps, context);
+    // ======================
+    // 工具内部状态
+    // ======================
+    private final Map<String, Plan> graphPlans = new HashMap<>();               // 所有计划执行模型
 
-				default:
-					throw new IllegalArgumentException("Unsupported command: " + command +
-							". Supported commands include: create");
-			}
-		} catch (Exception e) {
-			throw new RuntimeException("Planning tool execution failed: " + e.getMessage(), e);
-		}
-	}
+    // ======================
+    // 工具注册与定义（Spring AI）
+    // ======================
+    @Override
+    public PlanningToolResponse apply(PlanningToolRequest toolRequest, ToolContext context) {
+        System.out.println("🔧 PlanningTool invoked with request: " + JSONUtil.toJsonStr(toolRequest));
+        return run(toolRequest, context);
+    }
 
-	// ======================
-	// 创建计划
-	// ======================
-	public PlanningToolResponse createPlan(String planId, String title, List<String> steps, ToolContext context) {
-		if (planId == null || planId.trim().isEmpty()) {
-			throw new IllegalArgumentException("plan_id is required.");
-		}
-		if (plans.containsKey(planId)) {
-			throw new IllegalArgumentException("Plan with ID '" + planId + "' already exists.");
-		}
-		if (title == null || title.trim().isEmpty()) {
-			throw new IllegalArgumentException("title is required.");
-		}
-		if (steps == null || steps.isEmpty()) {
-			throw new IllegalArgumentException("steps list cannot be empty.");
-		}
-
-		// 构造元数据
-		Map<String, Object> meta = new HashMap<>();
-		meta.put("plan_id", planId);
-		meta.put("title", title);
-		meta.put("steps", steps);
-		meta.put("step_statuses", steps.stream().map(s -> StepStatus.NOT_STARTED).collect(Collectors.toList()));
-		meta.put("step_notes", steps.stream().map(s -> "").collect(Collectors.toList()));
-
-		plans.put(planId, meta);
-
-		// 构造执行模型
-		Plan planModel = new Plan(title, planId, steps);
-		graphPlans.put(planId, planModel);
-
-		this.currentPlanId.set(planId);
-
-		// 构造完整的计划信息JSON（字段与 Plan 类匹配）
-		Map<String, Object> planOutput = new HashMap<>();
-		planOutput.put("planId", planId);
-		planOutput.put("task", title);  // 使用 task 而不是 title，与 Plan 类字段匹配
-		planOutput.put("steps", steps);
-		planOutput.put("currentStep", 0);
-		planOutput.put("stepStatus", new HashMap<String, String>());
-
-		String planJson = JSONUtil.toJsonStr(planOutput);
-
-		return new PlanningToolResponse(planJson, planId);
-	}
-
-	public Plan getGraphPlan() {
-		if (currentPlanId.get() == null) {
-			throw new RuntimeException("No active plan. Please specify a plan_id or set an active plan.");
-		}
-		String planId = currentPlanId.get();
-
-		if (!plans.containsKey(planId)) {
-			throw new RuntimeException("No plan found with ID: " + planId);
-		}
-
-		return graphPlans.get(planId);
-	}
-
-	// ======================
-	// 内部类：Plan（用于执行与状态跟踪）
-	// ======================
-	@Data
-	public class Plan {
-		private Map<String, String> stepStatus;
-		private int currentStep = 0;
-		private String task;
-		private String planId;
-		private List<String> steps;
-
-		// 无参构造函数，用于 JSON 反序列化
-		public Plan() {
-			this.stepStatus = new HashMap<>();
-		}
-
-		public Plan(String task, String planId, List<String> steps) {
-			this.task = task;
-			this.planId = planId;
-			this.steps = steps;
-			this.stepStatus = new HashMap<>();
-		}
-
-		public String getCurrentStep() {
-			return String.valueOf(currentStep);
-		}
-
-		public void updateStepStatus(String stepIndex, String status) {
-			stepStatus.put(stepIndex, status);
-		}
-
-		public String nextStepPrompt(Map<String, String> stepStatusHistory) {
-			String nextStepDescription = steps.get(currentStep);
-			Map<String, Object> context = new HashMap<>();
-			context.put("task", task);
-			context.put("planWithSteps", steps);
-			context.put("stepIndex", currentStep);
-			context.put("nextStepDescription", nextStepDescription);
-			// 修改这个字段为之前的描述
-			StringBuilder betterSb = new StringBuilder();
-			if (stepStatusHistory != null && !stepStatusHistory.isEmpty()) {
-				boolean isFirst = true;
-				for (Map.Entry<String, String> entry : stepStatusHistory.entrySet()) {
-					if (!isFirst) {
-						betterSb.append("\n"); // 换行分隔每一项
-					}
-					betterSb.append("步骤 ")
-							.append(entry.getKey())
-							.append(" 的结果为：")
-							.append(entry.getValue())
-							.append(";");
-					isFirst = false;
-				}
-				context.put("stepStatus", betterSb);
-			} else {
-				context.put("stepStatus", "没有前面步骤的结果");
-			}
-
-
-			currentStep++;
-
-			String template = """
-				The task is: {task}
-
-				You are asked to follow the following plan with specific sequential steps to complete this task:
-				{planWithSteps}
-
-				You are currently at step {stepIndex} of the plan, which is: {nextStepDescription}.
-
-				Below are the result of the previous steps, which you can use as the context to help you complete the current step:
-				  {stepStatus}
-				""";
-			PromptTemplate promptTemplate = new PromptTemplate(template);
-			return promptTemplate.render(context);
-		}
-
-		public String nextStep() {
-			return steps.get(currentStep++);
-		}
-
-		public boolean isFinished() {
-			return currentStep == steps.size();
-		}
-
-		void setSteps(List<String> steps) {
-			this.steps = steps;
-		}
-	}
-
-	// ======================
-	// 工具注册方法（供外部调用）
-	// ======================
-	public static FunctionTool getToolDefinition() {
-		FunctionTool.Function function = new FunctionTool.Function(DESCRIPTION, NAME, getParametersJson());
-		return new FunctionTool(function);
-	}
-
-	public static FunctionToolCallback getFunctionToolCallback() {
-		return FunctionToolCallback.builder(NAME, INSTANCE)
-				.description(DESCRIPTION)
-				.inputType(PlanningToolRequest.class)
-				.toolMetadata(ToolMetadata.builder().returnDirect(true).build())
-				.build();
-	}
-
-	private static String getParametersJson() {
-		return """
-            {
-                "type": "object",
-                "properties": {
-                    "command": { "type": "string", "description": "Command: create" },
-                    "plan_id": { "type": "string", "description": "Plan ID" },
-                    "title": { "type": "string", "description": "Plan title" },
-                    "steps": { "type": "array", "items": { "type": "string" }, "description": "List of steps" },
-                    "step_index": { "type": "integer", "description": "Step index" },
-                    "step_status": { "type": "string", "description": "Step status" },
-                    "step_notes": { "type": "string", "description": "Step notes" }
-                },
-                "required": ["command"]
+    public PlanningToolResponse run(PlanningToolRequest request, ToolContext context) {
+        try {
+            String command = request.getCommand();
+            String planId = request.getPlanId();
+            if (planId == null || planId.trim().isEmpty()) {
+                planId = "plan_" + UUID.randomUUID();
             }
-            """;
-	}
 
-	// ======================
-	// Getter（调试用）
-	// ======================
-	public Map<String, Map<String, Object>> getPlans() {
-		return plans;
-	}
+            switch (command != null ? command.toLowerCase() : "") {
+                case "create":
+                    String title = request.getTitle();
+                    List<String> steps = request.getSteps();
+                    return createPlan(planId, title, steps, context);
 
-	public String getCurrentPlanId() {
-		return currentPlanId.get();
-	}
+                default:
+                    throw new IllegalArgumentException("Unsupported command: " + command +
+                            ". Supported commands include: create");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Planning tool execution failed: " + e.getMessage(), e);
+        }
+    }
 
-	public static void removeCurrentPlan() {
-		currentPlanId.remove();
-	}
+    // ======================
+    // 创建计划
+    // ======================
+    public PlanningToolResponse createPlan(String planId, String title, List<String> steps, ToolContext context) {
+        if (planId == null || planId.trim().isEmpty()) {
+            throw new IllegalArgumentException("plan_id is required.");
+        }
+        if (graphPlans.containsKey(planId)) {
+            throw new IllegalArgumentException("Plan with ID '" + planId + "' already exists.");
+        }
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("title is required.");
+        }
+        if (steps == null || steps.isEmpty()) {
+            throw new IllegalArgumentException("steps list cannot be empty.");
+        }
+
+        // 创建计划执行模型
+        Plan planModel = new Plan(title, planId, steps);
+        graphPlans.put(planId, planModel);
+
+        log.info("Created plan: {} with {} steps", planId, steps.size());
+
+        // 构造完整的计划信息JSON
+        Map<String, Object> planOutput = new HashMap<>();
+        planOutput.put("planId", planId);
+        planOutput.put("task", title);
+        planOutput.put("steps", steps);
+        planOutput.put("currentStep", 0);
+        planOutput.put("stepStatus", new HashMap<String, String>());
+
+        String planJson = JSONUtil.toJsonStr(planOutput);
+
+        // 将 planId 写入状态（通过 ToolContext）
+        if (context != null && context.getContext() != null) {
+            Object stateObj = context.getContext().get("state");
+            if (stateObj instanceof OverAllState state) {
+                state.updateState(Map.of("planId", planId));
+                log.info("✅ PlanningTool: planId written to state: {}", planId);
+            }
+        }
+
+        return new PlanningToolResponse(planJson, planId);
+    }
+
+    /**
+     * 根据 planId 获取计划（用于 SupervisorAgent）
+     */
+    public Plan getGraphPlan(String planId) {
+        if (planId == null || planId.trim().isEmpty()) {
+            throw new IllegalArgumentException("plan_id is required.");
+        }
+
+        Plan plan = graphPlans.get(planId);
+        if (plan == null) {
+            throw new RuntimeException("No plan found with ID: " + planId);
+        }
+
+        return plan;
+    }
+
+    // ======================
+    // 内部类：Plan（用于执行与状态跟踪）
+    // ======================
+    @Data
+    public class Plan {
+        private Map<String, String> stepStatus;
+        private int currentStep = 0;
+        private String task;
+        private String planId;
+        private List<String> steps;
+
+        // 无参构造函数，用于 JSON 反序列化
+        public Plan() {
+            this.stepStatus = new HashMap<>();
+        }
+
+        public Plan(String task, String planId, List<String> steps) {
+            this.task = task;
+            this.planId = planId;
+            this.steps = steps;
+            this.stepStatus = new HashMap<>();
+        }
+
+        public String getCurrentStep() {
+            return String.valueOf(currentStep);
+        }
+
+        /**
+         * 获取当前步骤索引（整数形式）
+         */
+        public int getCurrentStepIndex() {
+            return currentStep;
+        }
+
+        public void updateStepStatus(String stepIndex, String status) {
+            stepStatus.put(stepIndex, status);
+        }
+
+        public String nextStepPrompt(Map<String, String> stepStatusHistory) {
+            String nextStepDescription = steps.get(currentStep);
+            Map<String, Object> context = new HashMap<>();
+            context.put("task", task);
+            context.put("planWithSteps", steps);
+            context.put("stepIndex", currentStep);
+            context.put("nextStepDescription", nextStepDescription);
+            // 修改这个字段为之前的描述
+            StringBuilder betterSb = new StringBuilder();
+            if (stepStatusHistory != null && !stepStatusHistory.isEmpty()) {
+                boolean isFirst = true;
+                for (Map.Entry<String, String> entry : stepStatusHistory.entrySet()) {
+                    if (!isFirst) {
+                        betterSb.append("\n"); // 换行分隔每一项
+                    }
+                    betterSb.append("步骤 ")
+                            .append(entry.getKey())
+                            .append(" 的结果为：")
+                            .append(entry.getValue())
+                            .append(";");
+                    isFirst = false;
+                }
+                context.put("stepStatus", betterSb);
+            } else {
+                context.put("stepStatus", "没有前面步骤的结果");
+            }
+
+            currentStep++;
+
+            String template = """
+                    The task is: {task}
+
+                    You are asked to follow the following plan with specific sequential steps to complete this task:
+                    {planWithSteps}
+
+                    You are currently at step {stepIndex} of the plan, which is: {nextStepDescription}.
+
+                    Below are the result of the previous steps, which you can use as the context to help you complete the current step:
+                      {stepStatus}
+                    """;
+            PromptTemplate promptTemplate = new PromptTemplate(template);
+            return promptTemplate.render(context);
+        }
+
+        public String nextStep() {
+            return steps.get(currentStep++);
+        }
+
+        public boolean isFinished() {
+            return currentStep >= steps.size();
+        }
+
+        /**
+         * 获取下一步描述（不移动指针）
+         */
+        public String peekNextStep() {
+            if (isFinished()) {
+                return null;
+            }
+            return steps.get(currentStep);
+        }
+
+        void setSteps(List<String> steps) {
+            this.steps = steps;
+        }
+    }
+
+    public static FunctionToolCallback getFunctionToolCallback() {
+        return FunctionToolCallback.builder(NAME, INSTANCE)
+                .description(DESCRIPTION)
+                .inputType(PlanningToolRequest.class)
+                .toolMetadata(ToolMetadata.builder().returnDirect(true).build())
+                .build();
+    }
+
 }

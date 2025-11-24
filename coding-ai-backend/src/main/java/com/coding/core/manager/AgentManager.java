@@ -101,7 +101,12 @@ public class AgentManager {
             ToolCallbackResolver resolver,
             MusicGenerateService musicGenerateService,
             ImageGenerateService imageGenerateService) {
-        this.chatModel = OpenAiChatModel.builder().openAiApi(buildOpenAiApi(baseUrl, apiKey)).build();
+        this.chatModel = OpenAiChatModel.builder()
+                .openAiApi(buildOpenAiApi(baseUrl, apiKey))
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model(MODEL_QWEN_MAX)
+                        .build())
+                .build();
         this.resolver = resolver;
         this.musicGenerateService = musicGenerateService;
         this.imageGenerateService = imageGenerateService;
@@ -155,7 +160,7 @@ public class AgentManager {
         return ReactAgent.builder()
                 .name(AGENT_PLANNING)
                 .modelName(MODEL_QWEN_MAX)
-                .description("负责根据用户的需求，制定详细的执行计划，每个计划包含多个有序的步骤，有序执行，能够调用外部工具。仅允许处理复杂任务")
+                .description("负责根据用户的需求，制定详细的执行计划，每个计划包含多个有序的步骤，有序执行，能够调用外部工具来处理复杂任务")
                 .instruction(PLANNING_SYSTEM_PROMPT)
                 .inputKey(KEY_MESSAGES)
                 .chatClient(planningClient)
@@ -208,7 +213,7 @@ public class AgentManager {
                                                 KeyStrategyFactory stateFactory) throws GraphStateException {
         StateGraph graph = new StateGraph("plan_execute_graph", stateFactory)
                 .addNode(AGENT_QA, chatAgent.asAsyncNodeAction(KEY_MESSAGES, KEY_MESSAGES))
-                .addNode(AGENT_PLANNING, planningAgent.asAsyncNodeAction(KEY_MESSAGES, KEY_PLAN))
+                .addNode(AGENT_PLANNING, planningAgent.asAsyncNodeAction(KEY_MESSAGES, List.of(KEY_PLAN, "planId"), List.of("planId")))
                 .addNode(AGENT_SUPERVISOR, node_async(supervisorAgent))
                 .addNode(AGENT_STEP_EXECUTING, stepAgent.asAsyncNodeAction(KEY_STEP_PROMPT, KEY_STEP_OUTPUT))
 
@@ -264,12 +269,12 @@ public class AgentManager {
     private static final String PLANNING_SYSTEM_PROMPT = """
              # 任务规划助手
              ## 角色定位
-             你是一个任务规划专家，**只负责制定计划，不负责执行**。你的任务是将用户的复杂需求拆解为简洁、可执行的步骤序列。
+             你是一个任务规划专家，擅长为任务设计出合理的计划。你的任务是将用户的复杂需求拆解为简洁、可执行的步骤序列。
                         
              ## 核心原则
              ### 1. 简洁性优先
              - 每个计划控制在 **2-4 个步骤**，不要过度拆分
-             - 步骤应该是**高层次的关键动作**，而非详细的子任务清单
+             - 步骤应该是**抽象的关键动作**，而非详细的子任务清单
              - 用**一句话总结**每个步骤要做什么，不要展开细节
                         
              ### 2. 聚焦核心目标
@@ -277,72 +282,33 @@ public class AgentManager {
              - 步骤应该围绕**关键里程碑**展开，而非流程细节
              - 避免包含"检查"、"确认"等辅助性步骤
                         
-             ### 3. 步骤描述风格
-             - ✅ 好的步骤：「生成夏日海滩主题的音乐歌词」
-             - ❌ 不好的步骤：「确认音乐风格 → 构思歌词主题 → 撰写歌词初稿 → 优化歌词」
-             - ✅ 好的步骤：「创作轻快的电子音乐」
-             - ❌ 不好的步骤：「选择音乐制作工具 → 设定音乐参数 → 生成音乐 → 导出文件」
-                        
-             ### 4. 工具调用整合
-             - 如果某个步骤需要调用工具（如生成音乐、生成图片），直接在步骤中体现最终目标
-             - 不要把工具调用的准备工作拆成单独步骤
-                        
              ## 输出格式要求
              ⚠️ **重要：你必须调用 `planning` 工具来创建计划，不要直接输出 JSON！**
                         
              ### 工具调用步骤
-             1. 首先简单说明你的计划思路（1-2 句话）
-             2. **立即调用 `planning` 工具**，参数如下：
-             - `command`: "create"
-             - `title`: 任务标题
-             - `steps`: 步骤列表（数组）
-             3. 工具会返回包含 `planId` 的完整计划信息
+             1. 首先简单说明你的计划思路（2-3 句话）
+             2. 接着调用 `planning` 工具生成具体的计划，工具会返回包含 `planId` 的完整计划信息
+             3. 当收到工具调用的请求后，简单的表述，计划已经准备好了，开始执行。
                         
              ### 示例 1：商务邮件
-             **用户：** 帮我写一封中文商务邮件，主题是「关于下周项目评审会议安排」，收件人是部门全体同事，需要包含会议时间、地点、议程和准备事项。
-             **正确的做法：**
-            ```
-            好的，我将帮你完成这封商务邮件。计划分为两个主要步骤：首先确定会议的关键信息，然后撰写正式的邮件内容。
+             **用户**： 帮我写一封中文商务邮件，主题是「关于下周项目评审会议安排」，收件人是部门全体同事，需要包含会议时间、地点、议程和准备事项。
+             **助手**： 好的，我将帮你完成这封商务邮件。计划分为两个主要步骤：首先确定会议的关键信息，然后撰写正式的邮件内容。[调用工具创建计划]
+             **工具**： 工具调用结果[title: "撰写项目评审会议邮件", steps: ["确定会议的时间、地点、议程和准备事项", "撰写格式规范的中文商务邮件"], ...]
+             **助手**： 好的，计划已经生成，接下来开始执行。
                         
-            [此时调用 planning 工具，参数为：
-              command: "create"
-              title: "撰写项目评审会议邮件"
-              steps: ["确定会议的时间、地点、议程和准备事项", "撰写格式规范的中文商务邮件"]
-            ]
-            ```
-                        
-            ### 示例 2：音乐和海报创作
-                        
-            **用户：** 帮我创作一段轻快的电子音乐，歌词是关于夏日海滩的快乐时光。并创作一幅对于音乐的海报。
-                        
-            **正确的做法：**
-            ```
-            好的，我将为你完成音乐和海报的创作。计划分为三步：创作歌词、生成音乐、设计海报。
-                        
-            [此时调用 planning 工具，参数为：
-              command: "create"
-              title: "创作音乐和海报"
-              steps: ["创作夏日海滩主题的音乐歌词", "生成轻快的电子音乐", "设计音乐主题海报"]
-            ]
-            ```
-                        
-            ❌ **错误示例（不要这样做）：**
-            直接输出 JSON 文本：
-            ```json
-            {
-              "planId": "1",
-              "steps": [...]
-            }
-            ```
-            这是错误的！你必须**调用工具**，而不是输出 JSON 文本。
+            ### 示例 2：音乐和海报创作       
+            **用户**： 帮我创作一段轻快的电子音乐，歌词是关于夏日海滩的快乐时光。并创作一幅对于音乐的海报。
+            **助手**： 好的，我将帮你完成这封商务邮件。计划分为两个主要步骤：首先确定会议的关键信息，然后撰写正式的邮件内容。[调用工具创建计划]
+            **工具**： 工具调用结果[title: "撰写项目评审会议邮件", steps: ["创作夏日海滩主题的音乐歌词", "生成轻快的电子音乐", "设计音乐主题海报"], ...]
+            **助手**： 好的，计划已经生成，接下来开始执行。       
                         
             ## 注意事项
-            - 步骤数量：**2-4 个**（特殊情况可以有 5 个，但要避免）
-            - 使用中文回复
-            - **必须调用工具**，不要直接输出 JSON 文本
-            - **调用工具后**，不要继续执行或演示
-            - 步骤描述要简洁有力，直指目标
-            - `planId` 不需要在工具参数中提供，会自动生成
+            - 步骤数量：**2-4 个**（特殊情况可以有 5 个，但要避免）；
+            - 使用中文回复用户，用语礼貌友好；
+            - 调用工具前需要提供1-3句话进行简单的说明；
+            - 步骤描述要简洁有力，直指目标；
+            - `planId` 不需要在工具参数中提供，会自动生成。
+            - 计划的执行由其他服务进行，你不需要关心计划的执行。
             """;
 
     private static final String EXECUTING_SYSTEM_PROMPT = """
@@ -353,7 +319,7 @@ public class AgentManager {
                         
                 ## 核心原则
                         
-                ### ⚠️ 最重要的规则
+                ### 重要的规则
                 **你每次只能执行当前被分配的那一个步骤，绝对不能超前执行后续步骤！**
                         
                 - ✅ 正确：只完成当前步骤，然后停止
@@ -366,7 +332,7 @@ public class AgentManager {
                 3. **立即停止**：完成后不要继续，不要预判下一步，不要提及后续步骤
                         
                 ### 工具使用
-                - 如果步骤需要调用工具（如生成图像、音乐），调用相应的工具
+                - 如果步骤需要调用工具（如生成图像、音乐），调用相应的工具，调用工具前需要提供一到两句话的简单解释
                 - 如果步骤需要生成内容（如文本、代码），直接生成内容
                 - 工具调用后等待结果，然后输出最终结果
                         
@@ -374,7 +340,6 @@ public class AgentManager {
                 - 简洁明了地输出当前步骤的执行结果
                 - **不要提及"接下来"、"下一步"、"然后"等字眼**
                 - **不要输出计划中的其他步骤内容**
-                - **不要重复之前步骤的结果**
                         
                 ## 示例
                         
@@ -382,14 +347,6 @@ public class AgentManager {
                 -我将按照给定的顺序**完成所提供计划中的每一步。
                 -对于每一步，我将确定需要做什么，是否涉及工具使用，内容生成，数据处理或逻辑推理。
                 -我会仔细执行该步骤，并记录输出或结果。
-                        
-                **❌ 错误的执行：**
-                ```
-                [调用 generateImage 工具]
-                我已经生成了落日沙滩的图片：[图片URL]
-                接下来，我将创作歌词：[开始写歌词...]  ← 错误！不要执行下一步！
-                然后生成音乐：[调用音乐工具...]  ← 错误！不要超前执行！
-                ```
                         
                 进度监控和自检
                 -在执行每个步骤后，我将确保结果是有效的，完整的，并与步骤的意图一致。
@@ -405,7 +362,7 @@ public class AgentManager {
                 - 你**只需要完成这一个步骤**
                 - 完成后**立即结束**，不要继续
                 - 系统会自动调度下一步骤，你不需要担心
-                - **专注当前，不要超前！**
+                - 当目前是最后一个任务，执行完毕之后，你可以一句话简单的总结，并说明任务完成。
             """;
 
     // =========================> 模型调用准备函数 <=========================
@@ -535,6 +492,7 @@ public class AgentManager {
         return () -> {
             HashMap<String, KeyStrategy> keyStrategyHashMap = new HashMap<>();
             keyStrategyHashMap.put(KEY_PLAN, new ReplaceStrategy());
+            keyStrategyHashMap.put("planId", new ReplaceStrategy());
             keyStrategyHashMap.put(KEY_STEP_PROMPT, new ReplaceStrategy());
             keyStrategyHashMap.put(KEY_STEP_OUTPUT, new ReplaceStrategy());
             keyStrategyHashMap.put(KEY_FINAL_OUTPUT, new ReplaceStrategy());
