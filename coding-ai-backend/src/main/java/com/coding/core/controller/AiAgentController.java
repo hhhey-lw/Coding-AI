@@ -113,151 +113,144 @@ public class AiAgentController {
                 "messages", messages
         ));
         
-        // 异步处理流式输出
-        CompletableFuture.runAsync(() -> {
+        // 按顺序收集所有消息
+        List<Message> allMessages = new ArrayList<>();
+        // 用于累积当前的文本片段
+        StringBuilder currentTextBuilder = new StringBuilder();
+        
+        // 使用 streamForEach 异步处理流式输出
+        generator.streamForEach(output -> {
             try {
-                log.info("🚀 开始 React Agent 流式处理");
-                
-                // 按顺序收集所有消息
-                List<Message> allMessages = new ArrayList<>();
-                // 用于累积当前的文本片段
-                StringBuilder currentTextBuilder = new StringBuilder();
-
-                // 使用迭代器逐个处理数据，每产生一个就立即发送一个
-                for (NodeOutput output : generator) {
-                    if (output instanceof StreamingOutput streamingOutput) {
-                        try {
-                            // 获取消息内容
-                            AssistantMessage message = streamingOutput.getChatResponse().getResult().getOutput();
-                            
-                            PlanExecuteEventVO event;
-                            
-                            // 检测是否有工具调用
-                            if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
-                                // 先保存之前累积的文本（如果有）
-                                if (currentTextBuilder.length() > 0) {
-                                    allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
-                                    currentTextBuilder.setLength(0); // 清空
-                                }
-
-                                // 保存工具调用消息（完整的 AssistantMessage，包含 toolCalls）
-                                allMessages.add(message);
-
-                                event = PlanExecuteEventVO.builder()
-                                        .type("TOOL_CALL")
-                                        .node("react_agent")
-                                        .toolCalls(message.getToolCalls().stream()
-                                                .map(toolCall -> ToolCallVO.builder()
-                                                        .id(toolCall.id())
-                                                        .name(toolCall.name())
-                                                        .arguments(toolCall.arguments())
-                                                        .build())
-                                                .toList())
-                                        .reasoning(message.getText() != null && !message.getText().isEmpty() ? message.getText() : null)
-                                        .build();
-                                
-                                // log.info("🛠️ [React 工具调用] tools: {}", event.getToolCalls().size());
-                            } else {
-                                // 普通流式文本内容，累积到 StringBuilder 中
-                                String content = message.getText();
-                                if (content != null && !content.isEmpty()) {
-                                    currentTextBuilder.append(content);
-                                }
-
-                                event = PlanExecuteEventVO.builder()
-                                        .type("STEP_EXECUTION")
-                                        .node("react_agent")
-                                        .content(content)
-                                        .build();
-                            }
-
-                            // 发送事件到前端
-                            String jsonContent = JSONUtil.toJsonStr(event);
-                            emitter.send(SseEmitter.event()
-                                    .data(jsonContent)
-                                    .name("react-agent"));
-
-                            // log.info("📝 [React 执行] content: {}", jsonContent);
-
-                        } catch (IOException e) {
-                            log.error("❌ 发送消息失败", e);
-                            emitter.completeWithError(e);
-                            return; // 终止处理
+                log.info("🚀 React Agent 流式处理中");
+                if (output instanceof StreamingOutput streamingOutput) {
+                    // 获取消息内容
+                    AssistantMessage message = streamingOutput.getChatResponse().getResult().getOutput();
+                    
+                    PlanExecuteEventVO event;
+                    
+                    // 检测是否有工具调用
+                    if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
+                        // 先保存之前累积的文本（如果有）
+                        if (currentTextBuilder.length() > 0) {
+                            allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
+                            currentTextBuilder.setLength(0); // 清空
                         }
-                    }
-                    // 处理工具节点输出，收集工具响应消息
-                    else {
-                        if (output != null && "tool".equals(output.getNode())) {
-                            OverAllState toolState = output.getState();
-                            if (toolState != null) {
-                                toolState.value("messages").ifPresent(messagesObj -> {
-                                    if (messagesObj instanceof List) {
-                                        @SuppressWarnings("unchecked")
-                                        List<Message> ms = (List<Message>) messagesObj;
-                                        if (!ms.isEmpty()) {
-                                            // 获取最后一条消息（工具响应消息）
-                                            Message lastMessage = ms.get(ms.size() - 1);
-                                            // 将工具响应消息添加到收集列表
-                                            allMessages.add(lastMessage);
-                                            log.info("🔧 [工具响应] 已收集工具响应消息: {}", lastMessage.getClass().getSimpleName());
-                                        } else {
-                                            log.warn("⚠️ messages 列表为空，无法获取工具响应");
-                                        }
-                                    } else {
-                                        log.warn("⚠️ messages 不是 List 类型，实际类型: {}", messagesObj.getClass());
-                                    }
-                                });
-                            }
+
+                        // 保存工具调用消息（完整的 AssistantMessage，包含 toolCalls）
+                        allMessages.add(message);
+
+                        event = PlanExecuteEventVO.builder()
+                                .type("TOOL_CALL")
+                                .node("react_agent")
+                                .toolCalls(message.getToolCalls().stream()
+                                        .map(toolCall -> ToolCallVO.builder()
+                                                .id(toolCall.id())
+                                                .name(toolCall.name())
+                                                .arguments(toolCall.arguments())
+                                                .build())
+                                        .toList())
+                                .reasoning(message.getText() != null && !message.getText().isEmpty() ? message.getText() : null)
+                                .build();
+                    } else {
+                        // 普通流式文本内容，累积到 StringBuilder 中
+                        String content = message.getText();
+                        if (content != null && !content.isEmpty()) {
+                            currentTextBuilder.append(content);
                         }
-                    }
-                }
-                
-                // 流式处理完毕，保存最后累积的文本（如果有）
-                if (currentTextBuilder.length() > 0) {
-                    allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
-                }
 
-                log.info("✅ React Agent Generator 处理完毕");
-
-                try {
-                    // 保存完整的会话（用户消息 + 按顺序的所有助手消息）
-                    if (conversationService != null && StringUtils.isNotBlank(cid) && !allMessages.isEmpty()) {
-                        List<Message> newMessages = new ArrayList<>();
-                        newMessages.add(userMessage);
-                        newMessages.addAll(allMessages);
-
-                        CompletableFuture.runAsync(() -> {
-                            try {
-                                chatMessageService.saveMessages(cid, newMessages);
-                                log.info("💾 已保存会话消息 conversationId: {}, 消息数量: {}", cid, newMessages.size());
-                            } catch (Exception ex) {
-                                log.warn("⚠️ 保存会话消息失败（忽略）", ex);
-                            }
-                        });
+                        event = PlanExecuteEventVO.builder()
+                                .type("STEP_EXECUTION")
+                                .node("react_agent")
+                                .content(content)
+                                .build();
                     }
 
-                    // 发送结束信号
-                    PlanExecuteEventVO endEvent = PlanExecuteEventVO.builder()
-                            .type("STREAM_END")
-                            .message("执行完成")
-                            .build();
-
+                    // 发送事件到前端
+                    String jsonContent = JSONUtil.toJsonStr(event);
                     emitter.send(SseEmitter.event()
-                            .data(JSONUtil.toJsonStr(endEvent))
+                            .data(jsonContent)
                             .name("react-agent"));
-
-                    // 完成流
-                    emitter.complete();
-                    log.info("✅ React Agent SSE 流已完成");
-
-                } catch (IOException e) {
-                    log.error("❌ 发送结束信号失败", e);
-                    emitter.completeWithError(e);
                 }
-                
+                // 处理工具节点输出，收集工具响应消息
+                else {
+                    if (output != null && "tool".equals(output.getNode())) {
+                        OverAllState toolState = output.getState();
+                        if (toolState != null) {
+                            toolState.value("messages").ifPresent(messagesObj -> {
+                                if (messagesObj instanceof List) {
+                                    @SuppressWarnings("unchecked")
+                                    List<Message> ms = (List<Message>) messagesObj;
+                                    if (!ms.isEmpty()) {
+                                        // 获取最后一条消息（工具响应消息）
+                                        Message lastMessage = ms.get(ms.size() - 1);
+                                        // 将工具响应消息添加到收集列表
+                                        allMessages.add(lastMessage);
+                                        log.info("🔧 [工具响应] 已收集工具响应消息: {}", lastMessage.getClass().getSimpleName());
+                                    } else {
+                                        log.warn("⚠️ messages 列表为空，无法获取工具响应");
+                                    }
+                                } else {
+                                    log.warn("⚠️ messages 不是 List 类型，实际类型: {}", messagesObj.getClass());
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                log.error("❌ 发送消息失败", e);
+                emitter.completeWithError(e);
+                throw new RuntimeException(e);
             } catch (Exception e) {
-                // 异常处理
                 log.error("❌ React Agent 流处理异常", e);
+                emitter.completeWithError(e);
+                throw new RuntimeException(e);
+            }
+        }).exceptionally(error -> {
+            // 异常处理
+            log.error("❌ React Agent 流处理异常", error);
+            emitter.completeWithError(error);
+            return null;
+        }).thenRun(() -> {
+            // 流式处理完毕，保存最后累积的文本（如果有）
+            if (currentTextBuilder.length() > 0) {
+                allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
+            }
+
+            log.info("✅ React Agent Generator 处理完毕");
+
+            try {
+                // 保存完整的会话（用户消息 + 按顺序的所有助手消息）
+                if (conversationService != null && StringUtils.isNotBlank(cid) && !allMessages.isEmpty()) {
+                    List<Message> newMessages = new ArrayList<>();
+                    newMessages.add(userMessage);
+                    newMessages.addAll(allMessages);
+
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            chatMessageService.saveMessages(cid, newMessages);
+                            log.info("💾 已保存会话消息 conversationId: {}, 消息数量: {}", cid, newMessages.size());
+                        } catch (Exception ex) {
+                            log.warn("⚠️ 保存会话消息失败（忽略）", ex);
+                        }
+                    });
+                }
+
+                // 发送结束信号
+                PlanExecuteEventVO endEvent = PlanExecuteEventVO.builder()
+                        .type("STREAM_END")
+                        .message("执行完成")
+                        .build();
+
+                emitter.send(SseEmitter.event()
+                        .data(JSONUtil.toJsonStr(endEvent))
+                        .name("react-agent"));
+
+                // 完成流
+                emitter.complete();
+                log.info("✅ React Agent SSE 流已完成");
+
+            } catch (IOException e) {
+                log.error("❌ 发送结束信号失败", e);
                 emitter.completeWithError(e);
             }
         });
@@ -326,119 +319,115 @@ public class AiAgentController {
         // 调用 Plan-Execute Agent，获取流式结果
         AsyncGenerator<NodeOutput> generator = this.planExecuteAgent.stream(Map.of("messages", messages));
 
-        // 异步执行迭代
-        CompletableFuture.runAsync(() -> {
+        // 按顺序收集所有消息
+        List<Message> allMessages = new ArrayList<>();
+        // 用于累积当前的文本片段
+        StringBuilder currentTextBuilder = new StringBuilder();
+
+        // 使用 streamForEach 异步处理流式输出
+        generator.streamForEach(output -> {
             try {
-                log.info("🚀 开始 Plan-Execute 流式处理");
+                // 处理 null 输出
+                if (output == null) {
+                    return;
+                }
                 
-                // 按顺序收集所有消息
-                List<Message> allMessages = new ArrayList<>();
-                // 用于累积当前的文本片段
-                StringBuilder currentTextBuilder = new StringBuilder();
+                String nodeName = output.getNode();
+                if (nodeName == null || nodeName.isEmpty()) {
+                    log.warn("⚠️ 节点名称为空，跳过");
+                    return;
+                }
+                
+                // 过滤不需要发送给前端的节点（只记录日志）
+                if ("__END__".equals(nodeName)) {
+                    log.info("🔇 [结束节点] node: __END__, state: {}", output.getState() != null ? output.getState().data() : "null");
+                    return;
+                }
+                
+                if ("preLlm".equals(nodeName)) {
+                    log.info("🔇 [预处理节点] node: preLlm, 仅记录日志，不发送给前端");
+                    return;
+                }
 
-                // 使用迭代器逐个处理数据，每产生一个就立即发送一个
-                for (NodeOutput output : generator) {
-                    // 处理 null 输出
-                    if (output == null) {
-                        continue;
-                    }
-                    
-                    String nodeName = output.getNode();
-                    if (nodeName == null || nodeName.isEmpty()) {
-                        log.warn("⚠️ 节点名称为空，跳过");
-                        continue;
-                    }
-                    
-                    // 过滤不需要发送给前端的节点（只记录日志）
-                    if ("__END__".equals(nodeName)) {
-                        log.info("🔇 [结束节点] node: __END__, state: {}", output.getState() != null ? output.getState().data() : "null");
-                        continue;
-                    }
-                    
-                    if ("preLlm".equals(nodeName)) {
-                        log.info("🔇 [预处理节点] node: preLlm, 仅记录日志，不发送给前端");
-                        continue;
-                    }
-
-                    if ("tool".equals(nodeName)) {
-                        OverAllState toolState = output.getState();
-                        if (toolState != null) {
-                            // 收集工具响应消息
-                            toolState.value("messages").ifPresent(messagesObj -> {
-                                if (messagesObj instanceof List) {
-                                    @SuppressWarnings("unchecked")
-                                    List<Message> ms = (List<Message>) messagesObj;
-                                    if (!ms.isEmpty()) {
-                                        // 获取最后一条消息（工具响应消息）
-                                        Message lastMessage = ms.get(ms.size() - 1);
-                                        // 将工具响应消息添加到收集列表
-                                        allMessages.add(lastMessage);
-                                        log.info("🔧 [工具节点] 已收集工具响应消息，messages count: {}", ms.size());
-                                    } else {
-                                        log.warn("⚠️ messages 列表为空，无法获取工具响应");
-                                    }
+                if ("tool".equals(nodeName)) {
+                    OverAllState toolState = output.getState();
+                    if (toolState != null) {
+                        // 收集工具响应消息
+                        toolState.value("messages").ifPresent(messagesObj -> {
+                            if (messagesObj instanceof List) {
+                                @SuppressWarnings("unchecked")
+                                List<Message> ms = (List<Message>) messagesObj;
+                                if (!ms.isEmpty()) {
+                                    // 获取最后一条消息（工具响应消息）
+                                    Message lastMessage = ms.get(ms.size() - 1);
+                                    // 将工具响应消息添加到收集列表
+                                    allMessages.add(lastMessage);
+                                    log.info("🔧 [工具节点] 已收集工具响应消息，messages count: {}", ms.size());
                                 } else {
-                                    log.warn("⚠️ messages 不是 List 类型，实际类型: {}", messagesObj.getClass());
+                                    log.warn("⚠️ messages 列表为空，无法获取工具响应");
                                 }
-                            });
-                        }
-                        continue;
+                            } else {
+                                log.warn("⚠️ messages 不是 List 类型，实际类型: {}", messagesObj.getClass());
+                            }
+                        });
                     }
+                    return;
+                }
+                
+                PlanExecuteEventVO event;
+
+                // 处理流式输出（React Agent 执行细节）
+                if (output instanceof StreamingOutput streamingOutput) {
+                    AssistantMessage message = streamingOutput.getChatResponse().getResult().getOutput();
                     
-                    PlanExecuteEventVO event;
-
-                    // 处理流式输出（React Agent 执行细节）
-                    if (output instanceof StreamingOutput streamingOutput) {
-                        AssistantMessage message = streamingOutput.getChatResponse().getResult().getOutput();
-                        
-                        // 检测是否有工具调用
-                        if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
-                            // 先保存之前累积的文本（如果有）
-                            if (currentTextBuilder.length() > 0) {
-                                allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
-                                currentTextBuilder.setLength(0); // 清空
-                            }
-
-                            // 保存工具调用消息（完整的 AssistantMessage，包含 toolCalls）
-                            allMessages.add(message);
-
-                            event = PlanExecuteEventVO.builder()
-                                    .type("TOOL_CALL")
-                                    .node(nodeName)
-                                    .toolCalls(message.getToolCalls().stream()
-                                            .map(toolCall -> ToolCallVO.builder()
-                                                    .id(toolCall.id())
-                                                    .name(toolCall.name())
-                                                    .arguments(toolCall.arguments())
-                                                    .build())
-                                            .toList())
-                                    .reasoning(message.getText() != null && !message.getText().isEmpty() ? message.getText() : null)
-                                    .build();
-                            
-                            log.info("🛠️ [工具调用] node: {}, tools: {}", nodeName, event.getToolCalls().size());
-                        } else {
-                            // 普通流式文本内容，累积到 StringBuilder 中
-                            String content = message.getText();
-                            if (content != null && !content.isEmpty()) {
-                                currentTextBuilder.append(content);
-                            }
-
-                            event = PlanExecuteEventVO.builder()
-                                    .type("STEP_EXECUTION")
-                                    .node(nodeName)
-                                    .content(content)
-                                    .build();
-                            
-                            log.info("📝 [执行细节] node: {}, content: {}", nodeName, content);
+                    // 检测是否有工具调用
+                    if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
+                        // 先保存之前累积的文本（如果有）
+                        if (currentTextBuilder.length() > 0) {
+                            allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
+                            currentTextBuilder.setLength(0); // 清空
                         }
-                    }
-                    // 处理节点输出（计划和进度）
-                    else {
-                        OverAllState state = output.getState();
+
+                        // 保存工具调用消息（完整的 AssistantMessage，包含 toolCalls）
+                        allMessages.add(message);
+
+                        event = PlanExecuteEventVO.builder()
+                                .type("TOOL_CALL")
+                                .node(nodeName)
+                                .toolCalls(message.getToolCalls().stream()
+                                        .map(toolCall -> ToolCallVO.builder()
+                                                .id(toolCall.id())
+                                                .name(toolCall.name())
+                                                .arguments(toolCall.arguments())
+                                                .build())
+                                        .toList())
+                                .reasoning(message.getText() != null && !message.getText().isEmpty() ? message.getText() : null)
+                                .build();
                         
-                        // 根据不同节点类型，构造不同的输出格式
-                        switch (nodeName) {
-                            case "planning_agent" -> {
+                        log.info("🛠️ [工具调用] node: {}, tools: {}", nodeName, event.getToolCalls().size());
+                    } else {
+                        // 普通流式文本内容，累积到 StringBuilder 中
+                        String content = message.getText();
+                        if (content != null && !content.isEmpty()) {
+                            currentTextBuilder.append(content);
+                        }
+
+                        event = PlanExecuteEventVO.builder()
+                                .type("STEP_EXECUTION")
+                                .node(nodeName)
+                                .content(content)
+                                .build();
+                        
+                        log.info("📝 [执行细节] node: {}, content: {}", nodeName, content);
+                    }
+                }
+                // 处理节点输出（计划和进度）
+                else {
+                    OverAllState state = output.getState();
+                    
+                    // 根据不同节点类型，构造不同的输出格式
+                    switch (nodeName) {
+                        case "planning_agent" -> {
                                 // 计划创建完成
                                 String planJson = (String) state.value("plan").orElse("");
                                 event = PlanExecuteEventVO.builder()
@@ -448,8 +437,8 @@ public class AiAgentController {
                                         .build();
                                 
                                 log.info("📋 [计划创建] plan: {}", planJson);
-                            }
-                            case "supervisor_agent" -> {
+                        }
+                        case "supervisor_agent" -> {
                                 // 计划执行进度
                                 PlanExecuteEventVO.PlanExecuteEventVOBuilder builder = PlanExecuteEventVO.builder()
                                         .type("PLAN_PROGRESS")
@@ -481,8 +470,8 @@ public class AiAgentController {
                                 event = builder.build();
                                 log.info("📊 [执行进度] currentStep: {}/{}, percentage: {}%", 
                                         event.getCurrentStep(), event.getTotalSteps(), event.getPercentage());
-                            }
-                            case "step_executing_agent" -> {
+                        }
+                        case "step_executing_agent" -> {
                                 // ✅ 步骤执行完成
                                 PlanExecuteEventVO.PlanExecuteEventVOBuilder builder = PlanExecuteEventVO.builder()
                                         .node(nodeName);
@@ -511,8 +500,8 @@ public class AiAgentController {
                                 }
                                 
                                 event = builder.build();
-                            }
-                            default -> {
+                        }
+                        default -> {
                                 // 🔧 其他节点输出
                                 event = PlanExecuteEventVO.builder()
                                         .type("NODE_OUTPUT")
@@ -521,71 +510,72 @@ public class AiAgentController {
                                         .build();
                                 
                                 log.info("🔧 [节点输出] node: {}", nodeName);
-                            }
-                        }
-                    }
-                    
-                    // 发送事件
-                    if (event != null) {
-                        try {
-                            String jsonContent = JSONUtil.toJsonStr(event);
-                            emitter.send(SseEmitter.event()
-                                    .data(jsonContent)
-                                    .name("plan-execute"));
-                        } catch (IOException e) {
-                            log.error("❌ 发送事件失败", e);
-                            emitter.completeWithError(e);
-                            return; // 终止处理
                         }
                     }
                 }
-
-                // 流式处理完毕，保存最后累积的文本（如果有）
-                if (currentTextBuilder.length() > 0) {
-                    allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
-                }
-
-                log.info("✅ Plan-Execute Generator 处理完毕");
                 
-                try {
-                    // 保存完整的会话（用户消息 + 按顺序的所有助手消息）
-                    if (conversationService != null && StringUtils.isNotBlank(cid) && !allMessages.isEmpty()) {
-                        List<Message> newMessages = new ArrayList<>();
-                        newMessages.add(userMessage);
-                        newMessages.addAll(allMessages);
-
-                        CompletableFuture.runAsync(() -> {
-                            try {
-                                chatMessageService.saveMessages(cid, newMessages);
-                                log.info("💾 已保存 Plan-Execute 会话消息，conversationId: {}, 消息数量: {}", cid, newMessages.size());
-                            } catch (Exception ex) {
-                                log.warn("⚠️ 保存会话消息失败（忽略）", ex);
-                            }
-                        });
-                    }
-
-                    // 发送结束信号
-                    PlanExecuteEventVO endEvent = PlanExecuteEventVO.builder()
-                            .type("STREAM_END")
-                            .message("执行完成")
-                            .build();
-                    
+                // 发送事件
+                if (event != null) {
+                    String jsonContent = JSONUtil.toJsonStr(event);
                     emitter.send(SseEmitter.event()
-                            .data(JSONUtil.toJsonStr(endEvent))
+                            .data(jsonContent)
                             .name("plan-execute"));
-                    
-                    // 完成流
-                    emitter.complete();
-                    log.info("✅ Plan-Execute SSE 流已完成");
-                    
-                } catch (IOException e) {
-                    log.error("❌ 发送结束信号失败", e);
-                    emitter.completeWithError(e);
                 }
-                
+            } catch (IOException e) {
+                log.error("❌ 发送事件失败", e);
+                emitter.completeWithError(e);
+                throw new RuntimeException(e);
             } catch (Exception e) {
-                // 异常处理
                 log.error("❌ Plan-Execute 流处理异常", e);
+                emitter.completeWithError(e);
+                throw new RuntimeException(e);
+            }
+        }).exceptionally(error -> {
+            // 异常处理
+            log.error("❌ Plan-Execute 流处理异常", error);
+            emitter.completeWithError(error);
+            return null;
+        }).thenRun(() -> {
+            // 流式处理完毕，保存最后累积的文本（如果有）
+            if (currentTextBuilder.length() > 0) {
+                allMessages.add(new AssistantMessage(currentTextBuilder.toString()));
+            }
+
+            log.info("✅ Plan-Execute Generator 处理完毕");
+            
+            try {
+                // 保存完整的会话（用户消息 + 按顺序的所有助手消息）
+                if (conversationService != null && StringUtils.isNotBlank(cid) && !allMessages.isEmpty()) {
+                    List<Message> newMessages = new ArrayList<>();
+                    newMessages.add(userMessage);
+                    newMessages.addAll(allMessages);
+
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            chatMessageService.saveMessages(cid, newMessages);
+                            log.info("💾 已保存 Plan-Execute 会话消息，conversationId: {}, 消息数量: {}", cid, newMessages.size());
+                        } catch (Exception ex) {
+                            log.warn("⚠️ 保存会话消息失败（忽略）", ex);
+                        }
+                    });
+                }
+
+                // 发送结束信号
+                PlanExecuteEventVO endEvent = PlanExecuteEventVO.builder()
+                        .type("STREAM_END")
+                        .message("执行完成")
+                        .build();
+                
+                emitter.send(SseEmitter.event()
+                        .data(JSONUtil.toJsonStr(endEvent))
+                        .name("plan-execute"));
+                
+                // 完成流
+                emitter.complete();
+                log.info("✅ Plan-Execute SSE 流已完成");
+                
+            } catch (IOException e) {
+                log.error("❌ 发送结束信号失败", e);
                 emitter.completeWithError(e);
             }
         });

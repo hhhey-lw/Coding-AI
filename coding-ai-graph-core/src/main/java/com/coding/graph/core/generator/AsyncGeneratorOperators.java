@@ -60,5 +60,30 @@ public interface AsyncGeneratorOperators<E> {
 		return future;
 	}
 
+	/**
+	 * 实时流式处理 AsyncGenerator 的元素，不阻塞调用线程。
+	 * 
+	 * 此方法会在后台线程中遍历生成器，每产生一个元素就立即调用 consumer 处理。
+	 * consumer 的执行是同步的，这样可以保证 SSE 等流式输出能够实时发送给客户端。
+	 * 适合需要实时流式处理的场景，例如 SSE 推送。
+	 * 
+	 * @param consumer 应用于每个元素的消费者函数
+	 * @return 表示流式处理过程完成的 CompletableFuture
+	 */
+	default CompletableFuture<Void> streamForEach(Consumer<E> consumer) {
+		return CompletableFuture.runAsync(() -> {
+			for (AsyncGenerator.Data<E> next = next(); !next.isDone(); next = next()) {
+				final AsyncGenerator.Data<E> finalNext = next;
+				if (finalNext.embed != null) {
+					// 处理嵌套生成器 - 递归调用并等待完成
+					finalNext.embed.generator.async(executor()).streamForEach(consumer).join();
+				} else {
+					// 等待数据就绪，然后立即处理（同步执行 consumer）
+					E element = finalNext.data.join();
+					consumer.accept(element);
+				}
+			}
+		});
+	}
 
 }
