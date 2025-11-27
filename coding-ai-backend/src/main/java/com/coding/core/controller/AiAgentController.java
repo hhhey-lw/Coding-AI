@@ -1,10 +1,10 @@
 package com.coding.core.controller;
 
 import cn.hutool.core.collection.CollectionUtil;
-import cn.hutool.json.JSONUtil;
 import com.coding.core.enums.AgentMessageRoleEnum;
 import com.coding.core.enums.AgentMessageTypeEnum;
 import com.coding.core.model.vo.AgentMessageVO;
+import com.coding.core.model.vo.AgentPlanVO;
 import com.coding.core.model.vo.AgentToolCallVO;
 import com.coding.core.manager.AgentManager;
 import com.coding.core.model.vo.AgentToolResponseVO;
@@ -18,6 +18,8 @@ import com.coding.graph.core.graph.CompiledGraph;
 import com.coding.graph.core.node.NodeOutput;
 import com.coding.graph.core.node.StreamingOutput;
 import com.coding.graph.core.state.OverAllState;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PostConstruct;
@@ -62,6 +64,9 @@ public class AiAgentController {
     @Resource
     private ChatMessageService chatMessageService;
 
+    @Resource
+    private ObjectMapper objectMapper; // 注入 ObjectMapper
+
     private ReactAgent reactAgent;
 
     private CompiledGraph planExecuteAgent;
@@ -98,7 +103,7 @@ public class AiAgentController {
         // 5. 使用 streamForEach 异步处理流式输出
         generator.streamForEach(output -> {
             try {
-                if (output == null) {
+                if (output == null || StringUtils.isBlank(output.getNode()) || "preLlm".equals(output.getNode()) || "__END__".equals(output.getNode())) {
                     return;
                 }
 
@@ -147,8 +152,13 @@ public class AiAgentController {
                     }
 
                     // 发送消息
-                    emitter.send(SseEmitter.event()
-                            .data(JSONUtil.toJsonStr(messageVO)));
+                    try {
+                        emitter.send(SseEmitter.event()
+                                .data(objectMapper.writeValueAsString(messageVO)));
+                    } catch (JsonProcessingException e) {
+                        log.error("JSON序列化失败", e);
+                        throw new RuntimeException(e);
+                    }
                 }
                 // 处理工具节点输出，收集工具响应消息
                 else {
@@ -172,19 +182,30 @@ public class AiAgentController {
                                 if (lastMessage instanceof ToolResponseMessage toolResponseMessage) {
                                     // 将工具响应消息添加到收集列表
                                     allMessages.add(toolResponseMessage);
-                                    // TODO 发送 工具响应消息
+
                                     try {
+                                        AgentMessageVO toolResponseVO = AgentMessageVO.builder()
+                                                .role(AgentMessageRoleEnum.ASSISTANT.name())
+                                                .type(AgentMessageTypeEnum.TOOL_RESPONSE.name())
+                                                .toolResponses(toolResponseMessage.getResponses()
+                                                        .stream().map(toolResponse -> AgentToolResponseVO.builder()
+                                                                .id(toolResponse.id())
+                                                                .name(toolResponse.name())
+                                                                .responseData(toolResponse.responseData())
+                                                                .build())
+                                                        .toList())
+                                                .build();
+
+                                        String jsonData = objectMapper.writeValueAsString(toolResponseVO);
                                         emitter.send(SseEmitter.event()
-                                                .data(JSONUtil.toJsonStr(AgentMessageVO.builder()
-                                                        .role(AgentMessageRoleEnum.ASSISTANT.name())
-                                                        .type(AgentMessageTypeEnum.TOOL_RESPONSE.name())
-                                                        .toolResponses(toolResponseMessage.getResponses()
-                                                                .stream().map(toolResponse -> AgentToolResponseVO.builder()
-                                                                        .id(toolResponse.id())
-                                                                        .name(toolResponse.name())
-                                                                        .responseData(toolResponse.responseData())
-                                                                        .build())
-                                                                .toList()))));
+                                                .data(jsonData));
+
+                                        // 添加调试日志
+                                        log.warn("发送的数据:{}", jsonData);
+                                        log.info("发送工具响应消息，toolResponseMessage: {}", toolResponseMessage);
+                                    } catch (JsonProcessingException e) {
+                                        log.error("工具响应消息JSON序列化失败", e);
+                                        throw new RuntimeException(e);
                                     } catch (IOException e) {
                                         throw new RuntimeException(e);
                                     }
@@ -192,7 +213,7 @@ public class AiAgentController {
                             }
                         });
                     } else {
-                        log.warn("未知类型的输出，result: {}", JSONUtil.toJsonStr(output));
+                        log.warn("未知类型的输出，result: {}", output); // 这里也改一下，避免用到JSONUtil
                     }
                 }
             } catch (Exception e) {
@@ -215,8 +236,12 @@ public class AiAgentController {
 
             try {
                 // 发送结束信号
+                AgentMessageVO finishMessage = AgentMessageVO.buildFinishMessage();
                 emitter.send(SseEmitter.event()
-                        .data(JSONUtil.toJsonStr(AgentMessageVO.buildFinishMessage())));
+                        .data(objectMapper.writeValueAsString(finishMessage)));
+            } catch (JsonProcessingException e) {
+                log.error("结束消息JSON序列化失败", e);
+                throw new RuntimeException(e);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -253,16 +278,12 @@ public class AiAgentController {
         generator.streamForEach(output -> {
             try {
                 // 处理 null 输出
-                if (output == null || StringUtils.isBlank(output.getNode()) || "preLlm".equals(output.getNode())) {
+                if (output == null || StringUtils.isBlank(output.getNode()) || "preLlm".equals(output.getNode()) || "__END__".equals(output.getNode())) {
                     return;
                 }
 
                 // 过滤不需要发送给前端的节点（只记录日志）
                 String nodeName = output.getNode();
-                if ("__END__".equals(nodeName)) {
-                    // TODO 发送结束信号
-                    return;
-                }
 
                 if ("tool".equals(nodeName)) {
                     OverAllState toolState = output.getState();
@@ -274,31 +295,37 @@ public class AiAgentController {
                         if (messagesObj instanceof List) {
                             @SuppressWarnings("unchecked")
                             List<Message> ms = (List<Message>) messagesObj;
-                            if (!ms.isEmpty()) {
-                                // 获取最后一条消息（工具响应消息）
-                                Message lastMessage = ms.get(ms.size() - 1);
-                                if (lastMessage instanceof ToolResponseMessage toolResponseMessage) {
-                                    // 将工具响应消息添加到收集列表
-                                    allMessages.add(toolResponseMessage);
-                                    // TODO 发送 工具响应消息
-                                    try {
-                                        emitter.send(SseEmitter.event()
-                                                .data(JSONUtil.toJsonStr(AgentMessageVO.builder()
-                                                        .role(AgentMessageRoleEnum.ASSISTANT.name())
-                                                        .type(AgentMessageTypeEnum.TOOL_RESPONSE.name())
-                                                        .toolResponses(toolResponseMessage.getResponses()
-                                                                .stream().map(toolResponse -> AgentToolResponseVO.builder()
-                                                                        .id(toolResponse.id())
-                                                                        .name(toolResponse.name())
-                                                                        .responseData(toolResponse.responseData())
-                                                                        .build())
-                                                                .toList()))));
-                                    } catch (IOException e) {
-                                        throw new RuntimeException(e);
-                                    }
+                            if (ms.isEmpty()) {
+                                return;
+                            }
+                            // 获取最后一条消息（工具响应消息）
+                            Message lastMessage = ms.get(ms.size() - 1);
+                            if (lastMessage instanceof ToolResponseMessage toolResponseMessage) {
+                                // 将工具响应消息添加到收集列表
+                                allMessages.add(toolResponseMessage);
+
+                                try {
+                                    AgentMessageVO toolResponseVO = AgentMessageVO.builder()
+                                            .role(AgentMessageRoleEnum.ASSISTANT.name())
+                                            .type(AgentMessageTypeEnum.TOOL_RESPONSE.name())
+                                            .toolResponses(toolResponseMessage.getResponses()
+                                                    .stream().map(toolResponse -> AgentToolResponseVO.builder()
+                                                            .id(toolResponse.id())
+                                                            .name(toolResponse.name())
+                                                            .responseData(toolResponse.responseData())
+                                                            .build())
+                                                    .toList())
+                                            .build();
+
+                                    String jsonData = objectMapper.writeValueAsString(toolResponseVO);
+                                    emitter.send(SseEmitter.event()
+                                            .data(jsonData));
+                                } catch (JsonProcessingException e) {
+                                    log.error("工具响应消息JSON序列化失败", e);
+                                    throw new RuntimeException(e);
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
                                 }
-                            } else {
-                                log.warn("messages 列表为空，无法获取工具响应");
                             }
                         } else {
                             log.warn("messages 不是 List 类型，实际类型: {}", messagesObj.getClass());
@@ -307,7 +334,7 @@ public class AiAgentController {
                     return;
                 }
 
-                AgentMessageVO messageVO;
+                AgentMessageVO messageVO = null;
 
                 // 处理流式输出
                 if (output instanceof StreamingOutput streamingOutput) {
@@ -321,7 +348,7 @@ public class AiAgentController {
                             currentTextBuilder.setLength(0); // 清空
                         }
 
-                        // 保存工具调用消息（完整的 AssistantMessage，包含 toolCalls）
+                        // 保存工具调用消息
                         allMessages.add(message);
 
                         messageVO = AgentMessageVO.builder()
@@ -349,6 +376,7 @@ public class AiAgentController {
                                 .content(message.getText())
                                 .build();
                     }
+
                 }
                 // 处理节点输出（计划和进度）
                 else {
@@ -359,31 +387,31 @@ public class AiAgentController {
                         case "planning_agent" -> {
                             // 计划创建完成
                             String planJson = (String) state.value("plan").orElse("");
-                            event = AgentMessageVO.builder()
-                                    .type("PLAN_CREATED")
+                            messageVO = AgentMessageVO.builder()
+                                    .type(AgentMessageTypeEnum.PLAN_CREATED.name())
                                     .node(nodeName)
-                                    .plan(planJson)
+                                    .plan(AgentPlanVO.builder()
+                                            .plan(planJson)
+                                            .build())
                                     .build();
 
                             log.info("📋 [计划创建] plan: {}", planJson);
                         }
                         case "supervisor_agent" -> {
                             // 计划执行进度
-                            AgentMessageVO.PlanExecuteEventVOBuilder builder = AgentMessageVO.builder()
-                                    .type("PLAN_PROGRESS")
-                                    .node(nodeName);
+                            AgentPlanVO.AgentPlanVOBuilder planBuilder = AgentPlanVO.builder();
 
                             // 提取进度信息
-                            state.value("plan_id").ifPresent(v -> builder.planId((String) v));
-                            state.value("current_step_index").ifPresent(v -> builder.currentStep((Integer) v));
-                            state.value("total_steps").ifPresent(v -> builder.totalSteps((Integer) v));
-                            state.value("is_finished").ifPresent(v -> builder.isFinished((Boolean) v));
-                            state.value("current_step_description").ifPresent(v -> builder.stepDescription((String) v));
+                            state.value("plan_id").ifPresent(v -> planBuilder.planId((String) v));
+                            state.value("current_step_index").ifPresent(v -> planBuilder.currentStep((Integer) v));
+                            state.value("total_steps").ifPresent(v -> planBuilder.totalSteps((Integer) v));
+                            state.value("is_finished").ifPresent(v -> planBuilder.isFinished((Boolean) v));
+                            state.value("current_step_description").ifPresent(v -> planBuilder.stepDescription((String) v));
                             state.value("step_status_history").ifPresent(v -> {
                                 if (v instanceof Map) {
                                     @SuppressWarnings("unchecked")
                                     Map<String, String> history = (Map<String, String>) v;
-                                    builder.history(history);
+                                    planBuilder.history(history);
                                 }
                             });
 
@@ -392,17 +420,26 @@ public class AiAgentController {
                                     state.value("total_steps").isPresent()) {
                                 int current = (int) state.value("current_step_index").get();
                                 int total = (int) state.value("total_steps").get();
-                                int percentage = (int) ((current * 100.0) / total);
-                                builder.percentage(percentage);
+                                if (total > 0) {
+                                    int percentage = (int) ((current * 100.0) / total);
+                                    planBuilder.percentage(percentage);
+                                }
                             }
 
-                            event = builder.build();
+                            AgentPlanVO planVO = planBuilder.build();
+                            messageVO = AgentMessageVO.builder()
+                                    .role(AgentMessageRoleEnum.ASSISTANT.name())
+                                    .type(AgentMessageTypeEnum.PLAN_PROGRESS.name())
+                                    .node(nodeName)
+                                    .plan(planVO)
+                                    .build();
+
                             log.info("📊 [执行进度] currentStep: {}/{}, percentage: {}%",
-                                    event.getCurrentStep(), event.getTotalSteps(), event.getPercentage());
+                                    planVO.getCurrentStep(), planVO.getTotalSteps(), planVO.getPercentage());
                         }
                         case "step_executing_agent" -> {
                             // ✅ 步骤执行完成
-                            AgentMessageVO.PlanExecuteEventVOBuilder builder = AgentMessageVO.builder()
+                            AgentMessageVO.AgentMessageVOBuilder builder = AgentMessageVO.builder()
                                     .node(nodeName);
 
                             // 检查是否包含工具返回结果
@@ -419,36 +456,33 @@ public class AiAgentController {
 
                                 if (isToolResult) {
                                     // 🎯 工具返回结果
-                                    builder.type("TOOL_RESULT").result(outputStr);
+                                    builder.type(AgentMessageTypeEnum.TOOL_RESPONSE.name()).content(outputStr);
                                     log.info("🎯 [工具返回] result: {}", outputStr);
                                 } else {
                                     // 普通步骤完成
-                                    builder.type("STEP_COMPLETED").output(outputStr);
+                                    builder.type(AgentMessageTypeEnum.STEP_COMPLETE.name()).content(outputStr);
                                     log.info("✅ [步骤完成] output: {}", outputStr);
                                 }
                             }
 
-                            event = builder.build();
+                            messageVO = builder.build();
                         }
                         default -> {
                             // 🔧 其他节点输出
-                            event = AgentMessageVO.builder()
-                                    .type("NODE_OUTPUT")
-                                    .node(nodeName)
-                                    .data(state.data())
-                                    .build();
-
-                            log.info("🔧 [节点输出] node: {}", nodeName);
+                            log.error("🔧 [节点输出] node: {}", nodeName);
                         }
                     }
                 }
 
                 // 发送事件
-                if (event != null) {
-                    String jsonContent = JSONUtil.toJsonStr(event);
-                    emitter.send(SseEmitter.event()
-                            .data(jsonContent)
-                            .name("plan-execute"));
+                if (messageVO != null) {
+                    try {
+                        emitter.send(SseEmitter.event()
+                                .data(objectMapper.writeValueAsString(messageVO)));
+                    } catch (JsonProcessingException e) {
+                        log.error("消息JSON序列化失败", e);
+                        throw new RuntimeException(e);
+                    }
                 }
             } catch (IOException e) {
                 log.error("❌ 发送事件失败", e);
@@ -474,15 +508,15 @@ public class AiAgentController {
 
             try {
                 // 保存完整的会话（用户消息 + 按顺序的所有助手消息）
-                if (StringUtils.isNotBlank(cid) && !allMessages.isEmpty()) {
+                if (StringUtils.isNotBlank(conversationId) && !allMessages.isEmpty()) {
                     List<Message> newMessages = new ArrayList<>();
-                    newMessages.add(userMessage);
+                    newMessages.add(new UserMessage(prompt));
                     newMessages.addAll(allMessages);
 
                     CompletableFuture.runAsync(() -> {
                         try {
-                            chatMessageService.saveMessages(cid, newMessages);
-                            log.info("💾 已保存 Plan-Execute 会话消息，conversationId: {}, 消息数量: {}", cid, newMessages.size());
+                            chatMessageService.saveMessages(conversationId, newMessages);
+                            log.info("💾 已保存 Plan-Execute 会话消息，conversationId: {}, 消息数量: {}", conversationId, newMessages.size());
                         } catch (Exception ex) {
                             log.warn("⚠️ 保存会话消息失败（忽略）", ex);
                         }
@@ -490,19 +524,17 @@ public class AiAgentController {
                 }
 
                 // 发送结束信号
-                AgentMessageVO endEvent = AgentMessageVO.builder()
-                        .type("STREAM_END")
-                        .message("执行完成")
-                        .build();
-
+                AgentMessageVO finishMessage = AgentMessageVO.buildFinishMessage();
                 emitter.send(SseEmitter.event()
-                        .data(JSONUtil.toJsonStr(endEvent))
+                        .data(objectMapper.writeValueAsString(finishMessage))
                         .name("plan-execute"));
 
                 // 完成流
                 emitter.complete();
-                log.info("✅ Plan-Execute SSE 流已完成");
 
+            } catch (JsonProcessingException e) {
+                log.error("结束消息JSON序列化失败", e);
+                emitter.completeWithError(e);
             } catch (IOException e) {
                 log.error("❌ 发送结束信号失败", e);
                 emitter.completeWithError(e);
@@ -511,5 +543,4 @@ public class AiAgentController {
 
         return emitter;
     }
-
 }

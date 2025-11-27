@@ -1,7 +1,7 @@
 <template>
   <div class="plan-card">
     <!-- 卡片头部 -->
-    <div class="plan-header">
+    <div class="plan-header" @click="toggleCollapse" :class="{ 'clickable': true }">
       <div class="plan-icon">
         <el-icon :size="20"><List /></el-icon>
       </div>
@@ -14,44 +14,64 @@
         <el-tag v-else type="primary" size="small" effect="plain">
           {{ currentStep }}/{{ totalSteps }}
         </el-tag>
+        <el-icon class="collapse-icon" :class="{ 'is-collapsed': isCollapsed }">
+          <ArrowDown />
+        </el-icon>
       </div>
     </div>
 
-    <!-- 步骤列表 -->
-    <div class="plan-steps">
-      <div
-        v-for="(step, index) in planData.steps"
-        :key="index"
-        class="step-item"
-        :class="getStepClass(index)"
-      >
-        <div class="step-checkbox">
-          <!-- 已完成：当前步骤之前的，或者计划完成时的所有步骤 -->
-          <el-icon v-if="isFinished || index < currentStep - 1" :size="18" color="#67c23a">
-            <CircleCheck />
-          </el-icon>
-          <!-- 进行中：当前步骤且计划未完成 -->
-          <el-icon v-else-if="!isFinished && index === currentStep - 1" :size="18" color="#409eff">
-            <Loading class="rotating" />
-          </el-icon>
-          <!-- 待执行：其他情况 -->
-          <div v-else class="empty-circle"></div>
-        </div>
-        <div class="step-content">
-          <div class="step-text">{{ step }}</div>
+    <!-- 步骤列表（折叠区域） -->
+    <el-collapse-transition>
+      <div class="plan-steps" v-show="!isCollapsed">
+        <div
+          v-for="(step, index) in planData.steps"
+          :key="index"
+          class="step-item"
+          :class="getStepClass(index)"
+        >
+          <div class="step-checkbox">
+            <!-- 已完成：当前步骤之前的，或者计划完成时的所有步骤 -->
+            <el-icon v-if="isFinished || index < currentStep - 1" :size="18" color="#67c23a">
+              <CircleCheck />
+            </el-icon>
+            <!-- 进行中：当前步骤且计划未完成 -->
+            <div v-else-if="!isFinished && index === currentStep - 1" class="active-circle">
+              <div class="inner-circle"></div>
+            </div>
+            <!-- 待执行：其他情况 -->
+            <div v-else class="empty-circle"></div>
+          </div>
+          <div class="step-content">
+            <div class="step-text">{{ step }}</div>
+          </div>
         </div>
       </div>
+    </el-collapse-transition>
+    
+    <!-- 仅显示当前正在执行的步骤（当折叠时且未完成） -->
+    <div class="current-step-preview" v-if="isCollapsed && !isFinished && currentStep > 0 && currentStep <= planData.steps.length">
+       <div class="step-item active" style="border: none; padding: 0;">
+          <div class="step-checkbox">
+            <div class="active-circle">
+              <div class="inner-circle"></div>
+            </div>
+          </div>
+          <div class="step-content">
+            <div class="step-text">{{ planData.steps[currentStep - 1] }}</div>
+          </div>
+       </div>
     </div>
 
     <!-- 计划ID（调试用） -->
-    <div class="plan-footer" v-if="showPlanId">
+    <div class="plan-footer" v-if="showPlanId && !isCollapsed">
       <el-text size="small" type="info">计划ID: {{ planData.planId }}</el-text>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { List, CircleCheck, Loading } from '@element-plus/icons-vue'
+import { computed, ref, watch } from 'vue'
+import { List, CircleCheck, ArrowDown } from '@element-plus/icons-vue'
 
 interface Props {
   planData: {
@@ -75,6 +95,23 @@ const props = withDefaults(defineProps<Props>(), {
   stepDescription: '',
   showPlanId: false
 })
+
+// 折叠状态：默认折叠
+const isCollapsed = ref(true)
+
+// 监听完成状态
+watch(() => props.isFinished, (newVal) => {
+  // 如果执行完毕，且当前是折叠状态，保持折叠。
+  // 用户需求：执行完毕则步骤显示执行完毕。
+  // 这里的实现是：如果完成了，Header会显示"已完成"Tag，且因为是折叠状态，预览区域不再显示"当前步骤"（因为没有正在进行的步骤了）。
+  // 这样符合"只显示当前的步骤"（没有当前步骤就不显示）和"执行完毕则步骤显示执行完毕"（看Header状态）。
+  // 如果需要自动展开，可以在这里设置 isCollapsed.value = false
+}, { immediate: true })
+
+// 切换折叠
+const toggleCollapse = () => {
+  isCollapsed.value = !isCollapsed.value
+}
 
 // 方法 - 获取步骤样式类
 const getStepClass = (index: number) => {
@@ -153,6 +190,27 @@ const getStepClass = (index: number) => {
 
 .plan-status {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapse-icon {
+  color: #909399;
+  transition: transform 0.3s;
+  font-size: 16px;
+}
+
+.collapse-icon.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.current-step-preview {
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 12px 16px;
+  border: 1px solid #f0f0f0;
+  margin-top: -8px; /* 紧接 Header */
 }
 
 .plan-steps {
@@ -191,6 +249,24 @@ const getStepClass = (index: number) => {
   align-items: center;
   justify-content: center;
   background: #f5f7fa;
+  border-radius: 50%;
+}
+
+.active-circle {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #409eff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.inner-circle {
+  width: 10px;
+  height: 10px;
+  background: #409eff;
   border-radius: 50%;
 }
 

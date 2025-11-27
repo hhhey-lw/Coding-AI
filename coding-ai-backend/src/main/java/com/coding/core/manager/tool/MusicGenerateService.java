@@ -16,6 +16,11 @@ public class MusicGenerateService implements Function<MusicGenerateService.Reque
 
     @Override
     public Response apply(Request request) {
+        try {
+            Thread.sleep(4000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return "http://example.com/music.mp3".equals(request.prompt) ?
                 new Response("https://cdn.hailuoai.com/prod/2025-09-25-22/moss-audio/user_music/1758812347339664609-316425092063413.mp3") :
                 new Response("https://cdn.hailuoai.com/prod/2025-09-25-22/moss-audio/user_music/1758812347339664609-316425092063413.mp3");

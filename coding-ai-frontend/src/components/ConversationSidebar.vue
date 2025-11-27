@@ -231,6 +231,7 @@ const formatTime = (time: string) => {
 
 .sidebar-container.collapsed {
   width: 50px;
+  min-width: 50px; /* 必须覆盖 min-width 否则无法收缩 */
 }
 
 .collapse-btn {

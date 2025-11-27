@@ -3,10 +3,13 @@ package com.coding.core.controller;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.core.common.Result;
+import com.coding.core.enums.AgentMessageRoleEnum;
+import com.coding.core.enums.AgentMessageTypeEnum;
 import com.coding.core.model.model.ChatConversationModel;
 import com.coding.core.model.request.ChatConversationCreateRequest;
 import com.coding.core.model.request.ChatConversationPageRequest;
 import com.coding.core.model.response.ChatConversationDetailResponse;
+import com.coding.core.model.vo.AgentMessageVO;
 import com.coding.core.model.vo.AgentToolCallVO;
 import com.coding.core.model.vo.AgentToolResponseVO;
 import com.coding.core.model.vo.ChatConversationVO;
@@ -125,15 +128,15 @@ public class ChatConversationController {
         // 查询消息列表
         List<Message> messages = chatMessageService.findMessages(id);
         
-        // 将 Message 转换为 SimpleChatMessageVO
-        List<SimpleChatMessageVO> simpleMessages = messages.stream()
-                .map(this::convertToSimpleMessageVO)
+        // 将 Message 转换为 AgentMessageVO
+        List<AgentMessageVO> agentMessages = messages.stream()
+                .map(this::convertToAgentMessageVO)
                 .collect(Collectors.toList());
         
         // 构建响应
         ChatConversationDetailResponse response = ChatConversationDetailResponse.builder()
                 .conversation(conversation)
-                .messages(simpleMessages)
+                .messages(agentMessages)
                 .build();
         
         return Result.success("查询成功", response);
@@ -168,22 +171,23 @@ public class ChatConversationController {
     }
 
     /**
-     * 将 Spring AI Message 转换为前端友好的 SimpleChatMessageVO
+     * 将 Spring AI Message 转换为前端友好的 AgentMessageVO
      * 支持 React Agent 和 Planning Agent 的完整消息格式
      */
-    private SimpleChatMessageVO convertToSimpleMessageVO(Message message) {
-        SimpleChatMessageVO.SimpleChatMessageVOBuilder builder = SimpleChatMessageVO.builder();
+    private AgentMessageVO convertToAgentMessageVO(Message message) {
+        AgentMessageVO.AgentMessageVOBuilder builder = AgentMessageVO.builder();
 
         if (message instanceof UserMessage) {
-            builder.role("user")
+            builder.role(AgentMessageRoleEnum.USER.name())
                     .content(message.getText());
 
         } else if (message instanceof AssistantMessage assistantMsg) {
-            builder.role("assistant")
+            builder.role(AgentMessageRoleEnum.ASSISTANT.name())
                     .content(message.getText() != null ? message.getText() : "");
 
-            // 如果有工具调用，转换工具调用信息（与前端格式保持一致）
+            // 如果有工具调用
             if (assistantMsg.getToolCalls() != null && !assistantMsg.getToolCalls().isEmpty()) {
+                builder.type(AgentMessageTypeEnum.TOOL_CALL.name());
                 List<AgentToolCallVO> toolCalls = assistantMsg.getToolCalls().stream()
                         .map(tc -> AgentToolCallVO.builder()
                                 .id(tc.id())
@@ -192,14 +196,17 @@ public class ChatConversationController {
                                 .build())
                         .collect(Collectors.toList());
                 builder.toolCalls(toolCalls);
+            } else {
+                builder.type(AgentMessageTypeEnum.ANSWER.name());
             }
 
         } else if (message instanceof SystemMessage) {
-            builder.role("system")
+            builder.role(AgentMessageRoleEnum.SYSTEM.name())
                     .content(message.getText());
 
         } else if (message instanceof ToolResponseMessage toolMessage) {
-            builder.role("tool")
+            builder.role(AgentMessageRoleEnum.TOOL.name())
+                    .type(AgentMessageTypeEnum.TOOL_RESPONSE.name())
                     .content(""); // tool 消息的内容在 responses 中
 
             // 转换工具响应信息
@@ -211,7 +218,7 @@ public class ChatConversationController {
                                 .responseData(tr.responseData())
                                 .build())
                         .collect(Collectors.toList());
-                builder.responses(responses);
+                builder.toolResponses(responses);
             }
 
         } else {
@@ -221,5 +228,4 @@ public class ChatConversationController {
 
         return builder.build();
     }
-
 }

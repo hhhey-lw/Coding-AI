@@ -58,7 +58,7 @@
       </McLayoutContent>
 
       <!-- 消息列表 -->
-      <McLayoutContent class="content-container" v-else>
+      <McLayoutContent class="content-container" v-else ref="contentContainerRef">
         <template v-for="(block, idx) in messageBlocks" :key="idx">
           <!-- 用户消息 -->
           <McBubble
@@ -69,7 +69,7 @@
           />
           
           <!-- AI 消息块 -->
-          <div v-else-if="block.type === 'assistant'" class="ai-message-wrapper">
+          <div v-else-if="block.type === 'assistant' && (block.loading || (block.content && block.content.trim()))" class="ai-message-wrapper">
             <div class="ai-avatar">
               <img src="https://matechat.gitcode.com/logo.svg" alt="AI" />
             </div>
@@ -101,7 +101,7 @@
 
           <!-- 工具调用卡片 -->
           <div v-else-if="block.type === 'tool'" class="tool-wrapper">
-            <ToolCallCard :toolCall="block.toolCall" />
+            <ToolCallCard :toolCall="block.toolCall" :toolResponse="block.toolResponse" />
           </div>
         </template>
       </McLayoutContent>
@@ -139,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -152,6 +152,7 @@ import ToolCallCard from '@/components/ToolCallCard.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const contentContainerRef = ref<HTMLElement | null>(null)
 
 // 用户头像
 const userAvatar = computed(() => authStore.userInfo?.userAvatar || 'https://matechat.gitcode.com/png/demo/userAvatar.svg')
@@ -198,6 +199,7 @@ interface MessageBlock {
   percentage?: number
   isFinished?: boolean
   toolCall?: any
+  toolResponse?: any
 }
 
 // 响应式数据
@@ -216,9 +218,25 @@ let currentAbortController: AbortController | null = null
 
 // 计划管理 Map - 根据 planId 快速索引
 const plansMap = ref<Map<string, number>>(new Map())
+// 计划定义缓存 - 存储 planId 对应的标题和步骤
+const planDefinitions = ref<Map<string, { title: string, steps: string[] }>>(new Map())
 
 // 当前正在构建的文本块索引
 let currentTextBlockIndex = -1
+
+// 滚动到底部
+const scrollToBottom = async () => {
+  await nextTick()
+  if (contentContainerRef.value) {
+    const container = contentContainerRef.value.$el || contentContainerRef.value
+    container.scrollTop = container.scrollHeight
+  }
+}
+
+// 监听消息变化自动滚动
+watch(() => messageBlocks.value, () => {
+  scrollToBottom()
+}, { deep: true })
 
 // 初始化：加载会话列表和设置模型
 onMounted(async () => {
@@ -302,27 +320,32 @@ const selectConversation = async (id: string) => {
       
       // 将历史消息转换为 messageBlocks 显示
       const historyBlocks: MessageBlock[] = []
+      // 用于根据 toolCallId 查找对应的 MessageBlock
+      const toolCallMap = new Map<string, MessageBlock>()
       
       for (const msg of response.data.messages) {
-        if (msg.role === 'user') {
+        if (msg.role === 'USER') {
           // 用户消息
           historyBlocks.push({
             type: 'user',
             content: msg.content
           })
-        } else if (msg.role === 'assistant') {
+        } else if (msg.role === 'ASSISTANT') {
           // 助手消息
           if (msg.toolCalls && msg.toolCalls.length > 0) {
             // 如果有工具调用，创建工具调用块
-            msg.toolCalls.forEach(toolCall => {
-              historyBlocks.push({
+            msg.toolCalls.forEach((toolCall: any) => {
+              const block: MessageBlock = {
                 type: 'tool',
                 toolCall: {
                   id: toolCall.id,
                   name: toolCall.name,
                   arguments: toolCall.arguments
                 }
-              })
+              }
+              historyBlocks.push(block)
+              // 记录ID映射，以便后续关联响应
+              toolCallMap.set(toolCall.id, block)
             })
           }
           
@@ -334,14 +357,32 @@ const selectConversation = async (id: string) => {
               loading: false
             })
           }
-        } else if (msg.role === 'tool') {
-          // 工具响应消息（通常已经被处理为助手消息的一部分，这里可以跳过或特殊处理）
-          console.log('🔧 工具响应消息:', msg.responses)
+          
+          // 检查是否是计划相关的消息 (Plan-Execute 模式)
+          // 这里可能需要根据 plan 字段来恢复计划卡片
+          // 但后端返回的历史消息中可能没有保留完整的 plan 状态，或者是以特殊文本形式
+          // 暂时主要修复工具调用的显示
+          
+        } else if (msg.role === 'TOOL' || (msg.type === 'TOOL_RESPONSE' && msg.toolResponses)) {
+          // 工具响应消息
+          if (msg.toolResponses && msg.toolResponses.length > 0) {
+            msg.toolResponses.forEach((response: any) => {
+               const toolBlock = toolCallMap.get(response.id)
+               if (toolBlock) {
+                 toolBlock.toolResponse = {
+                   id: response.id,
+                   name: response.name,
+                   responseData: response.responseData
+                 }
+               }
+            })
+          }
         }
       }
       
       messageBlocks.value = historyBlocks
       console.log('✅ 历史消息渲染完成，共', historyBlocks.length, '个消息块')
+      scrollToBottom()
     }
   } catch (error: any) {
     console.warn('⚠️ 加载历史消息失败:', error)
@@ -499,7 +540,7 @@ const fetchStreamData = async (userMessage: string) => {
           case 'TOOL_CALL':
             // 工具调用
             if (event.toolCalls && event.toolCalls.length > 0) {
-              event.toolCalls.forEach(toolCall => {
+              event.toolCalls.forEach((toolCall: any) => {
                 // 检查是否已添加
                 const exists = messageBlocks.value.some(
                   (block) => block.type === 'tool' && block.toolCall?.id === toolCall.id
@@ -517,6 +558,21 @@ const fetchStreamData = async (userMessage: string) => {
                     loading: false,
                   })
                   currentTextBlockIndex = messageBlocks.value.length - 1
+                }
+              })
+            }
+            break
+            
+          case 'TOOL_RESPONSE':
+            // 工具响应
+            if (event.toolResponses && event.toolResponses.length > 0) {
+              event.toolResponses.forEach((response: any) => {
+                // 查找对应的工具调用块
+                const block = messageBlocks.value.find(
+                  (b) => b.type === 'tool' && b.toolCall?.id === response.id
+                )
+                if (block) {
+                  block.toolResponse = response
                 }
               })
             }
@@ -595,26 +651,22 @@ const fetchPlanExecuteData = async (userMessage: string) => {
           case 'TOOL_CALL':
             // 工具调用
             if (event.toolCalls && event.toolCalls.length > 0) {
-              event.toolCalls.forEach(toolCall => {
+              event.toolCalls.forEach((toolCall: any) => {
                 // 检查是否是 planning 工具
                 if (toolCall.name === 'planning') {
                   try {
                     const args = JSON.parse(toolCall.arguments)
                     if (args.command === 'create') {
-                      // 创建新的计划块
-                      const planBlock: MessageBlock = {
-                        type: 'plan',
-                        planData: {
-                          planId: '', // 等待 PLAN_PROGRESS 更新
-                          title: args.title || '执行计划',
-                          steps: args.steps || []
-                        },
-                        currentStep: 0,
-                        totalSteps: args.steps?.length || 0,
-                        percentage: 0,
-                        isFinished: false
-                      }
-                      messageBlocks.value.push(planBlock)
+                      // 创建新的工具调用块
+                      messageBlocks.value.push({
+                        type: 'tool',
+                        toolCall: toolCall
+                      })
+                      
+                      // 注意：这里不再立即创建 plan 块，而是等待 PLAN_PROGRESS 事件
+                      // 但我们需要保存计划的定义(步骤和标题)，以便后续使用
+                      // 由于此时还没有 planId，我们暂时无法存入 planDefinitions Map
+                      // 我们会在 TOOL_RESPONSE 中获取 planId 并关联存储
                       
                       // 创建新的文本块
                       messageBlocks.value.push({
@@ -651,7 +703,133 @@ const fetchPlanExecuteData = async (userMessage: string) => {
             }
             break
 
+          case 'TOOL_RESPONSE':
+             // 工具响应
+             if (event.toolResponses && event.toolResponses.length > 0) {
+               event.toolResponses.forEach((response: any) => {
+                 // 查找对应的工具调用块
+                 const block = messageBlocks.value.find(
+                   (b) => b.type === 'tool' && b.toolCall?.id === response.id
+                 )
+                 if (block) {
+                   block.toolResponse = response
+                   
+                   // 如果是 planning 工具的响应，更新对应的计划块ID
+                   if (block.toolCall?.name === 'planning' && response.responseData) {
+                     try {
+                       const data = JSON.parse(response.responseData)
+                       if (data.planId) {
+                         // 尝试解析请求参数以获取标题和步骤
+                         if (block.toolCall?.arguments) {
+                           try {
+                             const args = JSON.parse(block.toolCall.arguments)
+                             if (args.steps) {
+                               // 存储计划定义
+                               planDefinitions.value.set(data.planId, {
+                                 title: args.title || '执行计划',
+                                 steps: args.steps
+                               })
+                             }
+                           } catch (e) {
+                             console.error('解析 planning 请求参数失败:', e)
+                           }
+                         }
+                       }
+                     } catch (e) {
+                       // ignore parse error
+                     }
+                   }
+                 }
+               })
+             }
+             // 如果有内容，也作为文本显示（兼容 Step Execution 结果）
+             if (event.content) {
+                if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
+                  messageBlocks.value[currentTextBlockIndex].content += `\n\n${event.content}\n\n`
+                }
+             }
+             break
+          
           case 'PLAN_PROGRESS':
+            // 收到 PLAN_PROGRESS 时，创建一个新的计划块，显示最新的进度
+            // 只在有新进度时才显示（即不是第一次创建计划时）
+            if (event.plan) {
+              const planData = event.plan
+              
+              // 检查是否重复（与最近的一个该ID的计划块比较）
+              // 防止结束时产生重复的计划块
+              let lastSameIdBlock = null
+              for (let i = messageBlocks.value.length - 1; i >= 0; i--) {
+                const block = messageBlocks.value[i]
+                if (block.type === 'plan' && block.planData?.planId === planData.planId) {
+                  lastSameIdBlock = block
+                  break
+                }
+              }
+              
+              if (lastSameIdBlock) {
+                // 如果状态完全一致，则不创建新块
+                if (lastSameIdBlock.currentStep === (planData.currentStep || 0) &&
+                    lastSameIdBlock.percentage === (planData.percentage || 0) &&
+                    lastSameIdBlock.isFinished === (planData.isFinished || false)) {
+                  break
+                }
+              }
+              
+              // 查找原始计划的标题和步骤
+              let originalPlanTitle = '执行计划'
+              let originalPlanSteps: string[] = []
+              
+              // 1. 尝试从 planDefinitions 中获取
+              const definition = planDefinitions.value.get(planData.planId)
+              if (definition) {
+                originalPlanTitle = definition.title
+                originalPlanSteps = definition.steps
+              } else {
+                // 2. 如果没有定义，尝试从 messageBlocks 中查找历史计划块
+                for (let i = messageBlocks.value.length - 1; i >= 0; i--) {
+                  const block = messageBlocks.value[i]
+                  if (block.type === 'plan' && block.planData) {
+                     if (block.planData.planId === planData.planId) {
+                       originalPlanTitle = block.planData.title
+                       originalPlanSteps = block.planData.steps
+                       break
+                     }
+                  }
+                }
+              }
+              
+              // 创建新的计划块（复制一份）
+              const newPlanBlock: MessageBlock = {
+                type: 'plan',
+                planData: {
+                  planId: planData.planId,
+                  title: originalPlanTitle,
+                  steps: originalPlanSteps
+                },
+                currentStep: planData.currentStep || 0,
+                totalSteps: planData.totalSteps || 0,
+                percentage: planData.percentage || 0,
+                isFinished: planData.isFinished || false
+              }
+              
+              messageBlocks.value.push(newPlanBlock)
+              
+              // 更新映射，指向最新的这个块
+              plansMap.value.set(planData.planId, messageBlocks.value.length - 1)
+              
+              // 创建新的文本块，确保后续的文本输出显示在计划卡片下方
+              messageBlocks.value.push({
+                type: 'assistant',
+                content: '',
+                loading: true
+              })
+              currentTextBlockIndex = messageBlocks.value.length - 1
+            }
+            break
+
+          case 'STEP_COMPLETE':
+          case 'STEP_COMPLETED':
             // 更新计划进度
             if (event.planId) {
               // 查找对应的计划块
@@ -672,6 +850,9 @@ const fetchPlanExecuteData = async (userMessage: string) => {
                 const planBlock = messageBlocks.value[planBlockIndex]
                 if (planBlock.planData) {
                   planBlock.planData.planId = event.planId
+                  if (event.steps && Array.isArray(event.steps)) {
+                     planBlock.planData.steps = event.steps
+                  }
                 }
                 planBlock.currentStep = event.currentStep || 0
                 planBlock.totalSteps = event.totalSteps || 0
@@ -683,10 +864,31 @@ const fetchPlanExecuteData = async (userMessage: string) => {
 
           case 'TOOL_RESULT':
           case 'STEP_COMPLETED':
-            // 工具返回结果或步骤完成，累积到当前文本块
+            // 工具返回结果或步骤完成
             const resultContent = event.result || event.output
+            
+            // 尝试解析并更新工具响应
+            if (event.toolCallId) {
+               // 查找对应的工具调用块
+               const block = messageBlocks.value.find(
+                 (b) => b.type === 'tool' && b.toolCall?.id === event.toolCallId
+               )
+               if (block) {
+                 block.toolResponse = {
+                   id: event.toolCallId,
+                   name: block.toolCall?.name || 'unknown',
+                   responseData: resultContent || '{}'
+                 }
+               }
+            }
+            
+            // 累积到当前文本块
             if (resultContent && currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
-              messageBlocks.value[currentTextBlockIndex].content += `\n\n${resultContent}\n\n`
+              // 检查是否包含媒体链接，如果包含则不添加到文本中，因为已经在工具卡片中展示了
+              const hasMedia = resultContent.includes('"imageUrl"') || resultContent.includes('"musicUrl"')
+              if (!hasMedia) {
+                messageBlocks.value[currentTextBlockIndex].content += `\n\n${resultContent}\n\n`
+              }
             }
             break
 
@@ -764,6 +966,8 @@ onUnmounted(() => {
   height: 100vh;
   padding: 20px;
   gap: 8px;
+  box-sizing: border-box;
+  overflow: hidden; /* 防止整体溢出 */
 }
 
 .operations {
@@ -776,7 +980,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow: auto;
+  overflow-y: auto; /* 仅纵向滚动 */
+  overflow-x: hidden; /* 防止横向溢出 */
+  padding-right: 10px; /* 给滚动条留出空间 */
+  flex: 1; /* 占据剩余高度 */
 }
 
 .input-foot-wrapper {
@@ -836,9 +1043,10 @@ onUnmounted(() => {
 }
 
 .ai-content {
-  background: #f7f8fa;
-  border-radius: 12px;
-  padding: 12px 16px;
+  /* background: #f7f8fa; 移除背景，交给内部元素控制 */
+  /* border-radius: 12px; */
+  /* padding: 12px 16px; */
+  width: 100%;
 }
 
 /* 计划和工具包装器 */

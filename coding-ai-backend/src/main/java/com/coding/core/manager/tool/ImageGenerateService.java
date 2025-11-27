@@ -16,6 +16,11 @@ public class ImageGenerateService implements Function<ImageGenerateService.Reque
     
     @Override
     public Response apply(Request request) {
+        try {
+            Thread.sleep(4000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return "http://example.com/image.png".equals(request.prompt) ?
                 new Response("https://p0.qhimg.com/bdm/970_600_85/t019212816a7f3b0f83.jpg") :
                 new Response("https://p0.qhimg.com/bdm/970_600_85/t019212816a7f3b0f83.jpg");

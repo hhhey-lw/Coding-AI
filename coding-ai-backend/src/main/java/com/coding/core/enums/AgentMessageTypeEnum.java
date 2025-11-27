@@ -11,9 +11,21 @@ public enum AgentMessageTypeEnum {
      */
     PLAN_PROGRESS,
     /**
+     * 计划创建
+     */
+    PLAN_CREATED,
+    /**
      * 步骤执行
      */
     STEP_EXECUTION,
+    /**
+     * 步骤完成
+     */
+    STEP_COMPLETE,
+    /**
+     * 思考过程
+     */
+    THOUGHT,
     /**
      * 工具调用
      */
@@ -26,5 +38,9 @@ public enum AgentMessageTypeEnum {
      * 对话结束
      */
     STREAM_END,
+    /**
+     * 回答
+     */
+    ANSWER,
     ;
 }

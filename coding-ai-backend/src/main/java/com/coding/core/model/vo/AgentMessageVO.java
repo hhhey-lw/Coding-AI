@@ -34,6 +34,16 @@ public class AgentMessageVO {
     private String reasoningContent;
     
     /**
+     * 节点名称
+     */
+    private String node;
+
+    /**
+     * 计划信息
+     */
+    private AgentPlanVO plan;
+
+    /**
      * 工具调用列表（TOOL_CALL 时使用）
      */
     private List<AgentToolCallVO> toolCalls;
@@ -55,4 +65,5 @@ public class AgentMessageVO {
     }
 
 }
+
 

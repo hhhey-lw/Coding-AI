@@ -31,7 +31,7 @@ const md: MarkdownIt = new MarkdownIt({
   }
 })
 
-// 自定义链接渲染，使其在新标签页打开，并支持音频/视频链接
+// 自定义链接渲染，使其在新标签页打开
 const defaultLinkRender = md.renderer.rules.link_open || function(tokens: any, idx: any, options: any, _env: any, self: any) {
   return self.renderToken(tokens, idx, options)
 }
@@ -55,105 +55,19 @@ md.renderer.rules.link_open = function (tokens: any, idx: any, options: any, _en
   return defaultLinkRender(tokens, idx, options, _env, self)
 }
 
-// 自定义图片渲染，处理音频和视频链接
+// 自定义图片渲染
 const defaultImageRender = md.renderer.rules.image || function(tokens: any, idx: any, options: any, _env: any, self: any) {
   return self.renderToken(tokens, idx, options)
 }
 
 md.renderer.rules.image = function (tokens: any, idx: any, options: any, _env: any, self: any) {
-  const token = tokens[idx]
-  const srcIndex = token.attrIndex('src')
-  const src = token.attrs![srcIndex][1]
-  const alt = token.content || ''
-  
-  // 检查是否是视频文件
-  if (/\.(mp4|webm|ogg)$/i.test(src)) {
-    return `<div class="markdown-video"><video src="${src}" controls class="video-player">${alt}</video>${alt ? `<p class="media-caption">${alt}</p>` : ''}</div>`
-  }
-  
   return defaultImageRender(tokens, idx, options, _env, self)
-}
-
-// 拦截链接标记，检测音频/视频链接
-const defaultTextRender = md.renderer.renderToken.bind(md.renderer)
-md.renderer.renderToken = function (tokens: any, idx: any, options: any) {
-  const token = tokens[idx]
-  
-  // 如果是链接，检查href是否是音频/视频
-  if (token.type === 'link_open') {
-    const hrefIndex = token.attrIndex('href')
-    if (hrefIndex >= 0) {
-      const href = token.attrs![hrefIndex][1]
-      
-      // 获取链接文本
-      let linkText = ''
-      if (idx + 1 < tokens.length && tokens[idx + 1].type === 'text') {
-        linkText = tokens[idx + 1].content
-      }
-      
-      // 检查是否是音频文件
-      if (/\.(mp3|wav|ogg|m4a)$/i.test(href) || /(?:music|音乐|audio|音频)/i.test(linkText)) {
-        // 标记这个链接需要特殊处理
-        token.attrPush(['data-media-type', 'audio'])
-        token.attrPush(['data-media-url', href])
-        token.attrPush(['data-media-text', linkText])
-      }
-      // 检查是否是视频文件
-      else if (/\.(mp4|webm|ogg)$/i.test(href) || /(?:video|视频)/i.test(linkText)) {
-        token.attrPush(['data-media-type', 'video'])
-        token.attrPush(['data-media-url', href])
-        token.attrPush(['data-media-text', linkText])
-      }
-    }
-  }
-  
-  return defaultTextRender(tokens, idx, options)
-}
-
-// 后处理HTML，将音频/视频链接转换为播放器
-const postProcessHTML = (html: string): string => {
-  // 使用正则表达式查找带有data-media-type的链接
-  return html.replace(
-    /<a[^>]*data-media-type="(audio|video)"[^>]*data-media-url="([^"]*)"[^>]*data-media-text="([^"]*)"[^>]*>.*?<\/a>/g,
-    (match, type, url, text) => {
-      if (type === 'audio') {
-        return `
-          <div class="markdown-audio">
-            <div class="audio-player-wrapper">
-              <svg class="audio-icon" viewBox="0 0 1024 1024" width="24" height="24">
-                <path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/>
-                <path fill="currentColor" d="M719.4 499.1l-296.1-215A15.9 15.9 0 00398 297v430c0 13.1 14.8 20.5 25.3 12.9l296.1-215a15.9 15.9 0 000-25.8zm-257.6 134V390.9L628.5 512 461.8 633.1z"/>
-              </svg>
-              <audio src="${url}" controls></audio>
-              <a href="${url}" target="_blank" class="media-download" download>
-                <svg viewBox="0 0 1024 1024" width="16" height="16">
-                  <path fill="currentColor" d="M505.7 661a8 8 0 0012.6 0l112-141.7c4.1-5.2.4-12.9-6.3-12.9h-74.1V168c0-4.4-3.6-8-8-8h-60c-4.4 0-8 3.6-8 8v338.3H400c-6.7 0-10.4 7.7-6.3 12.9l112 141.8z"/>
-                  <path fill="currentColor" d="M878 626h-60c-4.4 0-8 3.6-8 8v154H214V634c0-4.4-3.6-8-8-8h-60c-4.4 0-8 3.6-8 8v198c0 17.7 14.3 32 32 32h684c17.7 0 32-14.3 32-32V634c0-4.4-3.6-8-8-8z"/>
-                </svg>
-                下载
-              </a>
-            </div>
-            ${text ? `<p class="media-caption">${text}</p>` : ''}
-          </div>
-        `
-      } else if (type === 'video') {
-        return `
-          <div class="markdown-video">
-            <video src="${url}" controls class="video-player"></video>
-            ${text ? `<p class="media-caption">${text}</p>` : ''}
-          </div>
-        `
-      }
-      return match
-    }
-  )
 }
 
 // 渲染内容
 const renderedContent = computed(() => {
   if (!props.content) return ''
-  const html = md.render(props.content)
-  return postProcessHTML(html)
+  return md.render(props.content)
 })
 </script>
 

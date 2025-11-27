@@ -1,10 +1,16 @@
 package com.coding.core.model.vo;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class AgentPlanVO {
     /**
      * 计划信息
@@ -35,4 +41,14 @@ public class AgentPlanVO {
      * 步骤历史记录
      */
     private Map<String, String> history;
+
+    /**
+     * 完成百分比
+     */
+    private Integer percentage;
+
+    /**
+     * 是否完成
+     */
+    private Boolean isFinished;
 }
