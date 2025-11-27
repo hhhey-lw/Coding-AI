@@ -8,7 +8,7 @@ import com.coding.core.model.request.SendCodeRequest;
 import com.coding.core.model.request.UserLoginRequest;
 import com.coding.core.model.request.UserRegisterRequest;
 import com.coding.core.model.entity.UserDO;
-import com.coding.core.model.vo.TokenVO;
+import com.coding.core.model.vo.UserTokenVO;
 import com.coding.core.model.vo.UserLoginVO;
 import com.coding.core.service.EmailService;
 import com.coding.core.service.CacheService;
@@ -154,7 +154,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public TokenVO refreshToken(RefreshTokenRequest request) {
+    public UserTokenVO refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
 
         // 1. 验证Refresh Token的有效性
@@ -188,7 +188,7 @@ public class UserServiceImpl implements UserService {
         log.info("Token刷新成功，用户ID：{}", userId);
 
         // 5. 返回新的Access Token（Refresh Token保持不变）
-        return TokenVO.builder()
+        return UserTokenVO.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(refreshToken)
                 .expiresIn(jwtUtil.getAccessTokenExpirationSeconds())

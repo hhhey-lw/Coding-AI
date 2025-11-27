@@ -60,7 +60,6 @@ public class AgentManager {
     /**
      * 模型常量
      **/
-    private static final String MODEL_QWEN_MAX = "qwen-max";
     private static final String MODEL_QWEN_PLUS = "qwen-plus";
 
     /**
@@ -104,13 +103,13 @@ public class AgentManager {
         this.chatModel = OpenAiChatModel.builder()
                 .openAiApi(buildOpenAiApi(baseUrl, apiKey))
                 .defaultOptions(OpenAiChatOptions.builder()
-                        .model(MODEL_QWEN_MAX)
+                        .model(MODEL_QWEN_PLUS)
                         .build())
                 .build();
         this.resolver = resolver;
         this.musicGenerateService = musicGenerateService;
         this.imageGenerateService = imageGenerateService;
-        this.chatClient = createChatClient(null, MODEL_QWEN_MAX);
+        this.chatClient = createChatClient(null, MODEL_QWEN_PLUS);
     }
 
     // =========================> 构建 React Agent <=========================
@@ -123,7 +122,7 @@ public class AgentManager {
 
         return ReactAgent.builder()
                 .name(AGENT_REACT)
-                .modelName(MODEL_QWEN_MAX)
+                .modelName(MODEL_QWEN_PLUS)
                 .instruction(REACT_AGENT_SYSTEM_PROMPT)
                 .inputKey(KEY_MESSAGES)
                 .chatClient(chatClient)
@@ -140,8 +139,8 @@ public class AgentManager {
      * 构建 Plan-Execute Agent
      */
     public CompiledGraph buildPlanExecuteAgent() throws GraphStateException {
-        ChatClient planningClient = createChatClient(PLANNING_SYSTEM_PROMPT, MODEL_QWEN_MAX);
-        ChatClient executingClient = createChatClient(EXECUTING_SYSTEM_PROMPT, MODEL_QWEN_MAX);
+        ChatClient planningClient = createChatClient(PLANNING_SYSTEM_PROMPT, MODEL_QWEN_PLUS);
+        ChatClient executingClient = createChatClient(EXECUTING_SYSTEM_PROMPT, MODEL_QWEN_PLUS);
 
         KeyStrategyFactory stateFactory = createStateFactory();
         SupervisorAgent supervisorAgent = new SupervisorAgent(PlanningTool.INSTANCE);
@@ -159,7 +158,7 @@ public class AgentManager {
     private ReactAgent createPlanningAgent(ChatClient planningClient, boolean isStream) throws GraphStateException {
         return ReactAgent.builder()
                 .name(AGENT_PLANNING)
-                .modelName(MODEL_QWEN_MAX)
+                .modelName(MODEL_QWEN_PLUS)
                 .description("负责根据用户的需求，制定详细的执行计划，每个计划包含多个有序的步骤，有序执行，能够调用外部工具来处理复杂任务")
                 .instruction(PLANNING_SYSTEM_PROMPT)
                 .inputKey(KEY_MESSAGES)
@@ -176,7 +175,7 @@ public class AgentManager {
     private ReactAgent createStepExecutingAgent(ChatClient executingClient, boolean isStream) throws GraphStateException {
         return ReactAgent.builder()
                 .name(AGENT_STEP_EXECUTING)
-                .modelName(MODEL_QWEN_MAX)
+                .modelName(MODEL_QWEN_PLUS)
                 .description("负责根据执行计划中的每个步骤，逐步完成任务。")
                 .instruction(EXECUTING_SYSTEM_PROMPT)
                 .inputKey(KEY_MESSAGES)
@@ -245,8 +244,7 @@ public class AgentManager {
             3. <总结工具调用的结果，可选，仅使用了工具才需要回复该部分>。
                         
             行动可以是：
-            1. 调用一个工具，格式为：我需要使用xxx工具来完成这个任务。
-            2. 直接回答用户，格式为：<你的回答内容>
+            1. 调用一个工具 或者 直接回答用户
                         
             ### 例子(<>表示解释)：
             用户：请你生成一张海滩落日照片。
@@ -258,11 +256,7 @@ public class AgentManager {
             助手：
             	我已经成功得到了工具生成的海滩落日照片，图片URL如下：http://www.test.com/example.png。本次任务完成。
             ### 注意
-            - 如果你需要使用工具完成对应的任务，你可以调用工具来完成任务，注意，调用工具时你也需要告知用户你的推理过程。
-            - 你必须遵守输出格式，即思考和行动是一对，只有使用了工具时你才需要简要总结工具回复。
-            - 避免重复回复结果，避免冗长的解释和前端重复渲染。
-            - 如果调用了工具，得到了工具的结果，你需要补充总结工具结果，然后继续思考和行动。
-            - 你需要严格按照上述格式进行回复。
+            - 如果你需要使用工具完成对应的任务，你可以调用工具来完成任务，注意，调用工具前你需要给出一到三句话进行简单的说明。（即调用工具前需要简单的说明原由，并且工具调用请求需要指定格式，否则不会执行）
             """;
 
 

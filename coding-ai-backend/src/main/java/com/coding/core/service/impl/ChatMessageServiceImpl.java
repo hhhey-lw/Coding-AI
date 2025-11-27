@@ -11,11 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.messages.*;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * 聊天消息服务实现类
@@ -34,6 +30,9 @@ public class ChatMessageServiceImpl implements ChatMessageService {
 
     @Override
     public List<Message> findMessages(String conversationId) {
+        if (StringUtils.isBlank(conversationId)) {
+            return Collections.emptyList();
+        }
         List<ChatMessageModel> chatMessageModels = chatMessageRepository.getByConversationId(conversationId);
         return chatMessageModels.stream()
                 .filter(chatMessageModel -> StringUtils.isNotBlank(chatMessageModel.getMessages()))

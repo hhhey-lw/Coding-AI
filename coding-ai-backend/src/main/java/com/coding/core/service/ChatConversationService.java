@@ -3,11 +3,13 @@ package com.coding.core.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.core.model.model.ChatConversationModel;
 import com.coding.core.model.vo.ChatConversationVO;
+import org.springframework.ai.chat.messages.Message;
 
 import java.util.List;
 
 /**
  * 聊天会话服务接口
+ *
  * @author coding
  * @date 2025-10-28
  */
@@ -47,6 +49,14 @@ public interface ChatConversationService {
      * 根据用户ID和状态查询会话列表
      */
     List<ChatConversationVO> getByUserIdAndStatus(String userId, String status);
+
+    /**
+     * 恢复会话记录
+     *
+     * @param conversationId 会话ID
+     * @param prompt         用户提示词
+     */
+    List<Message> restoreConversationMessages(String conversationId, String prompt);
 
 }
 

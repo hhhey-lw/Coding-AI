@@ -1,17 +1,23 @@
 package com.coding.core.service.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.core.model.converter.ChatConversationConverter;
 import com.coding.core.model.model.ChatConversationModel;
 import com.coding.core.model.vo.ChatConversationVO;
 import com.coding.core.repository.ChatConversationRepository;
 import com.coding.core.service.ChatConversationService;
+import com.coding.core.service.ChatMessageService;
 import com.coding.workflow.exception.BizException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +32,7 @@ import java.util.stream.Collectors;
 public class ChatConversationServiceImpl implements ChatConversationService {
 
     private final ChatConversationRepository chatConversationRepository;
+    private final ChatMessageService chatMessageService;
 
     @Override
     public String createConversation(ChatConversationModel chatConversationModel) {
@@ -95,6 +102,23 @@ public class ChatConversationServiceImpl implements ChatConversationService {
         return modelList.stream()
                 .map(ChatConversationConverter.INSTANCE::modelToVO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Message> restoreConversationMessages(String conversationId, String prompt) {
+        // 创建新列表
+        List<Message> messages = new ArrayList<>();
+
+        // 添加历史消息
+        List<Message> history = chatMessageService.findMessages(conversationId);
+        if (CollectionUtil.isNotEmpty(history)) {
+            messages.addAll(history);
+        }
+
+        // 添加当前用户输入
+        messages.add(new UserMessage(prompt));
+
+        return messages;
     }
 }
 

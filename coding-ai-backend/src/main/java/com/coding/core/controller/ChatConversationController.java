@@ -7,9 +7,10 @@ import com.coding.core.model.model.ChatConversationModel;
 import com.coding.core.model.request.ChatConversationCreateRequest;
 import com.coding.core.model.request.ChatConversationPageRequest;
 import com.coding.core.model.response.ChatConversationDetailResponse;
+import com.coding.core.model.vo.AgentToolCallVO;
+import com.coding.core.model.vo.AgentToolResponseVO;
 import com.coding.core.model.vo.ChatConversationVO;
 import com.coding.core.model.vo.PageVO;
-import com.coding.core.model.vo.SimpleChatMessageVO;
 import com.coding.core.service.ChatConversationService;
 import com.coding.core.service.ChatMessageService;
 import com.coding.core.utils.UserContextHolder;
@@ -183,8 +184,8 @@ public class ChatConversationController {
 
             // 如果有工具调用，转换工具调用信息（与前端格式保持一致）
             if (assistantMsg.getToolCalls() != null && !assistantMsg.getToolCalls().isEmpty()) {
-                List<com.coding.core.model.vo.ToolCallVO> toolCalls = assistantMsg.getToolCalls().stream()
-                        .map(tc -> com.coding.core.model.vo.ToolCallVO.builder()
+                List<AgentToolCallVO> toolCalls = assistantMsg.getToolCalls().stream()
+                        .map(tc -> AgentToolCallVO.builder()
                                 .id(tc.id())
                                 .name(tc.name())
                                 .arguments(tc.arguments())
@@ -203,8 +204,8 @@ public class ChatConversationController {
 
             // 转换工具响应信息
             if (toolMessage.getResponses() != null && !toolMessage.getResponses().isEmpty()) {
-                List<com.coding.core.model.vo.ToolResponseVO> responses = toolMessage.getResponses().stream()
-                        .map(tr -> com.coding.core.model.vo.ToolResponseVO.builder()
+                List<AgentToolResponseVO> responses = toolMessage.getResponses().stream()
+                        .map(tr -> AgentToolResponseVO.builder()
                                 .id(tr.id())
                                 .name(tr.name())
                                 .responseData(tr.responseData())

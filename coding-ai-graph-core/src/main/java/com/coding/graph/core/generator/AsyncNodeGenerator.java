@@ -9,6 +9,7 @@ import com.coding.graph.core.node.config.RunnableConfig;
 import com.coding.graph.core.state.OverAllState;
 import com.coding.graph.core.utils.LifeListenerUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 
 import java.util.*;
@@ -169,12 +170,16 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                                     }
 
                                     // 遍历过滤 currentState 中的消息
-                                    List<Message> currentMessages = (List<Message>) tempState.get("messages");
                                     List<Message> filteredMessages = new ArrayList<>();
-                                    for (Message msg : currentMessages) {
-                                        if (!existingMessages.contains(msg)) {
-                                            filteredMessages.add(msg);
+                                    if (tempState.get("messages") != null && tempState.get("messages") instanceof List) {
+                                        List<Message> currentMessages = (List<Message>) tempState.get("messages");
+                                        for (Message msg : currentMessages) {
+                                            if (!existingMessages.contains(msg)) {
+                                                filteredMessages.add(msg);
+                                            }
                                         }
+                                    } else {
+                                        filteredMessages.add(new AssistantMessage(tempState.get("messages").toString()));
                                     }
 
                                     tempState.put("messages", filteredMessages);

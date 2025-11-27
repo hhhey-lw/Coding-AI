@@ -5,7 +5,7 @@ import com.coding.core.model.request.RefreshTokenRequest;
 import com.coding.core.model.request.SendCodeRequest;
 import com.coding.core.model.request.UserLoginRequest;
 import com.coding.core.model.request.UserRegisterRequest;
-import com.coding.core.model.vo.TokenVO;
+import com.coding.core.model.vo.UserTokenVO;
 import com.coding.core.model.vo.UserLoginVO;
 import com.coding.core.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,9 +49,9 @@ public class UserController {
 
     @Operation(summary = "刷新Token", description = "使用Refresh Token获取新的Access Token")
     @PostMapping("/refresh-token")
-    public Result<TokenVO> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        TokenVO tokenVO = userService.refreshToken(request);
-        return Result.success(tokenVO);
+    public Result<UserTokenVO> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        UserTokenVO userTokenVO = userService.refreshToken(request);
+        return Result.success(userTokenVO);
     }
 
     @Operation(summary = "用户登出", description = "删除Redis中的Refresh Token，使其失效")

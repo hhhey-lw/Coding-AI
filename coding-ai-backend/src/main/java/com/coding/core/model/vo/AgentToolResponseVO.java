@@ -7,8 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 工具调用信息 VO（通用）
- * 用于 React Agent 和 Plan-Execute Agent
+ * 工具响应信息 VO（通用）
  * @author coding
  * @date 2025-10-30
  */
@@ -16,8 +15,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "工具调用信息")
-public class ToolCallVO {
+@Schema(description = "工具响应信息")
+public class AgentToolResponseVO {
     
     @Schema(description = "工具调用ID")
     private String id;
@@ -25,7 +24,7 @@ public class ToolCallVO {
     @Schema(description = "工具名称")
     private String name;
     
-    @Schema(description = "工具参数（JSON字符串）")
-    private String arguments;
+    @Schema(description = "工具响应数据")
+    private String responseData;
 }
 

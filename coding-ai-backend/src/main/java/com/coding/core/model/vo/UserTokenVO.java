@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(name = "Token响应")
-public class TokenVO {
+public class UserTokenVO {
 
     @Schema(description = "访问令牌（短期有效）")
     private String accessToken;

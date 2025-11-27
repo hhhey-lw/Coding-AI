@@ -4,7 +4,7 @@ import com.coding.core.model.request.RefreshTokenRequest;
 import com.coding.core.model.request.SendCodeRequest;
 import com.coding.core.model.request.UserLoginRequest;
 import com.coding.core.model.request.UserRegisterRequest;
-import com.coding.core.model.vo.TokenVO;
+import com.coding.core.model.vo.UserTokenVO;
 import com.coding.core.model.vo.UserLoginVO;
 
 /**
@@ -30,7 +30,7 @@ public interface UserService {
     /**
      * 刷新Token
      */
-    TokenVO refreshToken(RefreshTokenRequest request);
+    UserTokenVO refreshToken(RefreshTokenRequest request);
 
     /**
      * 用户登出

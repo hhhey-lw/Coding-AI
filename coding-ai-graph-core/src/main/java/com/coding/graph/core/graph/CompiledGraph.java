@@ -133,6 +133,11 @@ public class CompiledGraph {
         return this.streamFromInitialNode(overAllState, RunnableConfig.builder().build());
     }
 
+    public AsyncGenerator<NodeOutput> stream(Map<String, Object> inputs,  RunnableConfig config) throws GraphRunnerException {
+        OverAllState overAllState = new OverAllState(new HashMap<>(inputs), keyStrategyMap);
+        return this.streamFromInitialNode(overAllState, config);
+    }
+
     // 执行函数
     public Optional<OverAllState> invoke(Map<String, Object> inputs, RunnableConfig config) {
         return streamFromInitialNode(OverAllState.builder()

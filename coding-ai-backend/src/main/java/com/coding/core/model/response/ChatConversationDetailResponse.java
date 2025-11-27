@@ -1,7 +1,6 @@
 package com.coding.core.model.response;
 
 import com.coding.core.model.vo.ChatConversationVO;
-import com.coding.core.model.vo.SimpleChatMessageVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +25,6 @@ public class ChatConversationDetailResponse {
     private ChatConversationVO conversation;
 
     @Schema(description = "消息列表")
-    private List<SimpleChatMessageVO> messages;
+    private List<AiChatMessageVO> messages;
 }
 

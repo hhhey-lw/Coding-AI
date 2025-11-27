@@ -2,7 +2,6 @@ package com.coding.core.model.converter;
 
 import com.coding.core.model.entity.ChatMessageDO;
 import com.coding.core.model.model.ChatMessageModel;
-import com.coding.core.model.vo.ChatMessageVO;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mapstruct.Mapper;
@@ -55,11 +54,6 @@ public interface ChatMessageConverter {
      * DO转Model
      */
     ChatMessageModel doToModel(ChatMessageDO chatMessageDO);
-
-    /**
-     * Model转VO
-     */
-    ChatMessageVO modelToVO(ChatMessageModel chatMessageModel);
 
     /**
      * Model转DO
