@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * AI Agent 控制器 TODO 优化代码
+ * AI Agent 控制器
  * <p>
  * 提供基于 SSE 的流式接口，支持 React Agent 和 Plan-Execute Agent。
  *
@@ -65,7 +65,7 @@ public class AiAgentController {
     private ChatMessageService chatMessageService;
 
     @Resource
-    private ObjectMapper objectMapper; // 注入 ObjectMapper
+    private ObjectMapper objectMapper;
 
     private ReactAgent reactAgent;
 
@@ -232,7 +232,7 @@ public class AiAgentController {
             }
 
             // 保存新的对话记录到数据库
-            chatMessageService.saveMessages(conversationId, messages);
+            chatMessageService.saveMessages(conversationId, allMessages);
 
             try {
                 // 发送结束信号
@@ -509,14 +509,10 @@ public class AiAgentController {
             try {
                 // 保存完整的会话（用户消息 + 按顺序的所有助手消息）
                 if (StringUtils.isNotBlank(conversationId) && !allMessages.isEmpty()) {
-                    List<Message> newMessages = new ArrayList<>();
-                    newMessages.add(new UserMessage(prompt));
-                    newMessages.addAll(allMessages);
-
                     CompletableFuture.runAsync(() -> {
                         try {
-                            chatMessageService.saveMessages(conversationId, newMessages);
-                            log.info("💾 已保存 Plan-Execute 会话消息，conversationId: {}, 消息数量: {}", conversationId, newMessages.size());
+                            chatMessageService.saveMessages(conversationId, allMessages);
+                            log.info("💾 已保存 Plan-Execute 会话消息，conversationId: {}, 消息数量: {}", conversationId, allMessages.size());
                         } catch (Exception ex) {
                             log.warn("⚠️ 保存会话消息失败（忽略）", ex);
                         }

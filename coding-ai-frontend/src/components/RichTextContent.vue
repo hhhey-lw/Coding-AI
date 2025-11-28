@@ -351,10 +351,10 @@ const isInsideMarkdownLink = (text: string, urlIndex: number): boolean => {
 }
 
 .image-caption {
-  font-size: 14px;
-  color: #666;
-  text-align: center;
+  font-size: 13px;
+  color: #909399;
   margin: 0;
+  padding-left: 16px;
   font-style: italic;
 }
 

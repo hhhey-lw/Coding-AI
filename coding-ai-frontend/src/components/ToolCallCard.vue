@@ -6,6 +6,10 @@
       </div>
       <span class="tool-label">工具调用</span>
       <el-tag size="small" type="info" effect="plain">{{ toolCall.name }}</el-tag>
+      <span v-if="isCollapsed && toolResponse" class="tool-status">
+        <el-icon color="#67c23a" style="margin-right: 4px; vertical-align: middle;"><Select /></el-icon>
+        已执行完毕
+      </span>
       <el-icon class="collapse-icon" :class="{ 'is-collapsed': isCollapsed }">
         <ArrowRight />
       </el-icon>
@@ -112,7 +116,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Tools, DocumentCopy, Picture, ArrowRight } from '@element-plus/icons-vue'
+import { Tools, DocumentCopy, Picture, ArrowRight, Select } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 interface ToolCall {
@@ -282,6 +286,15 @@ const copyContent = async (text: string) => {
   font-weight: 600;
   color: #409eff;
 }
+
+.tool-status {
+  font-size: 13px;
+  color: #67c23a;
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
 
 .tool-call-body {
   padding: 16px;

@@ -21,20 +21,10 @@
         <template #operationArea>
           <div class="operations">
             <!-- 模型选择 -->
-            <el-select v-model="selectedModel" placeholder="选择模型" size="small" style="width: 150px">
+            <el-select v-model="selectedModel" placeholder="选择模型" size="small" class="model-select-box" style="width: 100px">
               <el-option label="React Agent" value="react" />
-              <el-option label="Plan-Execute" value="plan-execute" />
+              <el-option label="Plan-Execute Agent" value="plan-execute" />
             </el-select>
-            
-            <el-tag v-if="isConnected" type="success" size="small">连接中</el-tag>
-            <el-button 
-              v-if="isConnected" 
-              type="danger" 
-              size="small" 
-              @click="disconnect"
-            >
-              断开连接
-            </el-button>
           </div>
         </template>
       </McHeader>
@@ -115,23 +105,6 @@
           @change="(e: string) => (inputValue = e)" 
           @submit="onSubmit"
         >
-          <template #extra>
-            <div class="input-foot-wrapper">
-              <div class="input-foot-left">
-                <span class="input-foot-maxlength">{{ inputValue.length }}/2000</span>
-              </div>
-              <div class="input-foot-right">
-                <el-button 
-                  icon="Delete" 
-                  size="small" 
-                  :disabled="!inputValue" 
-                  @click="inputValue = ''"
-                >
-                  清空
-                </el-button>
-              </div>
-            </div>
-          </template>
         </McInput>
       </McLayoutSender>
     </McLayout>
@@ -142,6 +115,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { VideoPause, Promotion } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { ChatAPI, PlanExecuteEvent } from '@/api/chat'
 import { ConversationAPI, ChatConversation } from '@/api/conversation'
@@ -713,7 +687,7 @@ const fetchPlanExecuteData = async (userMessage: string) => {
                  )
                  if (block) {
                    block.toolResponse = response
-                   
+
                    // 如果是 planning 工具的响应，更新对应的计划块ID
                    if (block.toolCall?.name === 'planning' && response.responseData) {
                      try {
@@ -749,7 +723,7 @@ const fetchPlanExecuteData = async (userMessage: string) => {
                 }
              }
              break
-          
+
           case 'PLAN_PROGRESS':
             // 收到 PLAN_PROGRESS 时，创建一个新的计划块，显示最新的进度
             // 只在有新进度时才显示（即不是第一次创建计划时）
