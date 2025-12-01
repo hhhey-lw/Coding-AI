@@ -11,7 +11,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 @SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
-@MapperScan({"com.coding.core.mapper"})
+@MapperScan({"com.coding.core.mapper", "com.coding.agentflow.mapper"})
 public class Application {
 
     public static void main(String[] args) throws UnknownHostException {

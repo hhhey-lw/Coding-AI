@@ -1,7 +1,9 @@
-package com.coding.agentflow.service;
+package com.coding.agentflow.utils;
 
-import com.coding.agentflow.model.workflow.Branch;
-import com.coding.agentflow.model.workflow.enums.ValueTypeEnum;
+import com.coding.agentflow.model.enums.OperatorTypeEnum;
+import com.coding.agentflow.model.model.Branch;
+import com.coding.agentflow.model.enums.ConditionLogicEnum;
+import com.coding.agentflow.model.enums.ValueTypeEnum;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -12,6 +14,49 @@ import java.util.regex.Pattern;
  * 条件评估器，用于评估单条条件
  */
 public class ConditionEvaluator {
+
+    /**
+     * 评估整个分支是否满足条件
+     *
+     * @param branch 分支配置
+     * @param state  当前上下文状态
+     * @return 是否满足
+     */
+    public static boolean evaluateBranch(Branch branch, Map<String, Object> state) {
+        // 如果没有条件，通常作为默认分支(Else)，直接返回 true
+        if (branch.getConditions() == null || branch.getConditions().isEmpty()) {
+            return true;
+        }
+
+        // 获取逻辑关系，默认为 AND
+        ConditionLogicEnum logic = branch.getConditionLogic();
+        if (logic == null) {
+            logic = ConditionLogicEnum.AND;
+        }
+
+        boolean isAnd = (logic == ConditionLogicEnum.AND);
+
+        for (Branch.Condition condition : branch.getConditions()) {
+            boolean result = evaluate(condition, state);
+
+            if (isAnd) {
+                // AND 模式：只要有一个 false，整体即为 false
+                if (!result) {
+                    return false;
+                }
+            } else {
+                // OR 模式：只要有一个 true，整体即为 true
+                if (result) {
+                    return true;
+                }
+            }
+        }
+
+        // 循环结束后的判定：
+        // AND 模式：若未提前返回 false，说明所有条件都满足 -> true
+        // OR  模式：若未提前返回 true， 说明所有条件都不满足 -> false
+        return isAnd;
+    }
 
     public static boolean evaluate(Branch.Condition condition, Map<String, Object> state) {
         // 1. 解析左右值
@@ -81,7 +126,7 @@ public class ConditionEvaluator {
         }
     }
 
-    private static boolean compareNumeric(Object left, Object right, com.coding.agentflow.model.workflow.enums.OperatorTypeEnum op) {
+    private static boolean compareNumeric(Object left, Object right, OperatorTypeEnum op) {
         try {
             BigDecimal l = new BigDecimal(left.toString());
             BigDecimal r = new BigDecimal(right.toString());

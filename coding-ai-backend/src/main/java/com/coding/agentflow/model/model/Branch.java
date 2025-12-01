@@ -1,8 +1,8 @@
-package com.coding.agentflow.model.workflow;
+package com.coding.agentflow.model.model;
 
-import com.coding.agentflow.model.workflow.enums.ConditionLogicEnum;
-import com.coding.agentflow.model.workflow.enums.OperatorTypeEnum;
-import com.coding.agentflow.model.workflow.enums.ValueTypeEnum;
+import com.coding.agentflow.model.enums.ConditionLogicEnum;
+import com.coding.agentflow.model.enums.OperatorTypeEnum;
+import com.coding.agentflow.model.enums.ValueTypeEnum;
 import lombok.Data;
 
 import java.util.List;

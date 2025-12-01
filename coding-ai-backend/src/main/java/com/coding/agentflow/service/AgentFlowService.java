@@ -1,18 +1,18 @@
 package com.coding.agentflow.service;
 
 
-import com.coding.agentflow.model.workflow.WorkflowConfig;
+import com.coding.agentflow.model.model.AgentFlowConfig;
 import com.coding.graph.core.exception.GraphStateException;
-import com.coding.graph.core.graph.StateGraph;
+import com.coding.graph.core.graph.CompiledGraph;
 
 public interface AgentFlowService {
 
     /**
-     * 转换WorkflowConfig为StateGraph
+     * 转换WorkflowConfig为CompiledGraph
      *
-     * @param workflowConfig 工作流配置
-     * @return stateGraph 状态图
+     * @param agentFlowConfig 工作流配置
+     * @return CompiledGraph 编译图
      */
-    StateGraph convertToStateGraph(WorkflowConfig workflowConfig) throws GraphStateException;
+    CompiledGraph convertToCompiledGraph(AgentFlowConfig agentFlowConfig) throws GraphStateException;
 
 }

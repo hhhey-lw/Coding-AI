@@ -1,7 +1,7 @@
 package com.coding.agentflow.service.impl;
 
-import com.coding.agentflow.model.workflow.Node;
-import com.coding.agentflow.model.workflow.enums.NodeTypeEnum;
+import com.coding.agentflow.model.model.Node;
+import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.service.AgentFlowNodeService;
 import com.coding.graph.core.node.action.AsyncNodeActionWithConfig;
 import org.springframework.stereotype.Service;

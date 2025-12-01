@@ -1,6 +1,6 @@
-package com.coding.agentflow.model.workflow;
+package com.coding.agentflow.model.model;
 
-import com.coding.agentflow.model.workflow.enums.ParamTypeEnum;
+import com.coding.agentflow.model.enums.ParamTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 

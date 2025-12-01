@@ -1,4 +1,4 @@
-package com.coding.agentflow.model.workflow;
+package com.coding.agentflow.model.model;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -10,7 +10,7 @@ import java.util.List;
  */
 @Data
 @Schema(description = "工作流定义")
-public class WorkflowConfig {
+public class AgentFlowConfig {
 
     @Schema(description = "工作流Id")
     private String id;

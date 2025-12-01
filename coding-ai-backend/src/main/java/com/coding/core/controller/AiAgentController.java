@@ -199,10 +199,6 @@ public class AiAgentController {
                                         String jsonData = objectMapper.writeValueAsString(toolResponseVO);
                                         emitter.send(SseEmitter.event()
                                                 .data(jsonData));
-
-                                        // 添加调试日志
-                                        log.warn("发送的数据:{}", jsonData);
-                                        log.info("发送工具响应消息，toolResponseMessage: {}", toolResponseMessage);
                                     } catch (JsonProcessingException e) {
                                         log.error("工具响应消息JSON序列化失败", e);
                                         throw new RuntimeException(e);

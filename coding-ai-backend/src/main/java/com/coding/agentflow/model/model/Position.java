@@ -1,4 +1,4 @@
-package com.coding.agentflow.model.workflow;
+package com.coding.agentflow.model.model;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
