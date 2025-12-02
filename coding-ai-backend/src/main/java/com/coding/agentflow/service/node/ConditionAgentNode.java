@@ -1,18 +1,21 @@
 package com.coding.agentflow.service.node;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONUtil;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
-import com.coding.agentflow.model.model.Branch;
 import com.coding.agentflow.model.model.Node;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 条件Agent节点
@@ -20,100 +23,116 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@AllArgsConstructor
 public class ConditionAgentNode extends AbstractNode {
+
+    private final ChatModel chatModel;
 
     @Override
     protected NodeExecutionResult doExecute(Node node, Map<String, Object> context) {
-        // 获取并转换branches配置参数
-        List<Branch> branches = getBranchesFromConfig(node);
-        
-        if (branches == null || branches.isEmpty()) {
-            log.error("条件Agent节点branches配置为空或无效");
-            return NodeExecutionResult.failure("branches配置为空或无效");
-        }
+        // 获取配置参数
+        String modelName = getConfigParamAsString(node, "modelName");
+        // 需要一致的顺序
+        List<String> scenarios = getConfigParamAsList(node, "scenarios");
+        List<String> sceneDescriptions = getConfigParamAsList(node, "sceneDescriptions");
 
-        log.info("执行条件Agent节点，分支数量: {}, 分支详情: {}", branches.size(), JSONUtil.toJsonStr(branches));
+        log.info("执行条件Agent节点，模型: {}, 场景数量: {}", modelName, scenarios.size());
 
         // 使用Agent进行智能条件判断
-        String selectedLabel = evaluateConditionWithAgent(node, context, branches);
+        String selectedScene = evaluateConditionWithAgent(modelName, scenarios, sceneDescriptions);
 
-        log.info("条件Agent节点选择分支: {}", selectedLabel);
+        log.info("条件Agent节点选择的场景: {}", selectedScene);
 
-        // 返回带有选中分支label的结果
-        Map<String, Object> resultData = new HashMap<>();
-        resultData.put("selectedLabel", selectedLabel);
-        
-        return NodeExecutionResult.success(resultData);
+        return NodeExecutionResult.success(Map.of("selectedScene", selectedScene));
     }
 
-    /**
-     * 从节点配置中获取并转换branches列表
-     */
-    private List<Branch> getBranchesFromConfig(Node node) {
-        // JSON对象
-        Object branchesObj = getConfigParam(node, "branches");
-        
-        if (branchesObj == null) {
-            log.warn("branches配置参数为null");
-            return Collections.emptyList();
-        }
-
-        String jsonStr = (String) branchesObj;
-        return JSONUtil.toList(jsonStr, Branch.class);
-    }
-    
     /**
      * 使用Agent评估条件
-     * 1. 构建Agent的prompt，包含上下文信息和所有分支条件
-     * 2. 调用LLM让Agent分析并选择最合适的分支
-     * 3. 如果不符合任何label，返回默认分支label
-     * 
-     * @param node 节点配置
-     * @param context 执行上下文
-     * @param branches 分支列表
-     * @return 选中的分支label
+     * 1. 构建Agent的prompt，包含上下文信息和所有场景
+     * 2. 调用LLM让Agent分析并选择最合适的场景
+     * 3. 验证返回的场景是否在候选列表中，否则抛异常
+     *
+     * @param modelName         模型名称
+     * @param scenarios         场景列表
+     * @param sceneDescriptions 场景描述
+     * @return 选中的场景
      */
-    private String evaluateConditionWithAgent(Node node, Map<String, Object> context, List<Branch> branches) {
-        // TODO: 实际的Agent条件评估逻辑
-        // 这里应该:
-        // 1. 构建Agent的prompt，包含上下文信息和所有分支条件
-        // 2. 调用LLM让Agent分析并选择最合适的分支
-        // 3. 解析Agent的响应，获取选中的分支label
-        
-        log.info("开始Agent条件评估，上下文: {}", JSONUtil.toJsonStr(context));
-        
-        // 临时实现：返回第一个分支的label
-        // 实际应该调用Agent服务进行智能判断
-        if (!branches.isEmpty()) {
-            return branches.get(0).getLabel();
+    private String evaluateConditionWithAgent(String modelName, List<String> scenarios, List<String> sceneDescriptions) {
+        if (scenarios == null || scenarios.isEmpty()) {
+            throw new IllegalArgumentException("场景列表不能为空");
         }
-        
-        return null;
+
+        // 构建场景列表，结合场景名称和描述
+        StringBuilder scenarioListBuilder = new StringBuilder();
+        for (int i = 0; i < scenarios.size(); i++) {
+            String sceneName = scenarios.get(i);
+            scenarioListBuilder.append("- ").append(sceneName);
+            
+            // 如果有对应的场景描述，添加到列表中
+            if (sceneDescriptions != null && i < sceneDescriptions.size()) {
+                String description = sceneDescriptions.get(i);
+                if (StringUtils.isNotBlank(description)) {
+                    scenarioListBuilder.append(": ").append(description);
+                }
+            }
+            scenarioListBuilder.append("\n");
+        }
+        String scenarioList = scenarioListBuilder.toString();
+
+        String userPrompt = "从以下场景列表中选择最合适的一个场景。\n\n" +
+                "可选场景列表：\n" + scenarioList + "\n" +
+                "请仔细分析场景描述，选择最匹配的场景。你的回答必须是场景名称（不包括描述），不要添加任何解释或其他内容，只返回场景名称。";
+
+        // 构建系统提示词
+        String finalSystemPrompt = "你是一个智能路由助手，擅长根据上下文信息选择最合适的场景。你必须从给定的场景列表中选择一个，并且只返回场景名称，不要有任何其他内容。";
+
+        // 调用LLM进行场景选择
+        ChatClient chatClient = ChatClient.builder(chatModel).build();
+        ChatResponse response = chatClient
+                .prompt()
+                .messages(List.of(
+                        new SystemMessage(finalSystemPrompt),
+                        new UserMessage(userPrompt)
+                ))
+                .options(OpenAiChatOptions.builder()
+                        .model(modelName)
+                        .build())
+                .call()
+                .chatResponse();
+
+        String selectedScene = response.getResult().getOutput().getText().trim();
+        log.info("LLM选择的场景: {}", selectedScene);
+
+        // 验证选择的场景是否在候选列表中
+        if (!scenarios.contains(selectedScene)) {
+            throw new IllegalStateException(
+                    String.format("LLM返回的场景 '%s' 不在候选列表中。候选场景: %s",
+                            selectedScene, scenarios)
+            );
+        }
+
+        return selectedScene;
     }
 
     @Override
     protected boolean doValidate(Node node) {
         // 验证必需的配置参数
-        Object branchesObj = getConfigParam(node, "branches");
-        if (branchesObj == null) {
-            log.error("条件Agent节点缺少必需的branches配置");
+        List<String> scenarios = getConfigParamAsList(node, "scenarios");
+        if (scenarios == null || scenarios.isEmpty()) {
+            log.error("条件Agent节点缺少必需的scenarios配置");
             return false;
         }
-        
-        // 尝试解析branches
-        List<Branch> branches = getBranchesFromConfig(node);
-        if (branches.isEmpty()) {
-            log.error("条件Agent节点branches配置为空或解析失败");
+
+        List<String> sceneDescriptions = getConfigParamAsList(node, "sceneDescriptions");
+        if (sceneDescriptions == null || sceneDescriptions.isEmpty()) {
+            log.error("条件Agent节点缺少必需的sceneDescriptions配置");
             return false;
         }
-        
-        // 验证每个分支都有label
-        for (int i = 0; i < branches.size(); i++) {
-            Branch branch = branches.get(i);
-            if (branch.getLabel() == null || branch.getLabel().trim().isEmpty()) {
-                log.error("条件Agent节点第{}个分支缺少label配置", i);
-                return false;
-            }
+
+        String modelName = getConfigParamAsString(node, "modelName");
+        if (StringUtils.isBlank(modelName)) {
+            log.error("条件Agent节点缺少必需的modelName配置");
+            return false;
         }
 
         return true;

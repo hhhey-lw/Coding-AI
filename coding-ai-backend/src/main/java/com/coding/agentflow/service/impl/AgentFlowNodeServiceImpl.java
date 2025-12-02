@@ -3,7 +3,10 @@ package com.coding.agentflow.service.impl;
 import com.coding.agentflow.model.model.Node;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.service.AgentFlowNodeService;
+import com.coding.agentflow.service.node.NodeExecutionResult;
+import com.coding.agentflow.service.node.NodeExecutor;
 import com.coding.graph.core.node.action.AsyncNodeActionWithConfig;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -11,6 +14,9 @@ import java.util.concurrent.CompletableFuture;
 
 @Service
 public class AgentFlowNodeServiceImpl implements AgentFlowNodeService {
+
+    @Resource
+    private Map<String, NodeExecutor> nodeExecutorMap;
 
     @Override
     public AsyncNodeActionWithConfig getNodeActionWithConfig(Node node) {
@@ -24,10 +30,20 @@ public class AgentFlowNodeServiceImpl implements AgentFlowNodeService {
             System.out.println("RunnableConfig: " + config);
 
             // 这里可以根据节点类型和配置执行不同的逻辑
-            // ...
+            NodeExecutor nodeExecutor = nodeExecutorMap.get(node.getType());
+            NodeExecutionResult execute = nodeExecutor.execute(node, state.data());
 
-            return CompletableFuture.completedFuture(Map.of("node", node));
+            // 返回节点执行结果 <= 这里会把返回的结果塞到 OverAllState中
+            return CompletableFuture.completedFuture(Map.of(node.getId(), execute));
         };
     }
+
+    /**
+     * 根据节点类型获取对应的节点执行器
+     */
+    private NodeExecutor getNodeExecutor(String nodeType) {
+        // TODO
+      return nodeExecutorMap.get(nodeType);
+    };
 
 }

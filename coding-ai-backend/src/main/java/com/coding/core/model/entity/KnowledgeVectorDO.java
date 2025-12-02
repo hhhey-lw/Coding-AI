@@ -65,6 +65,11 @@ public class KnowledgeVectorDO {
     private String fileType;
 
     /**
+     * 相似度评分
+     */
+    private Double similarity;
+
+    /**
      * 创建时间
      */
     @TableField("create_time")

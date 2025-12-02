@@ -4,11 +4,15 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONUtil;
 import com.coding.agentflow.model.model.Node;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.formula.functions.T;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 节点抽象基类
@@ -157,8 +161,45 @@ public abstract class AbstractNode implements NodeExecutor {
         return value != null ? value.toString() : defaultValue;
     }
 
+    protected String getConfigParamAsString(Node node, String key) {
+        return getConfigParamAsString(node, key, null);
+    }
+
     /**
-     * 从节点配置中获取字符串参数
+     * 从节点配置中获取整数参数
+     *
+     * @param node 节点配置
+     * @param key 参数键
+     * @param defaultValue 默认值
+     * @return 参数值
+     */
+    protected Integer getConfigParamAsInteger(Node node, String key, Integer defaultValue) {
+        Object value = getConfigParam(node, key);
+        return value != null ? Integer.valueOf(value.toString()) : defaultValue;
+    }
+    protected Integer getConfigParamAsInteger(Node node, String key) {
+        return getConfigParamAsInteger(node, key, null);
+    }
+
+    /**
+     * 从节点配置中获取Double参数
+     *
+     * @param node 节点配置
+     * @param key 参数键
+     * @param defaultValue 默认值
+     * @return 参数值
+     */
+    protected Double getConfigParamAsDouble(Node node, String key, Double defaultValue) {
+        Object value = getConfigParam(node, key);
+        return value != null ? Double.valueOf(value.toString()) : defaultValue;
+    }
+
+    protected Double getConfigParamAsDouble(Node node, String key) {
+        return getConfigParamAsDouble(node, key, null);
+    }
+
+    /**
+     * 从节点配置中获取列表参数
      *
      * @param node 节点配置
      * @param key 参数键
@@ -173,6 +214,19 @@ public abstract class AbstractNode implements NodeExecutor {
 
         JSONArray jsonArray = JSONUtil.parseArray((String) value);
         return jsonArray.toList(String.class);
+    }
+
+    /**
+     * 从节点配置中获取Map参数
+     *
+     * @param node 节点配置
+     * @param key 参数键
+     * @return Map参数值，如果不是Map类型则返回空Map
+     */
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getConfigParamAsMap(Node node, String key) {
+        Object value = getConfigParam(node, key);
+        return value instanceof Map ? (Map<String, Object>) value : new HashMap<>();
     }
 
     /**
@@ -197,5 +251,34 @@ public abstract class AbstractNode implements NodeExecutor {
         if (context != null) {
             context.put(key, value);
         }
+    }
+
+    /**
+     * 替换提示词中的变量 - 注意这里只能平级替换
+     * 支持 {{variableName}} 格式的变量替换
+     *
+     * @param prompt 提示词模板
+     * @param context 上下文变量
+     * @return 替换后的提示词
+     */
+    protected String replaceTemplateWithVariable(String prompt, Map<String, Object> context) {
+        if (StringUtils.isBlank(prompt) || context == null || context.isEmpty()) {
+            return prompt;
+        }
+
+        // 使用正则表达式匹配 {{variableName}} 格式的变量
+        Pattern pattern = Pattern.compile("\\{\\{\\s*(\\w+)\\s*\\}\\}");
+        Matcher matcher = pattern.matcher(prompt);
+        StringBuffer result = new StringBuffer();
+
+        while (matcher.find()) {
+            String variableName = matcher.group(1);
+            Object value = context.get(variableName);
+            String replacement = value != null ? value.toString() : "";
+            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(result);
+
+        return result.toString();
     }
 }
