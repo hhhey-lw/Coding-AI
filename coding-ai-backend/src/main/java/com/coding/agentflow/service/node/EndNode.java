@@ -2,6 +2,7 @@ package com.coding.agentflow.service.node;
 
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.graph.core.state.OverAllState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +18,7 @@ import java.util.Map;
 public class EndNode extends AbstractNode {
 
     @Override
-    protected NodeExecutionResult doExecute(Node node, Map<String, Object> context) {
+    protected Map<String, Object> doExecute(Node node, OverAllState state) {
         log.info("工作流执行结束，节点ID: {}", node.getId());
 
         // 汇总最终结果
@@ -28,19 +29,19 @@ public class EndNode extends AbstractNode {
 
         // 从上下文中提取最终结果
         // TODO 优化为模版，从上下文获取
-        Object finalResult = getContextData(context, "finalResult");
+        Object finalResult = state.value("finalResult").orElse(null);
         if (finalResult != null) {
             resultData.put("finalResult", finalResult);
         }
 
         // 计算总执行时间
-        Object startTime = getContextData(context, "startTime");
+        Object startTime = state.value("startTime").orElse(null);
         if (startTime instanceof Long) {
             long duration = System.currentTimeMillis() - (Long) startTime;
             resultData.put("totalDuration", duration);
         }
 
-        return NodeExecutionResult.success(resultData);
+        return resultData;
     }
 
     @Override

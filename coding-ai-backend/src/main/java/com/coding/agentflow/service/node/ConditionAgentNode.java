@@ -3,6 +3,7 @@ package com.coding.agentflow.service.node;
 import cn.hutool.json.JSONUtil;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.graph.core.state.OverAllState;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -29,7 +30,7 @@ public class ConditionAgentNode extends AbstractNode {
     private final ChatModel chatModel;
 
     @Override
-    protected NodeExecutionResult doExecute(Node node, Map<String, Object> context) {
+    protected Map<String, Object> doExecute(Node node, OverAllState state) {
         // 获取配置参数
         String modelName = getConfigParamAsString(node, "modelName");
         // 需要一致的顺序
@@ -43,7 +44,7 @@ public class ConditionAgentNode extends AbstractNode {
 
         log.info("条件Agent节点选择的场景: {}", selectedScene);
 
-        return NodeExecutionResult.success(Map.of("selectedScene", selectedScene));
+        return Map.of("selectedScene", selectedScene);
     }
 
     /**

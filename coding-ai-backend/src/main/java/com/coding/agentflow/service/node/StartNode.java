@@ -2,6 +2,7 @@ package com.coding.agentflow.service.node;
 
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.graph.core.state.OverAllState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +18,7 @@ import java.util.Map;
 public class StartNode extends AbstractNode {
 
     @Override
-    protected NodeExecutionResult doExecute(Node node, Map<String, Object> context) {
+    protected Map<String, Object> doExecute(Node node, OverAllState state) {
         log.info("工作流开始执行，节点ID: {}", node.getId());
 
         // 初始化上下文数据
@@ -31,7 +32,7 @@ public class StartNode extends AbstractNode {
             resultData.putAll(node.getConfigParams());
         }
 
-        return NodeExecutionResult.success(resultData);
+        return resultData;
     }
 
     @Override

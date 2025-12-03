@@ -3,7 +3,6 @@ package com.coding.agentflow.service.impl;
 import com.coding.agentflow.model.model.Node;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.service.AgentFlowNodeService;
-import com.coding.agentflow.service.node.NodeExecutionResult;
 import com.coding.agentflow.service.node.NodeExecutor;
 import com.coding.graph.core.node.action.AsyncNodeActionWithConfig;
 import jakarta.annotation.Resource;
@@ -24,17 +23,17 @@ public class AgentFlowNodeServiceImpl implements AgentFlowNodeService {
             return (state, config) -> CompletableFuture.completedFuture(Map.of());
         }
         return (state, config) -> {
-            // 示例实现：简单地将节点的配置信息打印出来，并返回一个完成的Future
-            Map<String, Object> nodeConfig = node.getConfigParams();
-            System.out.println("Executing node: " + node.getId() + " with config: " + nodeConfig);
-            System.out.println("RunnableConfig: " + config);
-
-            // 这里可以根据节点类型和配置执行不同的逻辑
-            NodeExecutor nodeExecutor = getNodeExecutor(node.getType().name());
-            NodeExecutionResult execute = nodeExecutor.execute(node, state.data());
-
-            // 返回节点执行结果 <= 这里会把返回的结果塞到 OverAllState中
-            return CompletableFuture.completedFuture(Map.of(node.getId(), execute));
+            try {
+                // 获取节点执行器并执行
+                NodeExecutor nodeExecutor = getNodeExecutor(node.getType().name());
+                Map<String, Object> result = nodeExecutor.execute(node, state);
+                
+                // 直接返回执行结果，框架会自动识别其中的 AsyncGenerator
+                return CompletableFuture.completedFuture(result != null ? result : Map.of());
+            } catch (Exception e) {
+                // 异常会被 CompletableFuture 包装，由框架处理
+                return CompletableFuture.failedFuture(e);
+            }
         };
     }
 

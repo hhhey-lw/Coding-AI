@@ -3,6 +3,7 @@ package com.coding.agentflow.service.node;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONUtil;
 import com.coding.agentflow.model.model.Node;
+import com.coding.graph.core.state.OverAllState;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.formula.functions.T;
@@ -22,58 +23,48 @@ import java.util.regex.Pattern;
 public abstract class AbstractNode implements NodeExecutor {
 
     @Override
-    public NodeExecutionResult execute(Node node, Map<String, Object> context) {
+    public Map<String, Object> execute(Node node, OverAllState state) throws Exception {
         long startTime = System.currentTimeMillis();
         
-        try {
-            // 前置验证
-            if (!validate(node)) {
-                return NodeExecutionResult.failure("节点配置验证失败: " + node.getId());
-            }
-
-            log.info("开始执行节点: {} (类型: {})", node.getId(), node.getType());
-
-            // 执行前置处理
-            preExecute(node, context);
-
-            // 执行核心逻辑
-            NodeExecutionResult result = doExecute(node, context);
-
-            // 执行后置处理
-            postExecute(node, context, result);
-
-            // 设置执行耗时
-            result.setExecutionTime(System.currentTimeMillis() - startTime);
-
-            log.info("节点执行完成: {} (耗时: {}ms, 成功: {})", 
-                    node.getId(), result.getExecutionTime(), result.isSuccess());
-
-            return result;
-
-        } catch (Exception e) {
-            log.error("节点执行异常: {}", node.getId(), e);
-            NodeExecutionResult result = NodeExecutionResult.failure("节点执行异常: " + e.getMessage());
-            result.setExecutionTime(System.currentTimeMillis() - startTime);
-            return result;
+        // 前置验证
+        if (!validate(node)) {
+            throw new IllegalArgumentException("节点配置验证失败: " + node.getId());
         }
+
+        log.info("开始执行节点: {} (类型: {})", node.getId(), node.getType());
+
+        // 执行前置处理
+        preExecute(node, state);
+
+        // 执行核心逻辑
+        Map<String, Object> result = doExecute(node, state);
+
+        // 执行后置处理
+        postExecute(node, state, result);
+
+        long executionTime = System.currentTimeMillis() - startTime;
+        log.info("节点执行完成: {} (耗时: {}ms)", node.getId(), executionTime);
+
+        return result;
     }
 
     /**
      * 核心执行逻辑（由子类实现）
      *
      * @param node 节点配置
-     * @param context 执行上下文
-     * @return 执行结果
+     * @param state 执行状态
+     * @return 执行结果数据，如果包含 AsyncGenerator 框架会自动识别流式输出
+     * @throws Exception 执行失败时抛出异常
      */
-    protected abstract NodeExecutionResult doExecute(Node node, Map<String, Object> context);
+    protected abstract Map<String, Object> doExecute(Node node, OverAllState state) throws Exception;
 
     /**
      * 执行前置处理（可选，子类可覆盖）
      *
      * @param node 节点配置
-     * @param context 执行上下文
+     * @param state 执行状态
      */
-    protected void preExecute(Node node, Map<String, Object> context) {
+    protected void preExecute(Node node, OverAllState state) {
         // 默认空实现，子类可选择性覆盖
     }
 
@@ -81,10 +72,10 @@ public abstract class AbstractNode implements NodeExecutor {
      * 执行后置处理（可选，子类可覆盖）
      *
      * @param node 节点配置
-     * @param context 执行上下文
-     * @param result 执行结果
+     * @param state 执行状态
+     * @param result 执行结果数据
      */
-    protected void postExecute(Node node, Map<String, Object> context, NodeExecutionResult result) {
+    protected void postExecute(Node node, OverAllState state, Map<String, Object> result) {
         // 默认空实现，子类可选择性覆盖
     }
 
@@ -199,6 +190,29 @@ public abstract class AbstractNode implements NodeExecutor {
     }
 
     /**
+     * 从节点配置中获取Boolean参数
+     *
+     * @param node 节点配置
+     * @param key 参数键
+     * @param defaultValue 默认值
+     * @return 参数值
+     */
+    protected Boolean getConfigParamAsBoolean(Node node, String key, Boolean defaultValue) {
+        Object value = getConfigParam(node, key);
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        return Boolean.valueOf(value.toString());
+    }
+
+    protected Boolean getConfigParamAsBoolean(Node node, String key) {
+        return getConfigParamAsBoolean(node, key, null);
+    }
+
+    /**
      * 从节点配置中获取列表参数
      *
      * @param node 节点配置
@@ -258,11 +272,11 @@ public abstract class AbstractNode implements NodeExecutor {
      * 支持 {{variableName}} 格式的变量替换
      *
      * @param prompt 提示词模板
-     * @param context 上下文变量
+     * @param state 执行状态
      * @return 替换后的提示词
      */
-    protected String replaceTemplateWithVariable(String prompt, Map<String, Object> context) {
-        if (StringUtils.isBlank(prompt) || context == null || context.isEmpty()) {
+    protected String replaceTemplateWithVariable(String prompt, OverAllState state) {
+        if (StringUtils.isBlank(prompt) || state == null) {
             return prompt;
         }
 
@@ -273,7 +287,7 @@ public abstract class AbstractNode implements NodeExecutor {
 
         while (matcher.find()) {
             String variableName = matcher.group(1);
-            Object value = context.get(variableName);
+            Object value = state.value(variableName).orElse(null);
             String replacement = value != null ? value.toString() : "";
             matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
         }

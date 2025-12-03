@@ -4,8 +4,11 @@ import cn.hutool.json.JSONUtil;
 import com.coding.Application;
 import com.coding.agentflow.model.model.AgentFlowConfig;
 import com.coding.agentflow.service.AgentFlowService;
+import com.coding.graph.core.exception.GraphRunnerException;
 import com.coding.graph.core.exception.GraphStateException;
+import com.coding.graph.core.generator.AsyncGenerator;
 import com.coding.graph.core.graph.CompiledGraph;
+import com.coding.graph.core.node.NodeOutput;
 import com.coding.graph.core.state.OverAllState;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +26,7 @@ public class AgentFlowServiceImplTest {
     private AgentFlowService agentFlowService;
 
     @Test
-    public void testConvertToCompiledGraph_ComplexFlow() throws GraphStateException {
+    public void testConvertToCompiledGraph_ComplexFlow() throws GraphStateException, GraphRunnerException {
         String jsonConfig = """
             {
               "id": "complex-flow",
@@ -42,7 +45,8 @@ public class AgentFlowServiceImplTest {
                   "configParams": {
                     "model": "qwen-plus",
                     "prompt": "Hi",
-                    "systemPrompt": "你是一个乐于助人的AI助手"
+                    "systemPrompt": "你是一个乐于助人的AI助手",
+                    "stream": true
                   }
                 },
                 {
@@ -76,9 +80,13 @@ public class AgentFlowServiceImplTest {
         assertNotNull(compiledGraph, "Compiled graph should not be null");
         System.out.println("Graph compiled successfully.");
 
-        Optional<OverAllState> allState = compiledGraph.invoke(Map.of("messages", "HI"));
-        if (allState.isPresent()) {
-            System.out.println(allState.get().data());
-        }
+        // Optional<OverAllState> allState = compiledGraph.invoke(Map.of("messages", "HI"));
+        // if (allState.isPresent()) {
+        //     System.out.println(allState.get().data());
+        // }
+        AsyncGenerator<NodeOutput> stream = compiledGraph.stream(Map.of("messages", "Hi"));
+        stream.forEachAsync(output -> {
+            System.out.println("Node Output: " + output);
+        }).join();
     }
 }

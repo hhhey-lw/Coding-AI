@@ -2,6 +2,7 @@ package com.coding.agentflow.service.node;
 
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.graph.core.state.OverAllState;
 import com.coding.core.model.entity.KnowledgeVectorDO;
 import com.coding.core.repository.KnowledgeVectorRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +42,7 @@ public class RetrieverNode extends AbstractNode {
     }
 
     @Override
-    protected NodeExecutionResult doExecute(Node node, Map<String, Object> context) {
+    protected Map<String, Object> doExecute(Node node, OverAllState state) {
         // 获取配置参数
         String query = getConfigParamAsString(node, "query");
         Integer topK = getConfigParamAsInteger(node, "topK", 5);
@@ -50,7 +51,7 @@ public class RetrieverNode extends AbstractNode {
         String rerankModelName = getConfigParamAsString(node, "rerankModel");
 
         // 支持从上下文中替换查询变量
-        String finalQuery = replaceTemplateWithVariable(query, context);
+        String finalQuery = replaceTemplateWithVariable(query, state);
 
         log.info("执行检索节点，查询: {}, TopK: {}, 知识库数量: {}", finalQuery, topK, 
                 knowledgeBaseIds != null ? knowledgeBaseIds.size() : 0);
@@ -72,7 +73,7 @@ public class RetrieverNode extends AbstractNode {
         resultData.put("documents", retrievedDocs);
         resultData.put("documentCount", retrievedDocs.size());
 
-        return NodeExecutionResult.success(resultData);
+        return resultData;
     }
 
     /**

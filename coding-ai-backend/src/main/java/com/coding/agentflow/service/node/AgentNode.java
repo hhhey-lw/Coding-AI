@@ -2,6 +2,7 @@ package com.coding.agentflow.service.node;
 
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.graph.core.state.OverAllState;
 import com.coding.core.manager.tool.ImageGenerateService;
 import com.coding.core.manager.tool.MusicGenerateService;
 import com.coding.core.model.entity.KnowledgeVectorDO;
@@ -55,7 +56,7 @@ public class AgentNode extends AbstractNode {
     }
 
     @Override
-    protected NodeExecutionResult doExecute(Node node, Map<String, Object> context) {
+    protected Map<String, Object> doExecute(Node node, OverAllState state) throws Exception {
         // 获取配置参数 - 需要支持ToolCall
         String chatModelName = getConfigParamAsString(node, "chatModel", "qwen-plus");
         String userPrompt = getConfigParamAsString(node, "prompt", "");
@@ -70,7 +71,7 @@ public class AgentNode extends AbstractNode {
         log.info("执行Agent节点，模型: {}, 知识库: {}, 工具: {}", chatModel, knowledgeBaseIds, tools);
 
         // 补充系统提示词 - 1. 嵌入知识库碎片知识 2. 组合系统提示词&用户提示词
-        String finalUserPrompt = replaceTemplateWithVariable(userPrompt, context);
+        String finalUserPrompt = replaceTemplateWithVariable(userPrompt, state);
         String finalSystemPrompt = queryKnowledgeBaseAndBuildPrompts(knowledgeBaseIds, embeddingModelName, rerankModelName, finalUserPrompt, topK);
 
         // 构建ChatClient - 工具调用 & 思考内容
@@ -84,7 +85,7 @@ public class AgentNode extends AbstractNode {
         resultData.put("reasoning", "Agent推理过程（待实现）");
         resultData.put("answer", output);
 
-        return NodeExecutionResult.success(resultData);
+        return resultData;
     }
 
     @Override

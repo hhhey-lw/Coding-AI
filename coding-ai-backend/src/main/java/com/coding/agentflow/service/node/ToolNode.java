@@ -3,6 +3,7 @@ package com.coding.agentflow.service.node;
 import cn.hutool.json.JSONUtil;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.graph.core.state.OverAllState;
 import com.coding.core.manager.tool.ImageGenerateService;
 import com.coding.core.manager.tool.MusicGenerateService;
 import lombok.extern.slf4j.Slf4j;
@@ -30,25 +31,25 @@ public class ToolNode extends AbstractNode {
     }
 
     @Override
-    protected NodeExecutionResult doExecute(Node node, Map<String, Object> context) {
+    protected Map<String, Object> doExecute(Node node, OverAllState state) {
         // 获取配置参数
         String toolName = getConfigParamAsString(node, "toolName");
         Map<String, Object> toolParams = getConfigParamAsMap(node, "toolParams");
 
         // 支持从上下文中替换参数变量
-        Map<String, Object> resolvedParams = resolveParams(toolParams, context);
+        Map<String, Object> resolvedParams = resolveParams(toolParams, state);
 
         log.info("执行工具节点，工具名称: {}, 参数: {}", toolName, JSONUtil.toJsonStr(resolvedParams));
 
         // 根据工具类型调用相应的工具
-        Object toolResult = invokeTool(toolName, resolvedParams, context);
+        Object toolResult = invokeTool(toolName, resolvedParams, state);
 
         Map<String, Object> resultData = new HashMap<>();
         resultData.put("toolName", toolName);
         resultData.put("toolParams", resolvedParams);
         resultData.put("toolResult", toolResult);
 
-        return NodeExecutionResult.success(resultData);
+        return resultData;
     }
 
     /**
@@ -56,10 +57,10 @@ public class ToolNode extends AbstractNode {
      * 
      * @param toolName 工具名称
      * @param params 工具参数
-     * @param context 执行上下文
+     * @param state 执行状态
      * @return 工具执行结果
      */
-    private Object invokeTool(String toolName, Map<String, Object> params, Map<String, Object> context) {
+    private Object invokeTool(String toolName, Map<String, Object> params, OverAllState state) {
         if (StringUtils.isBlank(toolName)) {
             throw new IllegalArgumentException("工具名称不能为空");
         }
@@ -144,7 +145,7 @@ public class ToolNode extends AbstractNode {
     /**
      * 解析参数，支持从上下文中替换变量
      */
-    private Map<String, Object> resolveParams(Map<String, Object> params, Map<String, Object> context) {
+    private Map<String, Object> resolveParams(Map<String, Object> params, OverAllState state) {
         if (params == null || params.isEmpty()) {
             return params;
         }
@@ -154,7 +155,7 @@ public class ToolNode extends AbstractNode {
             Object value = entry.getValue();
             if (value instanceof String) {
                 // 支持变量替换
-                String resolvedValue = replaceTemplateWithVariable((String) value, context);
+                String resolvedValue = replaceTemplateWithVariable((String) value, state);
                 resolved.put(entry.getKey(), resolvedValue);
             } else {
                 resolved.put(entry.getKey(), value);
