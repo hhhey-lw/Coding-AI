@@ -143,9 +143,8 @@ public class AgentFlowServiceImpl implements AgentFlowService {
             }
         }
 
-        // 4. 添加起始和结束节点
+        // 4. 添加起始节点（END节点是保留标识符，不需要显式添加）
         stateGraph.addNode(NodeCodeConstants.START, ((state, config) -> CompletableFuture.completedFuture(config.getMetadata())));
-        stateGraph.addNode(NodeCodeConstants.END, ((state, config) -> CompletableFuture.completedFuture(config.getMetadata())));
 
         // 5. 添加起始边和结束边
         stateGraph.addEdge(NodeCodeConstants.START, NodeTypeEnum.START.name());

@@ -30,7 +30,7 @@ public class AgentFlowNodeServiceImpl implements AgentFlowNodeService {
             System.out.println("RunnableConfig: " + config);
 
             // 这里可以根据节点类型和配置执行不同的逻辑
-            NodeExecutor nodeExecutor = nodeExecutorMap.get(node.getType());
+            NodeExecutor nodeExecutor = getNodeExecutor(node.getType().name());
             NodeExecutionResult execute = nodeExecutor.execute(node, state.data());
 
             // 返回节点执行结果 <= 这里会把返回的结果塞到 OverAllState中
@@ -42,8 +42,12 @@ public class AgentFlowNodeServiceImpl implements AgentFlowNodeService {
      * 根据节点类型获取对应的节点执行器
      */
     private NodeExecutor getNodeExecutor(String nodeType) {
-        // TODO
-      return nodeExecutorMap.get(nodeType);
-    };
+        for (Map.Entry<String, NodeExecutor> entry : nodeExecutorMap.entrySet()) {
+            if (entry.getValue().getNodeType().equals(nodeType)) {
+                return entry.getValue();
+            }
+        }
+        throw new IllegalArgumentException(String.format("节点类型不存在: {}", nodeType));
+    }
 
 }
