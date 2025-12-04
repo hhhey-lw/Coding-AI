@@ -33,7 +33,7 @@ public class LlmNode extends AbstractNode {
     private final ChatModel chatModel;
 
     @Override
-    protected Map<String, Object> doExecute(Node node, OverAllState state) throws Exception {
+    protected Map<String, Object> doExecute(Node node, OverAllState state) {
         // 获取配置参数
         String model = getConfigParamAsString(node, "model");
         String prompt = getConfigParamAsString(node, "prompt");
@@ -116,7 +116,6 @@ public class LlmNode extends AbstractNode {
                 .chatResponse();
 
         // 使用 StreamingChatGenerator 包装流式响应
-        // 参考 graph-core 标准做法：mapResult 返回最终完整结果
         var generator = StreamingChatGenerator.builder()
                 .startingNode(node.getId())
                 .startingState(state)

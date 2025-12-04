@@ -139,6 +139,7 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                 // 迭代器和最终的回调函数
                 .map(generatorEntry -> {
                     final var generator = (AsyncGenerator<Output>) generatorEntry.getValue();
+                    // 注意：嵌套迭代器的完成结果会更新当前状态和全局状态
                     return Data.composeWith(generator.map(n -> {
                         // n.setSubGraph(true);
                         return n;
@@ -165,8 +166,13 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                                     // 获取 overAllState 中已有的消息（使用 IdentityHashMap 基于对象引用）
                                     Set<Message> existingMessages = Collections.newSetFromMap(new IdentityHashMap<>());
                                     if (this.overAllState.value("messages").isPresent()) {
-                                        List<Message> overAllMessages = (List<Message>) this.overAllState.value("messages").get();
-                                        existingMessages.addAll(overAllMessages);
+                                        Object messages = this.overAllState.value("messages").get();
+                                        if (messages instanceof List) {
+                                            List<Message> overAllMessages = (List<Message>) messages;
+                                            existingMessages.addAll(overAllMessages);
+                                        } else {
+                                            existingMessages.add(new AssistantMessage(messages.toString()));
+                                        }
                                     }
 
                                     // 遍历过滤 currentState 中的消息

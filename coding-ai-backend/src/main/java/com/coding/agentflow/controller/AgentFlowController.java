@@ -64,10 +64,11 @@ public class AgentFlowController {
         return Result.success(agentFlowConfigService.removeAgentFlow(id));
     }
 
-    @PostMapping("/execute/stream")
+    @GetMapping("/execute/stream")
     @Operation(summary = "流式执行工作流")
-    public SseEmitter executeStream(@RequestParam Long flowId, @RequestBody Map<String, Object> input) throws GraphStateException, GraphRunnerException {
-        log.info("开始流式执行工作流, flowId: {}, input: {}", flowId, input);
+    public SseEmitter executeStream(@RequestParam Long flowId,
+                                    @RequestParam String prompt) throws GraphStateException, GraphRunnerException {
+        log.info("开始流式执行工作流, flowId: {}, prompt: {}", flowId, prompt);
 
         // 1. 获取工作流配置
         AgentFlowConfigResponse flowResponse = agentFlowConfigService.getAgentFlowById(flowId);
@@ -87,12 +88,16 @@ public class AgentFlowController {
         SseEmitter emitter = new SseEmitter(300_000L);
 
         // 5. 执行工作流并获取流式输出
-        AsyncGenerator<NodeOutput> generator = compiledGraph.stream(input);
+        AsyncGenerator<NodeOutput> generator = compiledGraph.stream(Map.of("messages", prompt));
 
         // 6. 处理流式输出
         generator.streamForEach(output -> {
             try {
                 if (output == null || StringUtils.isBlank(output.getNode())) {
+                    return;
+                }
+
+                if (output.isEND()) {
                     return;
                 }
 

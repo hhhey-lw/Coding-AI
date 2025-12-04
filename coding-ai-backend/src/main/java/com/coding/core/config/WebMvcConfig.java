@@ -82,7 +82,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 知识库
                         "/ai/knowledge/**",
                         "/api/knowledge-base/**",
-                        "/api/knowledge-vector/**"
+                        "/api/knowledge-vector/**",
+                        // agent flow 接口测试
+                        "/agent-flow/execute/stream"
                 );
     }
 }
