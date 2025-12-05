@@ -10,9 +10,16 @@ import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import Chat from '../views/Chat.vue'
 import KnowledgeBaseDetail from '../views/KnowledgeBaseDetail.vue'
+import AgentFlow from '../views/agentflow/AgentFlow.vue'
 
 // 定义路由配置
 const routes: Array<RouteRecordRaw> = [
+  {
+    path: '/agentflow',
+    name: 'AgentFlow',
+    component: AgentFlow,
+    meta: { requiresAuth: true, title: 'Agent Flow 设计器' }
+  },
   {
     path: '/login',
     name: 'Login',
