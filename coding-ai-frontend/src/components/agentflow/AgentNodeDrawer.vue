@@ -17,54 +17,61 @@
     </template>
 
     <div class="drawer-content" v-if="nodeData">
-      <!-- Model Selection -->
+      <!-- Model Selection - Two Tier -->
       <div class="form-section">
         <div class="section-label">
           Model <span class="required">*</span>
         </div>
-        <div class="model-select-wrapper">
-           <el-input
-            v-model="formData.model"
-            placeholder="Select Model"
-            class="model-input"
+        
+        <!-- Provider Selection -->
+        <div class="model-select-wrapper" style="margin-bottom: 12px;">
+          <el-select
+            v-model="formData.provider"
+            placeholder="Select Provider"
+            style="width: 100%"
+            @change="onProviderChange"
           >
             <template #prefix>
-              <div class="model-icon-prefix">
-                 <el-icon><Cpu /></el-icon>
-              </div>
+              <el-icon><Cpu /></el-icon>
             </template>
-            <template #suffix>
-               <el-icon class="el-input__icon"><ArrowDown /></el-icon>
+            <el-option
+              v-for="provider in providers"
+              :key="provider.provider"
+              :label="provider.providerName"
+              :value="provider.provider"
+            />
+          </el-select>
+        </div>
+        
+        <!-- Model Selection -->
+        <div class="model-select-wrapper">
+          <el-select
+            v-model="formData.modelName"
+            placeholder="Select Model"
+            style="width: 100%"
+            :disabled="!formData.provider"
+          >
+            <template #prefix>
+              <el-icon><MagicStick /></el-icon>
             </template>
-          </el-input>
+            <el-option
+              v-for="model in models"
+              :key="model.modelId"
+              :label="model.modelId"
+              :value="model.modelId"
+            />
+          </el-select>
         </div>
       </div>
 
-      <!-- Parameters Accordion -->
-      <el-collapse v-model="activeNames" class="params-accordion">
-        <el-collapse-item name="1">
-          <template #title>
-            <div class="accordion-title">
-              <el-icon><Setting /></el-icon>
-              <span>{{ formData.model }} Parameters</span>
-            </div>
-          </template>
-          
-          <div class="param-item">
-            <div class="section-label">Connect Credential <span class="required">*</span></div>
-            <div class="credential-row">
-              <el-select v-model="formData.credential" placeholder="Select Credential" style="width: 100%">
-                <el-option label="alibaba apikey" value="alibaba_apikey" />
-              </el-select>
-              <el-button icon="Edit" circle text />
-            </div>
-          </div>
-
-          <div class="param-item">
-             <div class="section-label">Model Name <span class="required">*</span></div>
-             <el-input v-model="formData.modelName" placeholder="qwen-plus" />
-          </div>
-
+      <!-- Parameters Section -->
+      <div class="form-section">
+        <div class="section-label">
+          <el-icon><Setting /></el-icon>
+          <span style="margin-left: 4px">{{ formData.modelName || 'Model' }} Parameters</span>
+        </div>
+        
+        <div class="parameters-card">
           <div class="param-item">
              <div class="section-label">Temperature</div>
              <el-input-number v-model="formData.temperature" :step="0.1" :min="0" :max="1" style="width: 100%" />
@@ -74,8 +81,8 @@
              <div class="section-label">Streaming</div>
              <el-switch v-model="formData.streaming" />
           </div>
-        </el-collapse-item>
-      </el-collapse>
+        </div>
+      </div>
 
       <!-- Messages Section -->
       <div class="form-section">
@@ -127,40 +134,92 @@
            <div class="section-label">Tools</div>
         </div>
         
-        <!-- Existing Tools List would go here -->
-        <div class="tool-card" v-if="formData.tools.length > 0">
+        <!-- Existing Tools List -->
+        <div class="tool-card" v-for="(tool, index) in formData.tools" :key="index">
            <div class="card-header">
-            <el-tag size="small" type="info">0</el-tag>
-            <el-button type="danger" link icon="Delete" class="delete-btn" />
+            <el-tag size="small" type="info">{{ index }}</el-tag>
+            <el-button type="danger" link icon="Delete" class="delete-btn" @click="removeTool(index)" />
           </div>
            <div class="param-item">
              <div class="section-label">Tool <span class="required">*</span></div>
-             <el-input v-model="formData.tools[0].name" readonly>
+             <el-select v-model="tool.name" placeholder="Select Tool" style="width: 100%">
                 <template #prefix>
                    <el-icon><Tools /></el-icon>
                 </template>
-             </el-input>
+                <el-option 
+                  v-for="t in mcpTools" 
+                  :key="t.server_code || t.tool_name" 
+                  :label="t.tool_name" 
+                  :value="t.tool_name" 
+                />
+             </el-select>
           </div>
-          <!-- More tool params... -->
         </div>
 
-        <el-button class="add-btn" plain type="primary">
+        <el-button class="add-btn" plain type="primary" @click="addTool">
           <el-icon><Plus /></el-icon> Add Tools
         </el-button>
       </div>
 
-      <!-- Knowledge Buttons -->
+      <!-- Knowledge Base Selection -->
       <div class="form-section" v-if="!isLlmNode">
-        <div class="section-label">Knowledge (Document Stores) <el-icon><InfoFilled /></el-icon></div>
-        <el-button class="add-btn" plain type="primary">
-          <el-icon><Plus /></el-icon> Add Knowledge (Document Stores)
-        </el-button>
-      </div>
+        <div class="section-header">
+           <div class="section-label">
+             Knowledge Base
+             <el-tooltip content="Give your agent context from existing knowledge bases" placement="top">
+               <el-icon class="info-icon"><InfoFilled /></el-icon>
+             </el-tooltip>
+           </div>
+        </div>
+        
+        <div class="knowledge-config-card" v-if="formData.hasKnowledge">
+           <div class="card-header">
+            <el-tag size="small" type="info">0</el-tag>
+            <el-button type="danger" link icon="Delete" class="delete-btn" @click="removeKnowledge" />
+          </div>
 
-       <div class="form-section" v-if="!isLlmNode">
-        <div class="section-label">Knowledge (Vector Embeddings) <el-icon><InfoFilled /></el-icon></div>
-        <el-button class="add-btn" plain type="primary">
-          <el-icon><Plus /></el-icon> Add Knowledge (Vector Embeddings)
+           <div class="param-item">
+             <div class="section-label">Knowledge Base <span class="required">*</span></div>
+             <el-select 
+               v-model="formData.knowledgeBaseIds" 
+               multiple 
+               placeholder="Select Knowledge Base" 
+               style="width: 100%"
+             >
+                <el-option 
+                  v-for="kb in knowledgeBases" 
+                  :key="kb.id" 
+                  :label="kb.name" 
+                  :value="kb.id" 
+                />
+             </el-select>
+           </div>
+
+           <div class="param-item">
+             <div class="section-label">Top K</div>
+             <el-input-number 
+               v-model="formData.topK" 
+               :min="1" 
+               :max="20" 
+               style="width: 100%" 
+             />
+           </div>
+
+           <div class="param-item">
+             <div class="section-label">Embedding Model <span class="required">*</span></div>
+             <el-select v-model="formData.embeddingModel" placeholder="Select Embedding Model" style="width: 100%">
+                <el-option 
+                  v-for="model in embeddingModels" 
+                  :key="model.modelId" 
+                  :label="model.modelId" 
+                  :value="model.modelId" 
+                />
+             </el-select>
+           </div>
+        </div>
+
+        <el-button class="add-btn" plain type="primary" @click="addKnowledge" v-else>
+          <el-icon><Plus /></el-icon> Add Knowledge Base
         </el-button>
       </div>
 
@@ -172,37 +231,8 @@
         </div>
       </div>
 
-       <div class="form-section" v-if="formData.enableMemory">
-          <div class="section-label">Memory Type</div>
-          <el-select v-model="formData.memoryType" style="width: 100%">
-             <el-option label="All Messages" value="all" />
-          </el-select>
-       </div>
-
-       <!-- Input Message -->
-       <div class="form-section">
-          <div class="section-label">Input Message <el-icon><InfoFilled /></el-icon></div>
-          <el-input type="textarea" :rows="2" placeholder="" />
-       </div>
-
-       <!-- Return Response As -->
-       <div class="form-section">
-          <div class="section-label">Return Response As <span class="required">*</span></div>
-          <el-select v-model="formData.responseType" style="width: 100%">
-             <el-option label="User Message" value="user_message" />
-          </el-select>
-       </div>
-
-       <!-- JSON Structured Output (Only for LLM) -->
-       <div class="form-section" v-if="isLlmNode">
-        <div class="section-label">JSON Structured Output <el-icon><InfoFilled /></el-icon></div>
-        <el-button class="add-btn" plain type="primary">
-          <el-icon><Plus /></el-icon> Add JSON Structured Output
-        </el-button>
-       </div>
-      
-       <!-- Update Flow State -->
-       <div class="form-section">
+      <!-- Update Flow State -->
+      <div class="form-section">
         <div class="section-label">Update Flow State <el-icon><InfoFilled /></el-icon></div>
         <el-button class="add-btn" plain type="primary">
           <el-icon><Plus /></el-icon> Add Update Flow State
@@ -214,11 +244,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { 
-  EditPen, Cpu, ArrowDown, Setting, Edit, Plus, Delete, 
-  MagicStick, FullScreen, Tools, InfoFilled, Key 
+  EditPen, Cpu, Setting, Plus, 
+  MagicStick, FullScreen, Tools, InfoFilled 
 } from '@element-plus/icons-vue'
+import { WorkflowAPI, type ModelInfo } from '@/api/workflow'
+import { KnowledgeBaseAPI } from '@/api/knowledge'
+import type { KnowledgeBase } from '@/types/knowledge'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
   modelValue: boolean
@@ -230,7 +264,6 @@ const emit = defineEmits(['update:modelValue', 'save'])
 
 const visible = ref(false)
 const nodeData = ref<any>(null)
-const activeNames = ref(['1'])
 
 // 判断节点类型
 const isLlmNode = computed(() => {
@@ -239,29 +272,197 @@ const isLlmNode = computed(() => {
 
 // Form Data
 const formData = ref({
-  model: 'ChatAlibabaTongyi',
-  credential: 'alibaba_apikey',
-  modelName: 'qwen-max',
+  provider: '',
+  modelName: '',
   temperature: 0.9,
   streaming: true,
   messages: [
     { role: 'system', content: '你是一个乐于助人的AI助手。能够调用工具完成用户的任务' }
   ],
-  tools: [{ name: 'Github MCP' }],
+  tools: [] as any[],
   enableMemory: true,
-  memoryType: 'all',
-  responseType: 'user_message'
+  knowledgeBaseIds: [] as string[],
+  topK: 5,
+  embeddingModel: '',
+  hasKnowledge: false
+})
+
+// Model data
+const allModels = ref<ModelInfo[]>([])
+const mcpTools = ref<any[]>([]) // MCP Tools list
+const knowledgeBases = ref<KnowledgeBase[]>([])
+const embeddingModels = ref<ModelInfo[]>([])
+
+const providers = computed(() => {
+  const uniqueProviders = new Map<string, ModelInfo>()
+  allModels.value.forEach(model => {
+    if (!uniqueProviders.has(model.provider)) {
+      uniqueProviders.set(model.provider, model)
+    }
+  })
+  return Array.from(uniqueProviders.values())
+})
+
+const models = computed(() => {
+  if (!formData.value.provider) return []
+  return allModels.value.filter(model => model.provider === formData.value.provider)
+})
+
+const isInitializing = ref(false)
+
+// Watchers
+watch(formData, (newVal) => {
+  if (isInitializing.value) return
+  if (props.node && props.node.data) {
+    const data = props.node.data
+    data.provider = newVal.provider
+    data.modelName = newVal.modelName
+    data.temperature = newVal.temperature
+    data.streaming = newVal.streaming
+    data.enableMemory = newVal.enableMemory
+    
+    // Deep copy arrays
+    data.messages = JSON.parse(JSON.stringify(newVal.messages))
+    data.tools = JSON.parse(JSON.stringify(newVal.tools))
+    data.knowledgeBaseIds = JSON.parse(JSON.stringify(newVal.knowledgeBaseIds))
+    data.topK = newVal.topK
+    data.embeddingModel = newVal.embeddingModel
+    data.hasKnowledge = newVal.hasKnowledge
+  }
+}, { deep: true })
+
+const initFormData = () => {
+  if (props.node && props.node.data) {
+    isInitializing.value = true
+    try {
+      const data = props.node.data
+      formData.value.provider = data.provider || ''
+      formData.value.modelName = data.modelName || ''
+      formData.value.temperature = data.temperature ?? 0.9
+      formData.value.streaming = data.streaming ?? true
+      formData.value.enableMemory = data.enableMemory ?? true
+      
+      if (data.messages) {
+        formData.value.messages = JSON.parse(JSON.stringify(data.messages))
+      }
+      
+      if (data.tools) {
+        formData.value.tools = JSON.parse(JSON.stringify(data.tools))
+      } else {
+        formData.value.tools = []
+      }
+
+      if (data.knowledgeBaseIds) {
+        formData.value.knowledgeBaseIds = JSON.parse(JSON.stringify(data.knowledgeBaseIds))
+      } else {
+        formData.value.knowledgeBaseIds = []
+      }
+      formData.value.topK = data.topK ?? 5
+      formData.value.embeddingModel = data.embeddingModel || ''
+      
+      // Initialize hasKnowledge based on data presence if not explicitly set
+      if (data.hasKnowledge !== undefined) {
+         formData.value.hasKnowledge = data.hasKnowledge
+      } else {
+         formData.value.hasKnowledge = (data.knowledgeBaseIds && data.knowledgeBaseIds.length > 0)
+      }
+    } finally {
+      setTimeout(() => {
+        isInitializing.value = false
+      }, 0)
+    }
+  }
+}
+
+// Load data
+const loadData = async () => {
+  await Promise.all([loadModels(), loadMcpTools(), loadKnowledgeBases(), loadEmbeddingModels()])
+}
+
+// Load models
+const loadModels = async () => {
+  try {
+    const response = await WorkflowAPI.getModelList('TextGen')
+    if ((response.code === 1 || response.success) && response.data) {
+      allModels.value = response.data
+    }
+  } catch (error) {
+    console.error('Failed to load models:', error)
+    ElMessage.error('加载模型列表失败')
+  }
+}
+
+// Load Embedding Models
+const loadEmbeddingModels = async () => {
+  try {
+    const response = await WorkflowAPI.getModelList('TextEmbedding' as any) 
+    if ((response.code === 1 || response.success) && response.data) {
+       embeddingModels.value = response.data
+    } else {
+       embeddingModels.value = [
+          { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-small' },
+          { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-large' }
+       ]
+    }
+  } catch (error) {
+    console.error('Failed to load embedding models', error)
+     embeddingModels.value = [
+        { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-small' },
+        { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-large' }
+     ]
+  }
+}
+
+// Load MCP Tools
+const loadMcpTools = async () => {
+  try {
+    const response = await WorkflowAPI.getMcpServers()
+    if ((response.code === 1 || response.success) && response.data) {
+      mcpTools.value = response.data
+    }
+  } catch (error) {
+    console.error('Failed to load MCP tools:', error)
+    // ElMessage.error('加载工具列表失败')
+  }
+}
+
+// Load Knowledge Bases
+const loadKnowledgeBases = async () => {
+  try {
+    const res = await KnowledgeBaseAPI.page({
+      pageNum: 1,
+      pageSize: 100 // Load all for now
+    })
+    if (res.code === 1 || res.code === 200 || res.success) { 
+       const pageData = res.data
+       if (pageData && Array.isArray(pageData.records)) {
+          knowledgeBases.value = pageData.records
+       }
+    }
+  } catch (error) {
+    console.error('Failed to load knowledge bases', error)
+  }
+}
+
+const onProviderChange = () => {
+  formData.value.modelName = ''
+}
+
+onMounted(() => {
+  loadData()
 })
 
 watch(() => props.modelValue, (val) => {
   visible.value = val
+  if (val) {
+    initFormData()
+  }
 })
 
 watch(() => props.node, (val) => {
   if (val) {
     nodeData.value = val
-    // Here you would normally load the specific node's data
-    // For now we use the default mocked formData
+    initFormData()
   }
 })
 
@@ -273,6 +474,14 @@ const handleClose = (done: () => void) => {
   done()
 }
 
+const addTool = () => {
+  formData.value.tools.push({ name: '' })
+}
+
+const removeTool = (index: number) => {
+  formData.value.tools.splice(index, 1)
+}
+
 const addMessage = () => {
   formData.value.messages.push({ role: 'user', content: '' })
 }
@@ -280,57 +489,41 @@ const addMessage = () => {
 const removeMessage = (index: number) => {
   formData.value.messages.splice(index, 1)
 }
+
+const addKnowledge = () => {
+  formData.value.hasKnowledge = true
+}
+
+const removeKnowledge = () => {
+  formData.value.hasKnowledge = false
+  formData.value.knowledgeBaseIds = []
+  formData.value.embeddingModel = ''
+  formData.value.topK = 5
+}
 </script>
 
 <style scoped>
-.drawer-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.drawer-title {
-  font-weight: 600;
-  font-size: 16px;
-  color: #333;
-}
-
-.drawer-content {
-  padding: 10px;
-}
-
 .form-section {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .section-label {
   font-size: 14px;
   font-weight: 500;
   color: #374151;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+}
+
+.section-header {
+  margin-bottom: 12px;
 }
 
 .required {
   color: #ef4444;
-}
-
-.accordion-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-}
-
-.param-item {
-  margin-bottom: 16px;
-}
-
-.credential-row {
-  display: flex;
-  gap: 8px;
+  margin-left: 4px;
 }
 
 .row-between {
@@ -339,19 +532,21 @@ const removeMessage = (index: number) => {
   align-items: center;
 }
 
-/* Message Card */
-.message-card, .tool-card {
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px;
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 12px;
+.drawer-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #111827;
+}
+
+.drawer-content {
+  padding: 20px;
 }
 
 .content-tools {
@@ -364,17 +559,43 @@ const removeMessage = (index: number) => {
 .add-btn {
   width: 100%;
   border-style: dashed;
+  margin-top: 8px;
 }
 
-.params-accordion :deep(.el-collapse-item__header) {
+.parameters-card, .knowledge-config-card {
   background-color: #f9fafb;
-  padding: 0 12px;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  margin-bottom: 4px;
+  padding: 16px;
 }
 
-.params-accordion :deep(.el-collapse-item__content) {
-  padding: 12px;
+.message-card, .tool-card, .knowledge-card {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.param-item {
+  margin-bottom: 16px;
+}
+
+.param-item:last-child {
+  margin-bottom: 0;
+}
+
+.info-icon {
+  margin-left: 4px;
+  color: #9ca3af;
+  cursor: pointer;
 }
 
 /* Custom Input Styling to match Mui a bit */
@@ -383,5 +604,13 @@ const removeMessage = (index: number) => {
 }
 :deep(.el-input__wrapper:hover) {
   box-shadow: 0 0 0 1px #374151 inset;
+}
+:deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+:deep(.el-drawer__body) {
+  padding: 0;
 }
 </style>

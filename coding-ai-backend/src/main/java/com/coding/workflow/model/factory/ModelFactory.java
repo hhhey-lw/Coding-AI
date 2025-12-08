@@ -1,7 +1,7 @@
 package com.coding.workflow.model.factory;
 
 import cn.hutool.core.util.StrUtil;
-import com.coding.core.model.entity.AiProviderConfigDO;
+import com.coding.core.config.AiServiceConfigProperties;
 import com.coding.core.service.AiProviderConfigService;
 import com.coding.workflow.exception.BizException;
 import com.coding.workflow.utils.ApiUtils;
@@ -28,8 +28,8 @@ public class ModelFactory {
     private final AiProviderConfigService aiProviderConfigService;
 
     public ChatModel getChatModel(String provider, String serviceType) {
-        // 从数据库获取提供商配置
-        AiProviderConfigDO providerConfig = aiProviderConfigService.getByProviderCodeAndServiceType(provider, serviceType);
+        // 从YAML配置获取提供商配置
+        AiServiceConfigProperties.ProviderConfig providerConfig = aiProviderConfigService.getByProviderCodeAndServiceType(provider, serviceType);
         if (providerConfig == null) {
             throw new BizException("不支持的模型提供商：" + provider + "，服务类型：" + serviceType);
         }
@@ -41,9 +41,9 @@ public class ModelFactory {
     /**
      * 构建OpenAI API客户端
      */
-    private OpenAiApi buildOpenAiApi(AiProviderConfigDO aiProviderConfigDO) {
+    private OpenAiApi buildOpenAiApi(AiServiceConfigProperties.ProviderConfig providerConfig) {
         OpenAiApi.Builder openAiApiBuilder = OpenAiApi.builder()
-                .apiKey(aiProviderConfigDO.getAuthorization())
+                .apiKey(providerConfig.getAuthorization())
                 .responseErrorHandler(new ResponseErrorHandler() {
                     @Override
                     public boolean hasError(ClientHttpResponse response) throws IOException {
@@ -60,8 +60,8 @@ public class ModelFactory {
                     }
                 })
                 .headers(ApiUtils.getBaseHeaders());
-        if (StrUtil.isNotBlank(aiProviderConfigDO.getBaseUrl())) {
-            String endpoint = aiProviderConfigDO.getBaseUrl();
+        if (StrUtil.isNotBlank(providerConfig.getBaseUrl())) {
+            String endpoint = providerConfig.getBaseUrl();
 
             // 移除末尾的 /v1 或 /v1/，因为 OpenAiApi.Builder 会自动添加 /v1
             if (endpoint.endsWith("/v1") || endpoint.endsWith("/v1/")) {

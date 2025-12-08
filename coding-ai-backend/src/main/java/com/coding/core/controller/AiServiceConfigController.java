@@ -18,7 +18,6 @@ import java.util.List;
 
 /**
  * 服务管理控制器
- * TODO 优化为字典表查询
  */
 @Tag(name = "服务管理")
 @RestController

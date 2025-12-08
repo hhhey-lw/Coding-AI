@@ -1,6 +1,6 @@
 package com.coding.core.service;
 
-import com.coding.core.model.entity.AiMcpConfigDO;
+import com.coding.core.config.AiServiceConfigProperties;
 import com.coding.core.model.vo.AiMcpConfigVO;
 
 import java.util.List;
@@ -18,5 +18,5 @@ public interface AiMcpConfigService {
     /**
      * 根据服务代码获取MCP服务器配置
      */
-    AiMcpConfigDO getByServerCode(String serverCode);
+    AiServiceConfigProperties.McpServerConfig getByServerCode(String serverCode);
 }

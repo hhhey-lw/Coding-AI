@@ -82,8 +82,8 @@
               </div>
               <div class="node-info">
                 <div class="node-label">{{ props.label }}</div>
-                <div v-if="props.data.model" class="node-tag">
-                  <span class="tag-icon">(-)</span> {{ props.data.model }}
+                <div v-if="props.data.model || props.data.modelName" class="node-tag">
+                  <span class="tag-icon">(-)</span> {{ props.data.modelName || props.data.model }}
                 </div>
               </div>
             </div>
@@ -245,8 +245,8 @@ const onNodeClick = (event: NodeMouseEvent) => {
     return
   }
 
-  // 普通 Agent 节点 (有 model 属性且不是 condition agent)
-  if (node.data && node.data.model) {
+  // 普通 Agent 节点 (有 modelName 属性且不是 condition agent)
+  if (node.data && (node.data.modelName || node.data.model)) {
     // 判断是 LLM 还是 Agent
     if (node.id.startsWith('llm')) {
       drawerType.value = 'llm'
@@ -291,7 +291,8 @@ const elements = ref([
       theme: 'theme-pink',
       color: '#fb7185', // Pink/Red
       icon: shallowRef(Share),
-      model: 'qwen-plus',
+      provider: 'BaiLian',
+      modelName: 'qwen3-max',
       inputs: true,
       outputs: [
         { id: '0', label: '', labelClass: '' },
@@ -309,7 +310,8 @@ const elements = ref([
       theme: 'theme-cyan',
       color: '#22d3ee', // Cyan
       icon: shallowRef(Cpu),
-      model: 'qwen-max',
+      provider: 'BaiLian',
+      modelName: 'qwen3-max',
       subIcon: shallowRef(User), // 模拟那个小图标
       inputs: true,
       outputs: [{ id: 'out' }]
@@ -325,7 +327,8 @@ const elements = ref([
       theme: 'theme-blue',
       color: '#60a5fa', // Blue
       icon: shallowRef(MagicStick),
-      model: 'qwen-plus',
+      provider: 'BaiLian',
+      modelName: 'qwen3-max',
       inputs: true,
       outputs: [{ id: 'out' }]
     }

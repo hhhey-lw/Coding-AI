@@ -1,7 +1,6 @@
 package com.coding.workflow.manager;
 
-import com.coding.core.model.entity.AiMcpConfigDO;
-import com.coding.core.model.entity.AiProviderConfigDO;
+import com.coding.core.config.AiServiceConfigProperties;
 import com.coding.core.service.AiMcpConfigService;
 import com.coding.core.service.AiProviderConfigService;
 import com.coding.workflow.model.chat.Content;
@@ -35,14 +34,14 @@ public class McpServerManager {
     private final AiProviderConfigService aiProviderConfigService;
 
     public McpServerCallToolResponse callTool(McpServerCallToolRequest request) {
-        // 1. 从数据库获取MCP服务器配置
-        AiMcpConfigDO mcpServer = aiMcpConfigService.getByServerCode(request.getServerCode());
+        // 1. 从YAML配置获取MCP服务器配置
+        AiServiceConfigProperties.McpServerConfig mcpServer = aiMcpConfigService.getByServerCode(request.getServerCode());
         if (mcpServer == null) {
             throw new RuntimeException("MCP服务器配置不存在: " + request.getServerCode());
         }
 
-        // 2. 从数据库获取提供商配置
-        AiProviderConfigDO providerConfig = aiProviderConfigService.getByProviderCodeAndServiceType(
+        // 2. 从YAML配置获取提供商配置
+        AiServiceConfigProperties.ProviderConfig providerConfig = aiProviderConfigService.getByProviderCodeAndServiceType(
             mcpServer.getProviderCode(), "MCP");
         if (providerConfig == null) {
             throw new RuntimeException("提供商配置不存在: " + mcpServer.getProviderCode());
@@ -95,7 +94,7 @@ public class McpServerManager {
      * @param mcpServer MCP服务器配置
      * @return MCP同步客户端
      */
-    private McpSyncClient buildMcpSyncClient(AiProviderConfigDO providerConfig, AiMcpConfigDO mcpServer) {
+    private McpSyncClient buildMcpSyncClient(AiServiceConfigProperties.ProviderConfig providerConfig, AiServiceConfigProperties.McpServerConfig mcpServer) {
         // 创建HTTP客户端
         HttpClient.Builder httpClientBuilder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)

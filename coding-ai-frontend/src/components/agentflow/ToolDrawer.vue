@@ -21,15 +21,43 @@
       <div class="form-section">
         <div class="section-label">Tool <span class="required">*</span></div>
         <div class="tool-select-wrapper">
-           <el-select v-model="formData.tool" placeholder="Select Tool" style="width: 100%">
-             <!-- 这里将来可以从后端加载工具列表 -->
-             <el-option label="Google Search" value="google_search" />
-             <el-option label="Calculator" value="calculator" />
-             <el-option label="Weather" value="weather" />
-             <el-option label="GitHub API" value="github_api" />
+           <el-select 
+             v-model="formData.tool" 
+             placeholder="Select Tool" 
+             style="width: 100%"
+             @change="handleToolChange"
+           >
+             <template #prefix>
+               <el-icon><Tools /></el-icon>
+             </template>
+             <el-option 
+               v-for="t in mcpTools" 
+               :key="t.server_code || t.tool_name" 
+               :label="t.tool_name" 
+               :value="t.tool_name" 
+             />
            </el-select>
         </div>
       </div>
+
+      <!-- Tool Parameters (Dynamic based on tool_params) -->
+      <div class="form-section" v-if="selectedToolParams.length > 0">
+         <el-collapse v-model="activeCollapse">
+           <el-collapse-item :title="(formData.tool || 'Tool') + ' Parameters'" name="1">
+              <div v-for="param in selectedToolParams" :key="param.key" class="param-item">
+                 <div class="section-label">
+                   {{ param.desc || param.key }}
+                   <span class="required" v-if="true">*</span>
+                 </div>
+                 <el-input 
+                   v-model="formData.params[param.key]" 
+                   :placeholder="'Enter ' + (param.desc || param.key)"
+                 />
+              </div>
+           </el-collapse-item>
+         </el-collapse>
+      </div>
+
 
       <!-- Update Flow State -->
        <div class="form-section">
@@ -44,10 +72,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { 
-  EditPen, Plus, InfoFilled
+  EditPen, Plus, InfoFilled, Tools
 } from '@element-plus/icons-vue'
+import { WorkflowAPI, type McpServer, type McpToolParam } from '@/api/workflow'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
   modelValue: boolean
@@ -58,24 +88,74 @@ const emit = defineEmits(['update:modelValue', 'save'])
 
 const visible = ref(false)
 const nodeData = ref<any>(null)
+const mcpTools = ref<McpServer[]>([])
+const activeCollapse = ref(['1'])
 
 // Form Data
 const formData = ref({
-  tool: ''
+  tool: '',
+  params: {} as Record<string, any>
 })
 
+const selectedToolParams = computed(() => {
+  const tool = mcpTools.value.find(t => t.tool_name === formData.value.tool)
+  return tool?.tool_params || []
+})
+
+// Load MCP Tools
+const loadMcpTools = async () => {
+  try {
+    const response = await WorkflowAPI.getMcpServers()
+    if ((response.code === 1 || response.success) && response.data) {
+      mcpTools.value = response.data
+    }
+  } catch (error) {
+    console.error('Failed to load MCP tools:', error)
+  }
+}
+
+const handleToolChange = () => {
+  // Reset params when tool changes, or maybe keep common ones? 
+  // For now, let's keep it simple and just ensure reactivity works
+  // We might want to clear params: formData.value.params = {}
+}
+
+// Watchers
 watch(() => props.modelValue, (val) => {
   visible.value = val
+  if (val) {
+    initFormData()
+  }
 })
 
 watch(() => props.node, (val) => {
   if (val) {
     nodeData.value = val
+    initFormData()
   }
 })
 
+watch(formData, (newVal) => {
+  if (props.node && props.node.data) {
+    props.node.data.tool = newVal.tool
+    props.node.data.params = JSON.parse(JSON.stringify(newVal.params))
+  }
+}, { deep: true })
+
+const initFormData = () => {
+  if (props.node && props.node.data) {
+    const data = props.node.data
+    formData.value.tool = data.tool || ''
+    formData.value.params = data.params ? JSON.parse(JSON.stringify(data.params)) : {}
+  }
+}
+
 watch(visible, (val) => {
   emit('update:modelValue', val)
+})
+
+onMounted(() => {
+  loadMcpTools()
 })
 
 const handleClose = (done: () => void) => {
@@ -112,6 +192,7 @@ const handleClose = (done: () => void) => {
   display: flex;
   align-items: center;
   gap: 4px;
+  justify-content: space-between;
 }
 
 .required {
@@ -121,6 +202,10 @@ const handleClose = (done: () => void) => {
 .add-btn {
   width: 100%;
   border-style: dashed;
+}
+
+.param-item {
+  margin-bottom: 12px;
 }
 
 /* Custom Input Styling to match Mui a bit */

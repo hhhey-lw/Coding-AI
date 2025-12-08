@@ -1,12 +1,8 @@
 package com.coding.core.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.coding.core.mapper.AiMcpConfigMapper;
-import com.coding.core.model.entity.AiMcpConfigDO;
+import com.coding.core.config.AiServiceConfigProperties;
 import com.coding.core.model.vo.AiMcpConfigVO;
 import com.coding.core.service.AiMcpConfigService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,46 +18,42 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiMcpConfigServiceImpl implements AiMcpConfigService {
 
-    private final AiMcpConfigMapper aiMcpConfigMapper;
-    private final ObjectMapper objectMapper;
+    private final AiServiceConfigProperties configProperties;
 
     @Override
     public List<AiMcpConfigVO> getEnabledMcpServers() {
-        LambdaQueryWrapper<AiMcpConfigDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(AiMcpConfigDO::getStatus, Boolean.TRUE);
-        List<AiMcpConfigDO> mcpServers = aiMcpConfigMapper.selectList(wrapper);
-
-        return mcpServers.stream()
+        return configProperties.getMcpServers().stream()
+                .filter(config -> Boolean.TRUE.equals(config.getStatus()))
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public AiMcpConfigDO getByServerCode(String serverCode) {
-        LambdaQueryWrapper<AiMcpConfigDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(AiMcpConfigDO::getServerCode, serverCode)
-               .eq(AiMcpConfigDO::getStatus, Boolean.TRUE);
-        return aiMcpConfigMapper.selectOne(wrapper);
+    public AiServiceConfigProperties.McpServerConfig getByServerCode(String serverCode) {
+        return configProperties.getMcpServers().stream()
+                .filter(config -> config.getServerCode().equals(serverCode))
+                .filter(config -> Boolean.TRUE.equals(config.getStatus()))
+                .findFirst()
+                .orElse(null);
     }
 
-    private AiMcpConfigVO convertToVO(AiMcpConfigDO aiMcpConfigDO) {
+    private AiMcpConfigVO convertToVO(AiServiceConfigProperties.McpServerConfig config) {
         AiMcpConfigVO vo = new AiMcpConfigVO();
-        vo.setServerName(aiMcpConfigDO.getServerName());
-        vo.setServerCode(aiMcpConfigDO.getServerCode());
-        vo.setToolName(aiMcpConfigDO.getToolName());
-        vo.setContentDescription(aiMcpConfigDO.getContentDescription());
+        vo.setServerName(config.getServerName());
+        vo.setServerCode(config.getServerCode());
+        vo.setToolName(config.getToolName());
+        vo.setContentDescription(config.getContentDescription());
 
-        // 解析JSON格式的工具参数
-        try {
-            if (aiMcpConfigDO.getToolParams() != null) {
-                List<AiMcpConfigVO.ToolParam> toolParams = objectMapper.readValue(
-                    aiMcpConfigDO.getToolParams(),
-                    new TypeReference<List<AiMcpConfigVO.ToolParam>>() {}
-                );
-                vo.setToolParams(toolParams);
-            }
-        } catch (Exception e) {
-            log.error("解析工具参数失败: {}", aiMcpConfigDO.getToolParams(), e);
+        // 转换工具参数
+        if (config.getToolParams() != null) {
+            List<AiMcpConfigVO.ToolParam> toolParams = config.getToolParams().stream()
+                    .map(param -> AiMcpConfigVO.ToolParam.of(
+                            param.getKey(),
+                            param.getType(),
+                            param.getDesc()
+                    ))
+                    .collect(Collectors.toList());
+            vo.setToolParams(toolParams);
         }
 
         return vo;
