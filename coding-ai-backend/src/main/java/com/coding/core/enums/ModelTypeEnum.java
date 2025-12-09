@@ -7,6 +7,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ModelTypeEnum {
     TextGen, ImageGen, AudioGen, VideoGen, MusicGen,
+    TextEmbedding
     ;
 
     /**

@@ -37,9 +37,23 @@ public class AgentFlowConfigServiceImpl extends ServiceImpl<AgentFlowConfigMappe
     }
 
     @Override
-    public Boolean saveOrUpdateAgentFlow(AgentFlowConfigRequest request) {
+    public Long saveOrUpdateAgentFlow(AgentFlowConfigRequest request) {
         AgentFlowConfig config = convertToEntity(request);
-        return this.saveOrUpdate(config);
+        if (config.getId() == null) {
+            // 新增
+            boolean saved = this.save(config);
+            if (!saved) {
+                throw new RuntimeException("保存失败");
+            }
+            return config.getId();
+        } else {
+            // 更新
+            boolean updated = this.updateById(config);
+            if (!updated) {
+                throw new RuntimeException("更新失败");
+            }
+            return config.getId();
+        }
     }
 
     @Override

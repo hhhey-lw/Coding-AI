@@ -129,14 +129,14 @@ watch(() => props.modelValue, (val) => {
 })
 
 watch(() => props.node, (val) => {
-  if (val) {
+  if (val && val.data?.type === 'tool') {
     nodeData.value = val
     initFormData()
   }
 })
 
 watch(formData, (newVal) => {
-  if (props.node && props.node.data) {
+  if (props.node && props.node.data && props.node.data.type === 'tool') {
     props.node.data.tool = newVal.tool
     props.node.data.params = JSON.parse(JSON.stringify(newVal.params))
   }

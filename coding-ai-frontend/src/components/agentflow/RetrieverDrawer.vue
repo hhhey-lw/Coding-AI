@@ -125,7 +125,7 @@ const formData = ref({
   query: '',
   topK: 5,
   knowledgeBaseIds: [] as string[],
-  embeddingModel: ''
+  embeddingModel: 'text-embedding-v4'
 })
 
 // Load Knowledge Bases
@@ -156,7 +156,7 @@ const loadEmbeddingModels = async () => {
     // Actually in `AgentNodeDrawer.vue` it used hardcoded options for embedding. 
     // Here I should try to load from backend if possible. 
     // Let's assume 'TextEmbedding' is the key. If not, I'll fallback to hardcoded.
-    if ((response.code === 1 || response.success) && response.data) {
+    if ((response.code === 1 || response.success) && response.data && response.data.length > 0) {
        embeddingModels.value = response.data
     } else {
        // Fallback mock if API returns empty or fails for specific type
@@ -168,16 +168,14 @@ const loadEmbeddingModels = async () => {
        // I should probably update the type or just cast it.
        // For now, I will add some mock embedding models if list is empty to be safe.
        embeddingModels.value = [
-          { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-small' },
-          { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-large' }
+          { provider: 'bailian', providerName: 'BaiLian', modelType: 'TextEmbedding', modelId: 'text-embedding-v4' }
        ]
     }
   } catch (error) {
     console.error('Failed to load embedding models', error)
      // Fallback
      embeddingModels.value = [
-        { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-small' },
-        { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-large' }
+        { provider: 'bailian', providerName: 'BaiLian', modelType: 'TextEmbedding', modelId: 'text-embedding-v4' }
      ]
   }
 }
@@ -190,14 +188,14 @@ watch(() => props.modelValue, (val) => {
 })
 
 watch(() => props.node, (val) => {
-  if (val) {
+  if (val && val.data?.type === 'retriever') {
     nodeData.value = val
     initFormData()
   }
 })
 
 watch(formData, (newVal) => {
-  if (props.node && props.node.data) {
+  if (props.node && props.node.data && props.node.data.type === 'retriever') {
      props.node.data.query = newVal.query
      props.node.data.topK = newVal.topK
      props.node.data.knowledgeBaseIds = JSON.parse(JSON.stringify(newVal.knowledgeBaseIds))
@@ -211,7 +209,7 @@ const initFormData = () => {
     formData.value.query = data.query || ''
     formData.value.topK = data.topK ?? 5
     formData.value.knowledgeBaseIds = data.knowledgeBaseIds ? JSON.parse(JSON.stringify(data.knowledgeBaseIds)) : []
-    formData.value.embeddingModel = data.embeddingModel || ''
+    formData.value.embeddingModel = data.embeddingModel || 'text-embedding-v4'
   }
 }
 

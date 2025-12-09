@@ -7,6 +7,7 @@ import com.coding.agentflow.model.model.AgentFlowConfig;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.service.AgentFlowNodeService;
 import com.coding.agentflow.service.AgentFlowService;
+import com.coding.agentflow.service.node.ConditionAgentNode;
 import com.coding.agentflow.utils.ConditionEvaluator;
 import com.coding.graph.core.common.NodeCodeConstants;
 import com.coding.graph.core.exception.GraphStateException;
@@ -24,6 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -39,6 +41,7 @@ import java.util.stream.Collectors;
 public class AgentFlowServiceImpl implements AgentFlowService {
 
     private final AgentFlowNodeService agentFlowNodeService;
+    private final ConditionAgentNode conditionAgentNode;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -94,11 +97,12 @@ public class AgentFlowServiceImpl implements AgentFlowService {
                 // 处理条件边
                 Map<String, String> routeMap = new HashMap<>();
                 for (Edge edge : edges) {
-                    // 条件边通过label确定目标节点
-                    if (StringUtils.isBlank(edge.getLabel())) {
-                        throw new GraphStateException("条件边的Label不能为空，from：" + sourceId + "，to：" + edge.getTarget());
+                    // 构建 label -> target 映射（LangGraph的条件边是异步动作，会返回一个label，框架会根据label执行对应label的边）
+                    if (StringUtils.isBlank(edge.getTarget())) {
+                        throw new GraphStateException("条件边的重点不能为空，from：" + sourceId + "，to：" + edge.getTarget());
                     }
-                    routeMap.put(edge.getLabel(), edge.getTarget());
+                    // 简化，这里直接用target作为label
+                    routeMap.put(edge.getTarget(), edge.getTarget());
                 }
 
                 try {
@@ -115,6 +119,11 @@ public class AgentFlowServiceImpl implements AgentFlowService {
                     stateGraph.addConditionalEdges(sourceId,
                             AsyncEdgeAction.edge_async((OverAllState state) -> {
                                 System.out.println("Evaluating condition logic for node: " + sourceId);
+
+                                if (NodeTypeEnum.CONDITION_AGENT.equals(sourceNode.getType())) {
+                                    // 利用条件Agent节点进行智能评估
+                                    return conditionAgentNode.getSelectedLabel(conditionAgentNode.execute(nodeMap.get(sourceId), state));
+                                }
 
                                 // 遍历分支，找到第一个满足条件的分支
                                 for (Branch branch : branches) {
@@ -147,8 +156,10 @@ public class AgentFlowServiceImpl implements AgentFlowService {
         stateGraph.addNode(NodeCodeConstants.START, ((state, config) -> CompletableFuture.completedFuture(config.getMetadata())));
 
         // 5. 添加起始边和结束边
-        stateGraph.addEdge(NodeCodeConstants.START, NodeTypeEnum.START.name());
-        stateGraph.addEdge(NodeTypeEnum.END.name(), NodeCodeConstants.END);
+        Node startNode = agentFlowConfig.getNodes().stream().filter(node -> NodeTypeEnum.START.equals(node.getType())).findFirst().orElseThrow(() -> new GraphStateException("起始节点不存在"));
+        Node endNode = agentFlowConfig.getNodes().stream().filter(node -> NodeTypeEnum.END.equals(node.getType())).findFirst().orElseThrow(() -> new GraphStateException("结束节点不存在"));
+        stateGraph.addEdge(NodeCodeConstants.START, startNode.getId());
+        stateGraph.addEdge(endNode.getId(), NodeCodeConstants.END);
 
         return stateGraph;
     }

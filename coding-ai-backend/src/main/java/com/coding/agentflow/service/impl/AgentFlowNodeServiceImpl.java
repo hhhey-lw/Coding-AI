@@ -17,9 +17,11 @@ public class AgentFlowNodeServiceImpl implements AgentFlowNodeService {
     @Resource
     private Map<String, NodeExecutor> nodeExecutorMap;
 
+    // 条件节点不执行任何操作，直接返回空结果
+    // 具体控制逻辑: AgentFlowServiceImpl#convertToStateGraph. 控制交由边来实现
     @Override
     public AsyncNodeActionWithConfig getNodeActionWithConfig(Node node) {
-        if (NodeTypeEnum.CONDITION.equals(node.getType())) {
+        if (NodeTypeEnum.CONDITION.equals(node.getType()) || NodeTypeEnum.CONDITION_AGENT.equals(node.getType())) {
             return (state, config) -> CompletableFuture.completedFuture(Map.of());
         }
         return (state, config) -> {

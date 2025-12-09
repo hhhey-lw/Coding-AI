@@ -36,41 +36,6 @@ ai-service:
       authorization: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLmtbfonrrnlKjmiLdfNDI3NjIzNTA1NjAwNDQyMzc0IiwiVXNlck5hbWUiOiLmtbfonrrnlKjmiLdfNDI3NjIzNTA1NjAwNDQyMzc0IiwiQWNjb3VudCI6IiIsIlN1YmplY3RJRCI6IjE5NzEyMTYyMjA0MjYzNDY0OTYiLCJQaG9uZSI6IjE4ODY4Nzg0NDM4IiwiR3JvdXBJRCI6IjE5NzEyMTYyMjA0MjIxNTIxOTIiLCJQYWdlTmFtZSI6IiIsIk1haWwiOiIiLCJDcmVhdGVUaW1lIjoiMjAyNS0wOS0yNSAyMzoxOTowNCIsIlRva2VuVHlwZSI6MSwiaXNzIjoibWluaW1heCJ9.wE5gPuHQjVZAMTnZYcz73NH_cx9d47K43fe1F1nFveOtQP2UnKrc5CWg6zeQp2qEAAZTn9LNkMMgrE3Tgp6BI4U11pJ4c9lqsFkmDPEfIx7OmwEdMjn2kMDnN3W7M5Ke4v9Lg7fnh1MxlfgUaDZdw5VlxBlT3U3CLqTsmoagjbKq2x17FAizV8pV4UnsLKlqgr_ulNYEZXVDCY3PLMkr1TguaF1uR6wzyD_BFNKZgkT8IHyMQVHxG4SoCymjRekVu5IzUVZZtFOlcFwTGT2nw2W98mYtP2EHowW_cTZ0PHuGghTR5-69fN3L1mnif5e7giKcZhqODdlcLs8S6wqgIg
       status: true
 
-  # MCP 服务器配置
-  mcp-servers:
-    - provider-code: BaiLian
-      server-name: 博查搜索服务
-      server-code: bocha_search
-      endpoint: bochaai_search/sse
-      tool-name: bocha_web_search
-      tool-params:
-        - key: query
-          desc: 搜索关键词
-          type: string
-        - key: count
-          desc: 返回结果数量
-          type: integer
-      content-description: 提供Web搜索功能
-      status: true
-
-    - provider-code: BaiLian
-      server-name: 高德地图服务
-      server-code: gaode_map
-      endpoint: amap-maps/sse
-      tool-name: maps_around_search
-      tool-params:
-        - key: location
-          desc: 经度, 纬度
-          type: string
-        - key: keywords
-          desc: 关键字
-          type: string
-        - key: radius
-          desc: 米[距离]
-          type: integer
-      content-description: 提供地图搜索功能
-      status: true
-
   # AI 模型配置
   models:
     - provider-code: Volcengine
@@ -101,4 +66,39 @@ ai-service:
       provider-name: MiniMax
       model-type: MusicGen
       model-id: music-1.5
+      status: true
+
+  # MCP 服务配置
+  mcp-servers:
+    - provider-code: BaiLian
+      server-name: 博查搜索服务
+      server-code: bocha_search
+      endpoint: bochaai_search/sse
+      tool-name: bocha_web_search
+      tool-params:
+        - key: query
+          desc: 搜索关键词
+          type: string
+        - key: count
+          desc: 返回结果数量
+          type: integer
+      content-description: 提供Web搜索功能，实时搜索互联网信息
+      status: true
+
+    - provider-code: BaiLian
+      server-name: 高德地图服务
+      server-code: gaode_map
+      endpoint: amap-maps/sse
+      tool-name: maps_around_search
+      tool-params:
+        - key: location
+          desc: 经度, 纬度
+          type: string
+        - key: keywords
+          desc: 关键字，比如"餐饮","酒店"，或更详细的关键字
+          type: string
+        - key: radius
+          desc: 米[距离]
+          type: integer
+      content-description: 提供地图搜索功能，搜索周边地点信息
       status: true

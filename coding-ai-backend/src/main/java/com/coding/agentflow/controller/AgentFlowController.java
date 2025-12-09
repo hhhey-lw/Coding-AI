@@ -54,7 +54,7 @@ public class AgentFlowController {
 
     @PostMapping("/save")
     @Operation(summary = "保存或更新")
-    public Result<Boolean> save(@RequestBody AgentFlowConfigRequest request) {
+    public Result<Long> save(@RequestBody AgentFlowConfigRequest request) {
         return Result.success(agentFlowConfigService.saveOrUpdateAgentFlow(request));
     }
 

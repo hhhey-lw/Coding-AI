@@ -7,9 +7,12 @@ import com.coding.core.manager.tool.ImageGenerateService;
 import com.coding.core.manager.tool.MusicGenerateService;
 import com.coding.core.model.entity.KnowledgeVectorDO;
 import com.coding.core.repository.KnowledgeVectorRepository;
+import com.coding.workflow.utils.AssertUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -59,7 +62,6 @@ public class AgentNode extends AbstractNode {
     protected Map<String, Object> doExecute(Node node, OverAllState state) throws Exception {
         // 获取配置参数 - 需要支持ToolCall
         String chatModelName = getConfigParamAsString(node, "chatModel", "qwen-plus");
-        String userPrompt = getConfigParamAsString(node, "prompt", "");
         // 知识库相关参数
         List<String> knowledgeBaseIds = getConfigParamAsList(node, "knowledgeBaseIds");
         Integer topK = getConfigParamAsInteger(node, "topK", 5);
@@ -70,12 +72,64 @@ public class AgentNode extends AbstractNode {
 
         log.info("执行Agent节点，模型: {}, 知识库: {}, 工具: {}", chatModel, knowledgeBaseIds, tools);
 
-        // 补充系统提示词 - 1. 嵌入知识库碎片知识 2. 组合系统提示词&用户提示词
-        String finalUserPrompt = replaceTemplateWithVariable(userPrompt, state);
-        String finalSystemPrompt = queryKnowledgeBaseAndBuildPrompts(knowledgeBaseIds, embeddingModelName, rerankModelName, finalUserPrompt, topK);
+        List<Message> springMessages = new ArrayList<>();
+        Object messagesObj = node.getConfigParams().get("messages");
+        String userQuery = "";
+        
+        // 1. 提取用户查询用于RAG (取最后一个 User 消息)
+        if (messagesObj instanceof List) {
+            List<Map<String, String>> messagesConfig = (List<Map<String, String>>) messagesObj;
+            for (int i = messagesConfig.size() - 1; i >= 0; i--) {
+                Map<String, String> msgMap = messagesConfig.get(i);
+                if ("user".equalsIgnoreCase(msgMap.get("role"))) {
+                    String content = msgMap.get("content");
+                    userQuery = replaceTemplateWithVariable(content, state);
+                    break;
+                }
+            }
+        }
+        AssertUtil.isNotBlank(userQuery, "Agent节点的用户提示词不能为空！");
+
+        // 2. 检索知识库并构建RAG上下文
+        String ragContext = retrieveRagContext(knowledgeBaseIds, embeddingModelName, rerankModelName, userQuery, topK);
+        boolean ragConsumed = false;
+        boolean hasSystem = false;
+
+        // 3. 构建消息列表并注入RAG上下文
+        if (messagesObj instanceof List) {
+            List<Map<String, String>> messagesConfig = (List<Map<String, String>>) messagesObj;
+            for (Map<String, String> msgMap : messagesConfig) {
+                String role = msgMap.get("role");
+                String content = msgMap.get("content");
+                String finalContent = replaceTemplateWithVariable(content, state);
+
+                if ("system".equalsIgnoreCase(role)) {
+                    if (StringUtils.isNotBlank(ragContext) && !ragConsumed) {
+                        finalContent = finalContent + "\n\n" + ragContext;
+                        ragConsumed = true;
+                    }
+                    springMessages.add(new SystemMessage(finalContent));
+                    hasSystem = true;
+                } else if ("user".equalsIgnoreCase(role)) {
+                    springMessages.add(new UserMessage(finalContent));
+                } else if ("assistant".equalsIgnoreCase(role)) {
+                    springMessages.add(new AssistantMessage(finalContent));
+                }
+            }
+        }
+
+        // 4. 如果 RAG 上下文未被注入（没有系统消息），或者需要默认系统消息
+        if (StringUtils.isNotBlank(ragContext) && !ragConsumed) {
+             springMessages.add(0, new SystemMessage(ragContext));
+             hasSystem = true;
+        } 
+        
+        if (!hasSystem) {
+             springMessages.add(0, new SystemMessage("你是一个乐于助人的AI助手，能够帮助用户完成任务。"));
+        }
 
         // 构建ChatClient - 工具调用 & 思考内容
-        ChatClient.ChatClientRequestSpec chatRequest = buildChatRequest(this.chatModel, chatModelName, tools, finalSystemPrompt, finalUserPrompt);
+        ChatClient.ChatClientRequestSpec chatRequest = buildChatRequest(this.chatModel, chatModelName, tools, springMessages);
 
         // Agent通常会进行多轮思考和工具调用
         String output = chatRequest.call().content();
@@ -107,17 +161,14 @@ public class AgentNode extends AbstractNode {
     /**
      * 构建Chat请求
      */
-    private ChatClient.ChatClientRequestSpec buildChatRequest(ChatModel chatModel, String chatModelName, List<String> tools, String systemPrompt, String userPrompt) {
+    private ChatClient.ChatClientRequestSpec buildChatRequest(ChatModel chatModel, String chatModelName, List<String> tools, List<Message> messages) {
         ChatClient chatClient = ChatClient.builder(chatModel).build();
 
         List<ToolCallback> toolCallbacks = buildToolCallbacks(tools);
 
         return chatClient
                 .prompt()
-                .messages(List.of(
-                        new SystemMessage(systemPrompt),
-                        new UserMessage(userPrompt)
-                ))
+                .messages(messages)
                 .options(OpenAiChatOptions.builder()
                         .model(chatModelName)
                         .internalToolExecutionEnabled(true)
@@ -128,11 +179,11 @@ public class AgentNode extends AbstractNode {
     }
 
     /**
-     * 检索模型知识库并构建系统提示词
+     * 检索模型知识库并构建RAG上下文
      */
-    private String queryKnowledgeBaseAndBuildPrompts(List<String> knowledgeBaseIds, String embeddingModelName, String rerankModelName, String finalUserPrompt, Integer topK) {
+    private String retrieveRagContext(List<String> knowledgeBaseIds, String embeddingModelName, String rerankModelName, String finalUserPrompt, Integer topK) {
         if (knowledgeBaseIds == null || knowledgeBaseIds.isEmpty() || StringUtils.isBlank(finalUserPrompt)) {
-            return "你是一个乐于助人的AI助手，能够帮助用户完成任务。";
+            return "";
         }
 
         try {
@@ -172,33 +223,30 @@ public class AgentNode extends AbstractNode {
                 }
             }
 
-            // 3. 如果没有检索到文档，返回默认提示词
+            // 3. 如果没有检索到文档
             if (allRetrievedDocs.isEmpty()) {
-                log.info("未从知识库中检索到相关文档");
                 return "你是一个乐于助人的AI助手，能够帮助用户完成任务。";
             }
 
-            // 4. TODO: 如果配置了重排序模型，可以在这里进行重排序
-            // 目前简单按照相似度排序（假设数据库已经按相似度排序）
+            // 4. TODO: 重排序 (rerank)
             List<KnowledgeVectorDO> topDocs = allRetrievedDocs.stream()
                     .sorted(Comparator.comparing(KnowledgeVectorDO::getSimilarity).reversed())
                     .limit(topK)
                     .toList();
 
-            // 5. 构建包含知识库内容的系统提示词
-            StringBuilder systemPrompt = new StringBuilder();
-            systemPrompt.append("你是一个乐于助人的AI助手，能够帮助用户完成任务。\n\n");
-            systemPrompt.append("以下是从知识库中检索到的相关信息，请参考这些信息来回答用户的问题：\n\n");
+            // 5. 构建RAG上下文
+            StringBuilder contextBuilder = new StringBuilder();
+            contextBuilder.append("以下是从知识库中检索到的相关信息，请参考这些信息来回答用户的问题：\n\n");
 
             for (int i = 0; i < topDocs.size(); i++) {
                 KnowledgeVectorDO doc = topDocs.get(i);
-                systemPrompt.append("[文档 ").append(i + 1).append("]\n");
-                systemPrompt.append(doc.getContent()).append("\n\n");
+                contextBuilder.append("[文档 ").append(i + 1).append("]\n");
+                contextBuilder.append(doc.getContent()).append("\n\n");
             }
 
-            systemPrompt.append("请基于以上知识库内容，结合你的知识，准确、专业地回答用户的问题。 如果知识库内容不足以回答问题，可以说明无法回答。\n");
+            contextBuilder.append("请基于以上知识库内容，结合你的知识，准确、专业地回答用户的问题。 如果知识库内容不足以回答问题，可以说明无法回答。\n");
 
-            return systemPrompt.toString();
+            return contextBuilder.toString();
 
         } catch (Exception e) {
             log.error("查询知识库失败", e);

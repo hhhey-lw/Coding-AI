@@ -283,7 +283,7 @@ const formData = ref({
   enableMemory: true,
   knowledgeBaseIds: [] as string[],
   topK: 5,
-  embeddingModel: '',
+  embeddingModel: 'text-embedding-v4',
   hasKnowledge: false
 })
 
@@ -358,7 +358,7 @@ const initFormData = () => {
         formData.value.knowledgeBaseIds = []
       }
       formData.value.topK = data.topK ?? 5
-      formData.value.embeddingModel = data.embeddingModel || ''
+      formData.value.embeddingModel = data.embeddingModel || 'text-embedding-v4'
       
       // Initialize hasKnowledge based on data presence if not explicitly set
       if (data.hasKnowledge !== undefined) {
@@ -396,19 +396,17 @@ const loadModels = async () => {
 const loadEmbeddingModels = async () => {
   try {
     const response = await WorkflowAPI.getModelList('TextEmbedding' as any) 
-    if ((response.code === 1 || response.success) && response.data) {
+    if ((response.code === 1 || response.success) && response.data && response.data.length > 0) {
        embeddingModels.value = response.data
     } else {
        embeddingModels.value = [
-          { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-small' },
-          { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-large' }
+          { provider: 'bailian', providerName: 'BaiLian', modelType: 'TextEmbedding', modelId: 'text-embedding-v4' }
        ]
     }
   } catch (error) {
     console.error('Failed to load embedding models', error)
      embeddingModels.value = [
-        { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-small' },
-        { provider: 'openai', providerName: 'OpenAI', modelType: 'TextEmbedding', modelId: 'text-embedding-3-large' }
+        { provider: 'bailian', providerName: 'BaiLian', modelType: 'TextEmbedding', modelId: 'text-embedding-v4' }
      ]
   }
 }

@@ -172,7 +172,7 @@ const formData = ref({
 const isInitializing = ref(false)
 watch(formData, (newVal) => {
   if (isInitializing.value) return
-  if (props.node && props.node.data) {
+  if (props.node && props.node.data && props.node.data.type === 'condition-agent') {
     const data = props.node.data
     
     // 同步基础字段
@@ -230,7 +230,7 @@ watch(() => props.modelValue, (val) => {
 })
 
 watch(() => props.node, (val) => {
-  if (val) {
+  if (val && val.data?.type === 'condition-agent') {
     nodeData.value = val
     initFormData()
   }

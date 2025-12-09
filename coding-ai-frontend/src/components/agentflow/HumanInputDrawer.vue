@@ -17,32 +17,21 @@
     </template>
 
     <div class="drawer-content" v-if="nodeData">
-      <!-- Description Type -->
-      <div class="form-section">
-        <div class="section-label">
-          Description Type <span class="required">*</span>
-        </div>
-        <el-select v-model="formData.descriptionType" style="width: 100%">
-           <el-option label="Fixed" value="fixed" />
-           <el-option label="Dynamic" value="dynamic" />
-        </el-select>
-      </div>
-
-      <!-- Description -->
+      <!-- Input Prompt -->
       <div class="form-section">
         <div class="section-label row-between">
-          <span>Description <span class="required">*</span></span>
+          <span>Input Prompt <span class="required">*</span></span>
           <div class="content-tools">
              <el-icon><Key /></el-icon>
              <el-icon><FullScreen /></el-icon>
           </div>
         </div>
         <el-input 
-          v-model="formData.description" 
+          v-model="formData.inputPrompt" 
           type="textarea" 
           :rows="4" 
           resize="none"
-          placeholder="Enter description..."
+          placeholder="Enter input prompt..."
         />
       </div>
 
@@ -76,18 +65,38 @@ const nodeData = ref<any>(null)
 
 // Form Data
 const formData = ref({
-  descriptionType: 'fixed',
-  description: '请输入你的二次问题？',
+  inputPrompt: '请输入你的二次问题？',
   enableFeedback: true
 })
 
+// Sync to node data
+watch(formData, (newVal) => {
+  if (props.node && props.node.data && props.node.data.type === 'human') {
+    props.node.data.inputPrompt = newVal.inputPrompt
+    props.node.data.enableFeedback = newVal.enableFeedback
+  }
+}, { deep: true })
+
+// Initialize form data
+const initFormData = () => {
+  if (props.node && props.node.data) {
+    const data = props.node.data
+    formData.value.inputPrompt = data.inputPrompt || '请输入你的二次问题？'
+    formData.value.enableFeedback = data.enableFeedback !== undefined ? data.enableFeedback : true
+  }
+}
+
 watch(() => props.modelValue, (val) => {
   visible.value = val
+  if (val) {
+    initFormData()
+  }
 })
 
 watch(() => props.node, (val) => {
-  if (val) {
+  if (val && val.data?.type === 'human') {
     nodeData.value = val
+    initFormData()
   }
 })
 

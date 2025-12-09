@@ -27,6 +27,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class ConditionAgentNode extends AbstractNode {
 
+    public static final String SELECTED_SCENE = "selectedScene";
     private final ChatModel chatModel;
 
     @Override
@@ -44,7 +45,7 @@ public class ConditionAgentNode extends AbstractNode {
 
         log.info("条件Agent节点选择的场景: {}", selectedScene);
 
-        return Map.of("selectedScene", selectedScene);
+        return Map.of(SELECTED_SCENE, selectedScene);
     }
 
     /**
@@ -142,5 +143,15 @@ public class ConditionAgentNode extends AbstractNode {
     @Override
     public String getNodeType() {
         return NodeTypeEnum.CONDITION_AGENT.name();
+    }
+
+    /**
+     * 获取选择的场景标签
+     *
+     * @param context
+     * @return
+     */
+    public String getSelectedLabel(Map<String, Object> context) {
+        return context.get(SELECTED_SCENE).toString();
     }
 }

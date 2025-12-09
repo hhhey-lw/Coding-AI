@@ -17,17 +17,17 @@
     </template>
 
     <div class="drawer-content" v-if="nodeData">
-      <!-- Conditions List -->
+      <!-- Branches List -->
       <div class="form-section">
         <div class="section-header">
-          <div class="section-label">Conditions <span class="required">*</span></div>
+          <div class="section-label">Branches <span class="required">*</span></div>
         </div>
         
-        <div class="condition-card" v-for="(condition, index) in formData.conditions" :key="index">
+        <div class="condition-card" v-for="(branch, index) in formData.branches" :key="index">
           <div class="card-header">
             <!-- 逻辑标签: 第一个是 IF，之后是 ELSE IF -->
             <el-tag size="small" :type="index === 0 ? 'primary' : 'warning'">
-              {{ index === 0 ? 'IF' : 'ELSE IF' }}
+              {{ branch.label }}
             </el-tag>
             <el-button 
               v-if="index > 0" 
@@ -35,45 +35,52 @@
               link 
               icon="Delete" 
               class="delete-btn" 
-              @click="removeCondition(index)" 
+              @click="removeBranch(index)" 
             />
           </div>
           
-          <!-- Type -->
-          <div class="param-item">
-             <div class="section-label">Type <span class="required">*</span></div>
-             <el-select v-model="condition.type" style="width: 100%">
-               <el-option label="String" value="string" />
-               <el-option label="Number" value="number" />
-               <el-option label="Boolean" value="boolean" />
-             </el-select>
-          </div>
+          <!-- Conditions inside Branch -->
+          <!-- Currently simplfied to 1 condition per branch for UI consistency, but data structure supports list -->
+          <div v-if="branch.conditions && branch.conditions.length > 0">
+             <!-- Left Value (Variable) -->
+              <div class="param-item">
+                 <div class="section-label">Variable (Left) <span class="required">*</span></div>
+                 <el-input v-model="branch.conditions[0].leftValue" placeholder="e.g. {{ input }}" />
+              </div>
 
-          <!-- Value 1 -->
-          <div class="param-item">
-             <div class="section-label">Value 1 <span class="required">*</span></div>
-             <el-input v-model="condition.value1" placeholder="Value 1" />
-          </div>
+              <!-- Operator -->
+              <div class="param-item">
+                 <div class="section-label">Operator <span class="required">*</span></div>
+                 <el-select v-model="branch.conditions[0].operator" style="width: 100%">
+                   <el-option label="Equals (==)" value="EQ" />
+                   <el-option label="Not Equals (!=)" value="NEQ" />
+                   <el-option label="Greater Than (>)" value="GT" />
+                   <el-option label="Less Than (<)" value="LT" />
+                   <el-option label="Contains" value="CONTAINS" />
+                 </el-select>
+              </div>
 
-          <!-- Operation -->
-          <div class="param-item">
-             <div class="section-label">Operation <span class="required">*</span></div>
-             <el-select v-model="condition.operation" style="width: 100%">
-               <el-option label="Equal" value="equal" />
-               <el-option label="Not Equal" value="not_equal" />
-               <el-option label="Contains" value="contains" />
-             </el-select>
-          </div>
-
-          <!-- Value 2 -->
-          <div class="param-item">
-             <div class="section-label">Value 2 <span class="required">*</span></div>
-             <el-input v-model="condition.value2" placeholder="Value 2" />
+              <!-- Right Value -->
+              <div class="param-item">
+                 <div class="section-label">Value (Right) <span class="required">*</span></div>
+                 <el-input v-model="branch.conditions[0].rightValue" placeholder="Value to compare" />
+              </div>
+              
+              <!-- Right Type -->
+               <div class="param-item">
+                 <div class="section-label">Value Type</div>
+                 <el-select v-model="branch.conditions[0].rightType" style="width: 100%">
+                   <el-option label="String" value="STRING" />
+                   <el-option label="Number" value="NUMBER" />
+                   <el-option label="Boolean" value="BOOLEAN" />
+                   <el-option label="Reference" value="REF" />
+                 </el-select>
+              </div>
           </div>
         </div>
 
         <!-- Add Button -->
-        <el-button class="add-btn" plain type="primary" @click="addCondition">
+        <el-button class="add-btn" plain type="primary" @click="addBranch">
           <el-icon><Plus /></el-icon> Add ELSE IF
         </el-button>
       </div>
@@ -109,47 +116,77 @@ const emit = defineEmits(['update:modelValue', 'save'])
 const visible = ref(false)
 const nodeData = ref<any>(null)
 
-// Form Data
+// Form Data matches Branch.java structure
 const formData = ref({
-  conditions: [
-    { type: 'string', value1: '', operation: 'equal', value2: '' } // Initial IF
+  branches: [
+    { 
+      id: 'if', 
+      label: 'IF', 
+      conditionLogic: 'AND',
+      conditions: [
+        { leftValue: '', leftType: 'REF', operator: 'EQ', rightValue: '', rightType: 'STRING' }
+      ]
+    } 
   ]
 })
 
-// 监听 conditions 变化，实时更新节点 outputs
-watch(() => formData.value.conditions, (newConditions) => {
-  if (props.node && props.node.data) {
+// 监听 branches 变化，实时更新节点 outputs 和 data.branches
+watch(() => formData.value.branches, (newBranches) => {
+  if (props.node && props.node.data && props.node.data.type === 'condition-basic') {
+    // Sync to node.data.branches for backend export
+    props.node.data.branches = JSON.parse(JSON.stringify(newBranches))
+
     const outputs = []
     
-    // 1. IF (始终存在，对应 index 0)
-    if (newConditions.length > 0) {
-        outputs.push({ id: 'if', label: 'IF', labelClass: 'text-blue' })
-    }
-    
-    // 2. ELSE IF (对应 index 1+)
-    for (let i = 1; i < newConditions.length; i++) {
+    // 1. Map branches to outputs
+    newBranches.forEach((branch, index) => {
         outputs.push({ 
-            id: `else-if-${i}`, 
-            label: 'ELSE IF', 
+            id: branch.id || (index === 0 ? 'if' : `else-if-${index}`),
+            label: branch.label, 
             labelClass: 'text-blue' 
         })
-    }
+    })
     
-    // 3. ELSE (始终存在)
+    // 2. ELSE (始终存在)
     outputs.push({ id: 'else', label: 'ELSE', labelClass: 'text-orange' })
     
-    // 更新节点数据
+    // 更新节点 outputs
     props.node.data.outputs = outputs
   }
 }, { deep: true })
 
+// Initialize data from node
+const initFormData = () => {
+    if (props.node && props.node.data) {
+        if (props.node.data.branches) {
+            formData.value.branches = JSON.parse(JSON.stringify(props.node.data.branches))
+        } else {
+            // Default init if empty
+            formData.value.branches = [
+                { 
+                  id: 'if', 
+                  label: 'IF', 
+                  conditionLogic: 'AND',
+                  conditions: [
+                    { leftValue: '', leftType: 'REF', operator: 'EQ', rightValue: '', rightType: 'STRING' }
+                  ]
+                } 
+            ]
+        }
+    }
+}
+
 watch(() => props.modelValue, (val) => {
   visible.value = val
+  if (val) {
+      initFormData()
+  }
 })
 
 watch(() => props.node, (val) => {
-  if (val) {
+  if (val && val.data?.type === 'condition-basic') {
     nodeData.value = val
+    initFormData()
   }
 })
 
@@ -161,17 +198,20 @@ const handleClose = (done: () => void) => {
   done()
 }
 
-const addCondition = () => {
-  formData.value.conditions.push({ 
-    type: 'string', 
-    value1: '', 
-    operation: 'equal', 
-    value2: '' 
+const addBranch = () => {
+  const index = formData.value.branches.length
+  formData.value.branches.push({ 
+    id: `else-if-${index}`,
+    label: 'ELSE IF', 
+    conditionLogic: 'AND',
+    conditions: [
+        { leftValue: '', leftType: 'REF', operator: 'EQ', rightValue: '', rightType: 'STRING' }
+    ]
   })
 }
 
-const removeCondition = (index: number) => {
-  formData.value.conditions.splice(index, 1)
+const removeBranch = (index: number) => {
+  formData.value.branches.splice(index, 1)
 }
 </script>
 

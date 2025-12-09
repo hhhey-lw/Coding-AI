@@ -33,9 +33,9 @@ public interface AgentFlowConfigService extends IService<AgentFlowConfig> {
      * 保存或更新配置
      *
      * @param request 请求对象
-     * @return 是否成功
+     * @return id
      */
-    Boolean saveOrUpdateAgentFlow(AgentFlowConfigRequest request);
+    Long saveOrUpdateAgentFlow(AgentFlowConfigRequest request);
 
     /**
      * 删除配置
