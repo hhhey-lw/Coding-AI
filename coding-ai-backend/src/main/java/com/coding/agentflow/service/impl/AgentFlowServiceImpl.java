@@ -177,35 +177,35 @@ public class AgentFlowServiceImpl implements AgentFlowService {
                     /** 工作流生命周期 **/
                     @Override
                     public void onStart(String nodeId, Map<String, Object> state, RunnableConfig config) {
-                        log.info("AgentFlow Start ... => nodeId: {}, state: {}, config: {}", nodeId, state, config);
+                        log.info("AgentFlow Start ... => nodeId: {}, config: {}", nodeId, config);
                         GraphLifecycleListener.super.onStart(nodeId, state, config);
                     }
 
                     @Override
                     public void onComplete(String nodeId, Map<String, Object> state, RunnableConfig config) {
-                        log.info("AgentFlow Complete ... => nodeId: {}, state: {}, config: {}", nodeId, state, config);
+                        log.info("AgentFlow Complete ... => nodeId: {}, config: {}", nodeId, config);
                         GraphLifecycleListener.super.onComplete(nodeId, state, config);
                     }
 
                     @Override
                     public void onError(String nodeId, Map<String, Object> state, Throwable ex, RunnableConfig config) {
-                        log.error("AgentFlow Error ... => nodeId: {}, state: {}, config: {}, exception: {}",
-                                nodeId, state, config, ex.getMessage(), ex);
+                        log.error("AgentFlow Error ... => nodeId: {}, config: {}, exception: {}",
+                                nodeId, config, ex.getMessage(), ex);
                         GraphLifecycleListener.super.onError(nodeId, state, ex, config);
                     }
 
                     /** 节点生命周期 **/
                     @Override
                     public void before(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
-                        log.info("Node Before ... => nodeId: {}, state: {}, config: {}, curTime: {}",
-                                nodeId, state, config, curTime);
+                        log.info("Node Before ... => nodeId: {}, config: {}, curTime: {}",
+                                nodeId, config, curTime);
                         GraphLifecycleListener.super.before(nodeId, state, config, curTime);
                     }
 
                     @Override
                     public void after(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
-                        log.info("Node After ... => nodeId: {}, state: {}, config: {}, curTime: {}",
-                                nodeId, state, config, curTime);
+                        log.info("Node After ... => nodeId: {}, config: {}, curTime: {}",
+                                nodeId, config, curTime);
                         GraphLifecycleListener.super.after(nodeId, state, config, curTime);
                     }
                 })

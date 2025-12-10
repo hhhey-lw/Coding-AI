@@ -92,9 +92,12 @@ public interface StreamingChatGenerator {
 
                     final var currentMessageText = currentMessage.getText();
 
-                    var newMessage = new AssistantMessage(
-                            currentMessageText != null ? lastMessageText.concat(currentMessageText) : lastMessageText,
-                            currentMessage.getMetadata(), currentMessage.getToolCalls(), currentMessage.getMedia());
+                    var newMessage = AssistantMessage.builder()
+                            .content(currentMessageText != null ? lastMessageText.concat(currentMessageText) : lastMessageText)
+                            .media(currentMessage.getMedia())
+                            .toolCalls(currentMessage.getToolCalls())
+                            .properties(currentMessage.getMetadata())
+                            .build();
 
                     var newGeneration = new Generation(newMessage, response.getResult().getMetadata());
                     return new ChatResponse(List.of(newGeneration), response.getMetadata());

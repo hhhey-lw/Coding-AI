@@ -11,7 +11,20 @@ export interface AgentFlowConfigRequest {
   edges: any[]
 }
 
+export interface ToolInfo {
+  name: string
+  description?: string
+  params?: Record<string, string>
+}
+
 export class AgentFlowAPI {
+  /**
+   * 获取可用工具列表
+   */
+  static async getTools() {
+    return get<ToolInfo[]>('/agent-flow/tools')
+  }
+
   /**
    * 保存或更新 AgentFlow
    */

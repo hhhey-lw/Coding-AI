@@ -10,8 +10,8 @@
       :max-zoom="4"
       :default-edge-options="defaultEdgeOptions"
       :connection-line-style="connectionLineStyle"
-      :snap-to-grid="workflowConfig.settings.snapToGrid"
-      :snap-grid="[workflowConfig.settings.gridSize, workflowConfig.settings.gridSize]"
+      :snap-to-grid="workflowConfig.settings?.snapToGrid"
+      :snap-grid="[workflowConfig.settings?.gridSize || 15, workflowConfig.settings?.gridSize || 15]"
       @node-click="handleNodeClick"
       @edge-context-menu="handleEdgeContextMenu"
       @pane-click="handlePaneClick"
@@ -112,7 +112,7 @@ const emit = defineEmits<{
 }>()
 
 // Vue Flow实例
-const { onConnect, addEdges, removeNodes, updateNode, project, fitView } = useVueFlow()
+const { onConnect, addEdges, removeNodes, updateNode, project, fitView, onNodeDragStop, onNodesChange, onEdgesChange } = useVueFlow()
 
 // 响应式数据
 const dark = ref(false)
@@ -137,7 +137,7 @@ const workflowConfig = ref<WorkflowConfig>({
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
   settings: {
-    snapToGrid: true,
+    snapToGrid: false,
     gridSize: 15,
     showGrid: true,
     showMinimap: true
@@ -198,46 +198,39 @@ const syncToParent = () => {
   emit('update:modelValue', workflowConfig.value)
 }
 
-// ✅ 监听 VueFlow 的节点变化（通过 vueFlow 实例）
-const { nodes: vueFlowNodes, edges: vueFlowEdges } = useVueFlow()
-
-watch(vueFlowNodes, (newNodes) => {
-  if (!newNodes || newNodes.length === 0) return
-  
-  // 更新节点位置
-  internalNodes.value = newNodes.map((vueFlowNode: any) => {
-    const existingNode = internalNodes.value.find(n => n.id === vueFlowNode.id)
-    return {
-      id: vueFlowNode.id,
-      type: vueFlowNode.data?.type || existingNode?.type || 'Start',
-      position: vueFlowNode.position,
-      data: vueFlowNode.data || existingNode?.data || {}
-    } as WorkflowNode
+// ✅ 优化：移除深层监听，改为事件驱动同步，解决拖拽卡顿问题
+// 监听节点拖拽结束，同步位置
+onNodeDragStop(({ nodes: draggedNodes }) => {
+  draggedNodes.forEach((draggedNode: any) => {
+    const internalNode = internalNodes.value.find(n => n.id === draggedNode.id)
+    if (internalNode) {
+      internalNode.position = { ...draggedNode.position }
+    }
   })
-  
   syncToParent()
-}, { deep: true })
+})
 
-watch(vueFlowEdges, (newEdges) => {
-  if (!newEdges) return
-  
-  internalEdges.value = newEdges.map((edge: any) => {
-    // ✅ 保留 Vue Flow 传递的 handle ID（它知道实际连接的是哪个 Handle）
-    // 只在缺失时才补充默认值
-    const sourceHandle = edge.sourceHandle || `${edge.source}-output`
-    const targetHandle = edge.targetHandle || `${edge.target}-input`
-    
-    return {
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      sourceHandle: sourceHandle,
-      targetHandle: targetHandle
-    } as WorkflowEdge
-  })
-  
-  syncToParent()
-}, { deep: true })
+// 监听节点变化（包括删除）
+onNodesChange((changes) => {
+  // 处理删除事件
+  const deleteChanges = changes.filter(c => c.type === 'remove')
+  if (deleteChanges.length > 0) {
+    const idsToRemove = new Set(deleteChanges.map(c => c.id))
+    internalNodes.value = internalNodes.value.filter(n => !idsToRemove.has(n.id))
+    syncToParent()
+  }
+})
+
+// 监听边变化（包括删除）
+onEdgesChange((changes) => {
+  // 处理删除事件
+  const deleteChanges = changes.filter(c => c.type === 'remove')
+  if (deleteChanges.length > 0) {
+    const idsToRemove = new Set(deleteChanges.map(c => c.id))
+    internalEdges.value = internalEdges.value.filter(e => !idsToRemove.has(e.id))
+    syncToParent()
+  }
+})
 
 // ✅ 监听 props 变化，只在工作流 ID 变化时完整加载
 watch(() => props.modelValue, async (newValue) => {
@@ -273,13 +266,13 @@ watch(() => props.modelValue, async (newValue) => {
     // 只更新节点数据，不改变位置
     if (newValue.nodes) {
       newValue.nodes.forEach(newNode => {
-        const existingIndex = internalNodes.value.findIndex(n => n.id === newNode.id)
-        if (existingIndex >= 0) {
+        const existingNode = internalNodes.value.find(n => n.id === newNode.id)
+        if (existingNode) {
           // 保留位置，只更新其他数据
-          internalNodes.value[existingIndex] = {
+          Object.assign(existingNode, {
             ...newNode,
-            position: internalNodes.value[existingIndex].position
-          }
+            position: existingNode.position
+          })
         } else {
           internalNodes.value.push(newNode)
         }
@@ -296,7 +289,7 @@ watch(() => props.modelValue, async (newValue) => {
 })
 
 // ✅ 连接处理 - 使用 Vue Flow 的 addEdges API
-onConnect((params) => {
+onConnect((params: any) => {
   // 验证连接规则
   if (!validateConnection(params)) {
     console.warn('连接被拒绝:', params)
@@ -337,7 +330,7 @@ onConnect((params) => {
     '是否修正了targetHandle': params.targetHandle !== targetHandle
   })
   
-  // ✅ 使用 Vue Flow 的 addEdges API，它会自动触发 v-model 更新
+  // ✅ 使用 Vue Flow 的 addEdges API
   addEdges([{
     id: WorkflowTransform.generateEdgeId(params.source, params.target),
     source: params.source,
@@ -346,6 +339,24 @@ onConnect((params) => {
     targetHandle: targetHandle,
     ...defaultEdgeOptions  // 应用默认边选项
   }])
+  
+  // ✅ 手动同步到 internalEdges (替代原来的 watcher)
+  // 注意：VueFlow addEdges 会自动更新 edges.value，所以这里只需要同步到 internalEdges
+  // 但为了保险起见，我们直接调用 syncToParent
+  setTimeout(() => {
+    const newEdge: WorkflowEdge = {
+        id: WorkflowTransform.generateEdgeId(params.source, params.target),
+        source: params.source,
+        target: params.target,
+        sourceHandle: sourceHandle,
+        targetHandle: targetHandle
+    }
+    const exists = internalEdges.value.some(e => e.id === newEdge.id)
+    if (!exists) {
+        internalEdges.value.push(newEdge)
+        syncToParent()
+    }
+  }, 10)
 })
 
 // 生命周期
@@ -450,7 +461,7 @@ const handleNodeClick = (event: any) => {
   emit('node-click', event.node)
 }
 
-const handlePaneClick = () => {
+const handlePaneClick = (event: MouseEvent) => {
   selectedNodeId.value = null
   edgeContextMenu.value.visible = false  // 关闭边菜单
   emit('canvas-click', event)

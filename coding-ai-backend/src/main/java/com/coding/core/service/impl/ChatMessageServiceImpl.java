@@ -66,7 +66,11 @@ public class ChatMessageServiceImpl implements ChatMessageService {
                                         toolCalls.add(new AssistantMessage.ToolCall(id, callType, name, arguments));
                                     }
                                 }
-                                yield new AssistantMessage(text, metadata, toolCalls);
+                                yield AssistantMessage.builder()
+                                        .content(text)
+                                        .properties(metadata)
+                                        .toolCalls(toolCalls)
+                                        .build();
                             }
                             case "TOOL" -> {
                                 // 解析 responses
@@ -79,7 +83,10 @@ public class ChatMessageServiceImpl implements ChatMessageService {
                                         responses.add(new ToolResponseMessage.ToolResponse(id, name, responseData));
                                     }
                                 }
-                                yield new ToolResponseMessage(responses, metadata);
+                                yield ToolResponseMessage.builder()
+                                        .responses(responses)
+                                        .metadata(metadata)
+                                        .build();
                             }
                             case "USER" -> new UserMessage(text);
                             case "SYSTEM" -> new SystemMessage(text);

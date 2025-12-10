@@ -28,10 +28,10 @@ public class EndNode extends AbstractNode {
         resultData.put("status", "completed");
 
         // 从上下文中提取最终结果
-        // TODO 优化为模版，从上下文获取
-        Object finalResult = state.value("finalResult").orElse(null);
+        String finalResult = state.value("finalResult").orElse("").toString();
         if (finalResult != null) {
-            resultData.put("finalResult", finalResult);
+            String templateWithVariable = replaceTemplateWithVariable(finalResult, state);
+            resultData.put("finalResult", templateWithVariable);
         }
 
         // 计算总执行时间

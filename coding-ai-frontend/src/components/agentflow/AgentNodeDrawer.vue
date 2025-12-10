@@ -113,12 +113,9 @@
                   <el-icon><FullScreen /></el-icon>
                 </div>
              </div>
-             <el-input 
+             <VariableInput 
                v-model="msg.content" 
-               type="textarea" 
-               :rows="4" 
-               resize="none"
-               placeholder="Enter message content..."
+               :variables="availableVariables"
              />
           </div>
         </div>
@@ -147,10 +144,10 @@
                    <el-icon><Tools /></el-icon>
                 </template>
                 <el-option 
-                  v-for="t in mcpTools" 
-                  :key="t.server_code || t.tool_name" 
-                  :label="t.tool_name" 
-                  :value="t.tool_name" 
+                  v-for="t in validMcpTools" 
+                  :key="t.name" 
+                  :label="t.name" 
+                  :value="t.name" 
                 />
              </el-select>
           </div>
@@ -250,9 +247,13 @@ import {
   MagicStick, FullScreen, Tools, InfoFilled 
 } from '@element-plus/icons-vue'
 import { WorkflowAPI, type ModelInfo } from '@/api/workflow'
+import { AgentFlowAPI, type ToolInfo } from '@/api/agentFlow'
 import { KnowledgeBaseAPI } from '@/api/knowledge'
 import type { KnowledgeBase } from '@/types/knowledge'
 import { ElMessage } from 'element-plus'
+
+import VariableInput from '@/components/common/VariableInput.vue'
+import { useGraphVariables } from '@/composables/useGraphVariables'
 
 const props = defineProps<{
   modelValue: boolean
@@ -264,6 +265,9 @@ const emit = defineEmits(['update:modelValue', 'save'])
 
 const visible = ref(false)
 const nodeData = ref<any>(null)
+
+const nodeId = computed(() => props.node?.id || '')
+const { availableVariables } = useGraphVariables(nodeId)
 
 // 判断节点类型
 const isLlmNode = computed(() => {
@@ -289,9 +293,13 @@ const formData = ref({
 
 // Model data
 const allModels = ref<ModelInfo[]>([])
-const mcpTools = ref<any[]>([]) // MCP Tools list
+const mcpTools = ref<ToolInfo[]>([]) // MCP Tools list
 const knowledgeBases = ref<KnowledgeBase[]>([])
 const embeddingModels = ref<ModelInfo[]>([])
+
+const validMcpTools = computed(() => {
+  return mcpTools.value.filter(t => t && t.name)
+})
 
 const providers = computed(() => {
   const uniqueProviders = new Map<string, ModelInfo>()
@@ -411,15 +419,17 @@ const loadEmbeddingModels = async () => {
   }
 }
 
-// Load MCP Tools
+// Load Tools
 const loadMcpTools = async () => {
   try {
-    const response = await WorkflowAPI.getMcpServers()
+    const response = await AgentFlowAPI.getTools()
+    console.log('AgentNodeDrawer loaded tools:', response)
     if ((response.code === 1 || response.success) && response.data) {
-      mcpTools.value = response.data
+      mcpTools.value = response.data.filter((t: any) => t && t.name)
+      console.log('AgentNodeDrawer processed mcpTools:', mcpTools.value)
     }
   } catch (error) {
-    console.error('Failed to load MCP tools:', error)
+    console.error('Failed to load tools:', error)
     // ElMessage.error('加载工具列表失败')
   }
 }
@@ -454,6 +464,9 @@ watch(() => props.modelValue, (val) => {
   visible.value = val
   if (val) {
     initFormData()
+    if (mcpTools.value.length === 0) {
+      loadMcpTools()
+    }
   }
 })
 

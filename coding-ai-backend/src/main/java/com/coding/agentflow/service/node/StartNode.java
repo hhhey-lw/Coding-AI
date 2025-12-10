@@ -24,7 +24,6 @@ public class StartNode extends AbstractNode {
         // 初始化上下文数据
         Map<String, Object> resultData = new HashMap<>();
         resultData.put("startTime", System.currentTimeMillis());
-        resultData.put("nodeId", node.getId());
         resultData.put("status", "started");
 
         // 将初始配置参数传递到上下文

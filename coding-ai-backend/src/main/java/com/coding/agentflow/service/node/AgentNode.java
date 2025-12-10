@@ -2,12 +2,13 @@ package com.coding.agentflow.service.node;
 
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.agentflow.service.tool.ToolManager;
 import com.coding.graph.core.state.OverAllState;
-import com.coding.core.manager.tool.ImageGenerateService;
-import com.coding.core.manager.tool.MusicGenerateService;
 import com.coding.core.model.entity.KnowledgeVectorDO;
 import com.coding.core.repository.KnowledgeVectorRepository;
+import com.coding.graph.core.streaming.StreamingChatGenerator;
 import com.coding.workflow.utils.AssertUtil;
+import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.client.ChatClient;
@@ -15,16 +16,19 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
 
@@ -41,33 +45,31 @@ public class AgentNode extends AbstractNode {
     private final ChatModel chatModel;
     private final EmbeddingModel embeddingModel;
     private final KnowledgeVectorRepository knowledgeVectorRepository;
-    private final MusicGenerateService musicGenerateService;
-    private final ImageGenerateService imageGenerateService;
+    private final ToolManager toolManager;
 
     public AgentNode(@Value("${spring.ai.openai.embedding.options.dimensions:1024}") Integer defaultDimensions,
                      ChatModel chatModel,
                      EmbeddingModel embeddingModel,
                      KnowledgeVectorRepository knowledgeVectorRepository,
-                     MusicGenerateService musicGenerateService,
-                     ImageGenerateService imageGenerateService) {
+                     ToolManager toolManager) {
         this.DEFAULT_DIMENSIONS = defaultDimensions;
         this.chatModel = chatModel;
         this.embeddingModel = embeddingModel;
         this.knowledgeVectorRepository = knowledgeVectorRepository;
-        this.musicGenerateService = musicGenerateService;
-        this.imageGenerateService = imageGenerateService;
+        this.toolManager = toolManager;
     }
 
     @Override
     protected Map<String, Object> doExecute(Node node, OverAllState state) throws Exception {
         // 获取配置参数 - 需要支持ToolCall
         String chatModelName = getConfigParamAsString(node, "chatModel", "qwen-plus");
+        Boolean isStream = getConfigParamAsBoolean(node, "isStream", Boolean.TRUE);
         // 知识库相关参数
         List<String> knowledgeBaseIds = getConfigParamAsList(node, "knowledgeBaseIds");
         Integer topK = getConfigParamAsInteger(node, "topK", 5);
         String embeddingModelName = getConfigParamAsString(node, "embeddingModel", "");
         String rerankModelName = getConfigParamAsString(node, "rerankModel", "");
-        // 工具参数
+        // 工具名称列表
         List<String> tools = getConfigParamAsList(node, "tools");
 
         log.info("执行Agent节点，模型: {}, 知识库: {}, 工具: {}", chatModel, knowledgeBaseIds, tools);
@@ -132,14 +134,41 @@ public class AgentNode extends AbstractNode {
         ChatClient.ChatClientRequestSpec chatRequest = buildChatRequest(this.chatModel, chatModelName, tools, springMessages);
 
         // Agent通常会进行多轮思考和工具调用
-        String output = chatRequest.call().content();
+        if (isStream) {
+            Flux<ChatResponse> chatResponseFlux = chatRequest.stream().chatResponse();
+            // 使用 StreamingChatGenerator 包装流式响应
+            var generator = StreamingChatGenerator.builder()
+                    .startingNode(node.getId())
+                    .startingState(state)
+                    .mapResult(response -> {
+                        // mapResult 在流式结束时调用，返回最终完整的结果
+                        String output = response.getResult().getOutput().getText();
+                        Map<String, Object> usage = extractUsage(response.getMetadata());
 
-        // 包装返回结果
-        Map<String, Object> resultData = new HashMap<>();
-        resultData.put("reasoning", "Agent推理过程（待实现）");
-        resultData.put("answer", output);
+                        Map<String, Object> finalResult = new HashMap<>();
+                        finalResult.put("model", chatModelName);
+                        finalResult.put("output", output);
+                        finalResult.put("usage", usage);
+                        return finalResult;
+                    })
+                    .build(chatResponseFlux);
 
-        return resultData;
+            // 框架会自动识别 AsyncGenerator 并处理流式输出
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("output", generator);
+
+            return resultData;
+
+        } else {
+            String output = chatRequest.call().content();
+
+            // 包装返回结果
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("reasoning", "Agent推理过程（待实现）");
+            resultData.put("output", output);
+
+            return resultData;
+        }
     }
 
     @Override
@@ -164,7 +193,8 @@ public class AgentNode extends AbstractNode {
     private ChatClient.ChatClientRequestSpec buildChatRequest(ChatModel chatModel, String chatModelName, List<String> tools, List<Message> messages) {
         ChatClient chatClient = ChatClient.builder(chatModel).build();
 
-        List<ToolCallback> toolCallbacks = buildToolCallbacks(tools);
+        // 使用 ToolManager 获取工具回调
+        List<ToolCallback> toolCallbacks = toolManager.getToolCallbacks(Sets.newHashSet(tools));
 
         return chatClient
                 .prompt()
@@ -177,6 +207,7 @@ public class AgentNode extends AbstractNode {
                         .build())
                 .toolCallbacks(toolCallbacks);
     }
+
 
     /**
      * 检索模型知识库并构建RAG上下文
@@ -195,7 +226,7 @@ public class AgentNode extends AbstractNode {
             EmbeddingResponse embeddingResponse = embeddingModel.call(embeddingRequest);
             if (embeddingResponse == null || embeddingResponse.getResults().isEmpty()) {
                 log.warn("嵌入模型返回空结果");
-                return "你是一个乐于助人的AI助手，能够帮助用户完成任务。";
+                return StringUtils.EMPTY;
             }
 
             // 获取查询向量
@@ -225,7 +256,7 @@ public class AgentNode extends AbstractNode {
 
             // 3. 如果没有检索到文档
             if (allRetrievedDocs.isEmpty()) {
-                return "你是一个乐于助人的AI助手，能够帮助用户完成任务。";
+                return StringUtils.EMPTY;
             }
 
             // 4. TODO: 重排序 (rerank)
@@ -250,52 +281,27 @@ public class AgentNode extends AbstractNode {
 
         } catch (Exception e) {
             log.error("查询知识库失败", e);
-            return "你是一个乐于助人的AI助手，能够帮助用户完成任务。";
+            return StringUtils.EMPTY;
         }
     }
 
     /**
-     * 构建工具回调列表
-     *
-     * @param tools 工具名称列表
-     * @return 工具回调列表
+     * 提取token使用情况
      */
-    private List<ToolCallback> buildToolCallbacks(List<String> tools) {
-        if (tools == null || tools.isEmpty()) {
-            return Collections.emptyList();
+    private Map<String, Object> extractUsage(ChatResponseMetadata metadata) {
+        Map<String, Object> usage = new HashMap<>();
+
+        if (metadata != null && metadata.getUsage() != null) {
+            usage.put("promptTokens", metadata.getUsage().getPromptTokens() != null ? metadata.getUsage().getPromptTokens() : 0);
+            usage.put("completionTokens", metadata.getUsage().getCompletionTokens() != null ? metadata.getUsage().getCompletionTokens() : 0);
+            usage.put("totalTokens", metadata.getUsage().getTotalTokens() != null ? metadata.getUsage().getTotalTokens() : 0);
+        } else {
+            usage.put("promptTokens", 0);
+            usage.put("completionTokens", 0);
+            usage.put("totalTokens", 0);
         }
 
-        List<ToolCallback> toolCallbacks = new ArrayList<>();
-
-        for (String toolName : tools) {
-            try {
-                switch (toolName) {
-                    case "generateMusic":
-                        toolCallbacks.add(
-                                FunctionToolCallback.builder("generateMusic", musicGenerateService)
-                                        .description("根据风格提示词和歌词内容，生成一段音乐，并返回音乐的URL地址")
-                                        .inputType(MusicGenerateService.Request.class)
-                                        .build()
-                        );
-                        break;
-                    case "generateImage":
-                        toolCallbacks.add(
-                                FunctionToolCallback.builder("generateImage", imageGenerateService)
-                                        .description("根据图片提示词和参考图生成对应的图片，并返回图片的URL地址")
-                                        .inputType(ImageGenerateService.Request.class)
-                                        .build()
-                        );
-                        break;
-                    default:
-                        log.warn("未知的工具名称: {}", toolName);
-                        break;
-                }
-            } catch (Exception e) {
-                log.error("构建工具回调失败: {}", toolName, e);
-            }
-        }
-
-        return toolCallbacks;
+        return usage;
     }
 
 }

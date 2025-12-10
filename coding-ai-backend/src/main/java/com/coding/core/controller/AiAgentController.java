@@ -208,8 +208,9 @@ public class AiAgentController {
                                 }
                             }
                         });
-                    } else {
-                        log.warn("未知类型的输出，result: {}", output); // 这里也改一下，避免用到JSONUtil
+                    }
+                    else {
+                        log.warn("其他类型的输出，result: {}", output); // 这里也改一下，避免用到JSONUtil
                     }
                 }
             } catch (Exception e) {

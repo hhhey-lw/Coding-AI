@@ -155,7 +155,7 @@ public class LlmNode extends AbstractNode {
 
         // 框架会自动识别 AsyncGenerator 并处理流式输出
         Map<String, Object> resultData = new HashMap<>();
-        resultData.put("output", generator); // 关键：直接用 output 作为 key
+        resultData.put("output", generator);
 
         return resultData;
     }

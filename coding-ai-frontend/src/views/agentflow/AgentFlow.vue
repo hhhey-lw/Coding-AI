@@ -238,6 +238,16 @@
         v-model="toolDrawerVisible"
         :node="selectedNode"
       />
+
+      <StartNodeDrawer
+        v-model="startDrawerVisible"
+        :node="selectedNode"
+      />
+
+      <DirectReplyDrawer
+        v-model="directReplyDrawerVisible"
+        :node="selectedNode"
+      />
     </div>
   </div>
 </template>
@@ -257,6 +267,8 @@ import HumanInputDrawer from '@/components/agentflow/HumanInputDrawer.vue'
 import ConditionNodeDrawer from '@/components/agentflow/ConditionNodeDrawer.vue'
 import RetrieverDrawer from '@/components/agentflow/RetrieverDrawer.vue'
 import ToolDrawer from '@/components/agentflow/ToolDrawer.vue'
+import StartNodeDrawer from '@/components/agentflow/StartNodeDrawer.vue'
+import DirectReplyDrawer from '@/components/agentflow/DirectReplyDrawer.vue'
 import { AgentFlowAPI } from '@/api/agentFlow'
 import {
   EditPen,
@@ -314,6 +326,8 @@ const humanDrawerVisible = ref(false)
 const conditionNodeDrawerVisible = ref(false)
 const retrieverDrawerVisible = ref(false)
 const toolDrawerVisible = ref(false)
+const startDrawerVisible = ref(false)
+const directReplyDrawerVisible = ref(false)
 const selectedNode = ref<any>(null)
 const drawerType = ref('agent') // 'agent' | 'llm'
 
@@ -454,8 +468,17 @@ const exportWorkflowData = () => {
       } else if (type === 'tool') {
         configParams.toolName = data.tool
         configParams.toolParams = data.params
-      } else if (type === 'reply') {
-        // Direct Reply 暂时没有配置项
+      } else if (type === 'reply' || type === 'end') {
+        configParams.finalResult = data.message
+      } else if (type === 'start') {
+        if (data.flowState && Array.isArray(data.flowState)) {
+            data.flowState.forEach((item: any) => {
+                if (item.key) {
+                    configParams[item.key] = item.value
+                }
+            })
+        }
+        configParams.persistState = data.persistState
       }
 
       return {
@@ -803,10 +826,22 @@ const onNodeClick = (event: NodeMouseEvent) => {
     return
   }
 
+  // Start 节点
+  if (type === 'start' || node.id === 'start' || node.id.startsWith('start')) {
+    startDrawerVisible.value = true
+    return
+  }
+
+  // Direct Reply 节点
+  if (type === 'reply' || type === 'end' || node.id.startsWith('reply') || node.id.startsWith('end')) {
+    directReplyDrawerVisible.value = true
+    return
+  }
+
   // 普通 Agent 节点
-  if (type === 'agent' || type === 'llm' || (node.data && (node.data.modelName || node.data.model))) {
+  if (type === 'agent' || type === 'llm' || (node.id && (node.id.startsWith('llm') || node.id.startsWith('agent'))) || (node.data && (node.data.modelName || node.data.model))) {
     // 判断是 LLM 还是 Agent
-    if (type === 'llm' || node.id.startsWith('llm')) {
+    if (type === 'llm' || (node.id && node.id.startsWith('llm'))) {
       drawerType.value = 'llm'
     } else {
       drawerType.value = 'agent'

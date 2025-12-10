@@ -16,7 +16,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.coding.graph.core.common.NodeCodeConstants.*;
@@ -131,6 +130,9 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                 });
     }
 
+    /**
+     * 生成内层嵌套迭代器
+     */
     private Optional<Data<Output>> getEmbedGenerator(Map<String, Object> partialState) {
         return partialState.entrySet()
                 .stream()
@@ -138,71 +140,97 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                 .findFirst()
                 // 迭代器和最终的回调函数
                 .map(generatorEntry -> {
-                    final var generator = (AsyncGenerator<Output>) generatorEntry.getValue();
-                    // 注意：嵌套迭代器的完成结果会更新当前状态和全局状态
-                    return Data.composeWith(generator.map(n -> {
-                        // n.setSubGraph(true);
-                        return n;
-                    }), data -> {
+                    final var generator = ((AsyncGenerator<Output>) generatorEntry.getValue()).map(n -> n);
+                    final String currentNodeId = context.currentNodeId();
 
-                        if (data != null) {
+                    // 包装生成器以在完成时发射节点完成标识
+                    AsyncGenerator<Output> wrapper = new AsyncGenerator<Output>() {
+                        boolean innerDone = false;
+                        Object innerResult = null;
 
-                            if (data instanceof Map<?, ?>) {
-                                // 过滤掉生成器本身的迭代
-                                var partialStateWithoutGenerator = partialState.entrySet()
-                                        .stream()
-                                        .filter(e -> !Objects.equals(e.getKey(), generatorEntry.getKey()))
-                                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-                                var intermediateState = OverAllState.updateState(currentState,
-                                        partialStateWithoutGenerator, this.overAllState.keyStrategies());
-
-                                currentState = OverAllState.updateState(intermediateState, (Map<String, Object>) data,
-                                        this.overAllState.keyStrategies());
-                                // 嵌套子图 -> 更新全局状态
-                                // 过滤掉重复的数据 【目前仅过滤messages Key】
-                                Map<String, Object> tempState = new HashMap<>(currentState);
-                                if (tempState.containsKey("messages")) {
-                                    // 获取 overAllState 中已有的消息（使用 IdentityHashMap 基于对象引用）
-                                    Set<Message> existingMessages = Collections.newSetFromMap(new IdentityHashMap<>());
-                                    if (this.overAllState.value("messages").isPresent()) {
-                                        Object messages = this.overAllState.value("messages").get();
-                                        if (messages instanceof List) {
-                                            List<Message> overAllMessages = (List<Message>) messages;
-                                            existingMessages.addAll(overAllMessages);
-                                        } else {
-                                            existingMessages.add(new AssistantMessage(messages.toString()));
-                                        }
-                                    }
-
-                                    // 遍历过滤 currentState 中的消息
-                                    List<Message> filteredMessages = new ArrayList<>();
-                                    if (tempState.get("messages") != null && tempState.get("messages") instanceof List) {
-                                        List<Message> currentMessages = (List<Message>) tempState.get("messages");
-                                        for (Message msg : currentMessages) {
-                                            if (!existingMessages.contains(msg)) {
-                                                filteredMessages.add(msg);
-                                            }
-                                        }
-                                    } else {
-                                        filteredMessages.add(new AssistantMessage(tempState.get("messages").toString()));
-                                    }
-
-                                    tempState.put("messages", filteredMessages);
+                        @Override
+                        public Data<Output> next() {
+                            if (!innerDone) {
+                                Data<Output> res = generator.next();
+                                if (!res.isDone()) {
+                                    return res;
                                 }
-                                this.overAllState.updateState(tempState);
-                            }
-                            else {
-                                throw new IllegalArgumentException("Embedded generator must return a Map");
-                            }
-                        }
+                                innerDone = true;
+                                innerResult = res.getResultValue();
 
+                                // 在流结束时立即更新状态
+                                updateEmbedState(partialState, generatorEntry, innerResult);
+
+                                // 发射完成标识 (NodeOutput)
+                                return Data.of(buildNodeOutput(currentNodeId));
+                            }
+                            return Data.done(innerResult);
+                        }
+                    };
+
+                    return Data.composeWith(wrapper, data -> {
+                        // 状态更新已在 wrapper 中完成，这里只处理流转
                         var nextNodeCommand = this.compiledGraph.nextNodeId(context.currentNodeId(), currentState, config);
                         context.setNextNodeId(nextNodeCommand.gotoNode());
                         currentState = nextNodeCommand.update();
-
                     });
                 });
+    }
+
+    /**
+     * 更新嵌套迭代器的状态到当前状态和全局状态
+     */
+    private void updateEmbedState(Map<String, Object> partialState, Map.Entry<String, Object> generatorEntry, Object data) {
+        if (data != null) {
+
+            if (data instanceof Map<?, ?>) {
+                // 过滤掉生成器本身的迭代
+                var partialStateWithoutGenerator = partialState.entrySet()
+                        .stream()
+                        .filter(e -> !Objects.equals(e.getKey(), generatorEntry.getKey()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+                var intermediateState = OverAllState.updateState(currentState,
+                        partialStateWithoutGenerator, this.overAllState.keyStrategies());
+
+                currentState = OverAllState.updateState(intermediateState, (Map<String, Object>) data,
+                        this.overAllState.keyStrategies());
+                // 嵌套子图 -> 更新全局状态
+                // 过滤掉重复的数据 【目前仅过滤messages Key】
+                Map<String, Object> tempState = new HashMap<>(currentState);
+                if (tempState.containsKey("messages")) {
+                    // 获取 overAllState 中已有的消息（使用 IdentityHashMap 基于对象引用）
+                    Set<Message> existingMessages = Collections.newSetFromMap(new IdentityHashMap<>());
+                    if (this.overAllState.value("messages").isPresent()) {
+                        Object messages = this.overAllState.value("messages").get();
+                        if (messages instanceof List) {
+                            List<Message> overAllMessages = (List<Message>) messages;
+                            existingMessages.addAll(overAllMessages);
+                        } else {
+                            existingMessages.add(new AssistantMessage(messages.toString()));
+                        }
+                    }
+
+                    // 遍历过滤 currentState 中的消息
+                    List<Message> filteredMessages = new ArrayList<>();
+                    if (tempState.get("messages") != null && tempState.get("messages") instanceof List) {
+                        List<Message> currentMessages = (List<Message>) tempState.get("messages");
+                        for (Message msg : currentMessages) {
+                            if (!existingMessages.contains(msg)) {
+                                filteredMessages.add(msg);
+                            }
+                        }
+                    } else {
+                        filteredMessages.add(new AssistantMessage(tempState.get("messages").toString()));
+                    }
+
+                    tempState.put("messages", filteredMessages);
+                }
+                this.overAllState.updateState(tempState);
+            } else {
+                throw new IllegalArgumentException("Embedded generator must return a Map");
+            }
+        }
     }
 
     // 构建节点输出

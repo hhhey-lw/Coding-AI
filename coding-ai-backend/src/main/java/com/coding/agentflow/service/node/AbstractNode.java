@@ -6,14 +6,11 @@ import com.coding.agentflow.model.model.Node;
 import com.coding.graph.core.state.OverAllState;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.formula.functions.T;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * 节点抽象基类
@@ -21,6 +18,10 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 public abstract class AbstractNode implements NodeExecutor {
+
+    // 静态常量，避免重复编译
+    private static final Pattern VARIABLE_PATTERN =
+            Pattern.compile("\\{\\{\\s*([a-zA-Z_][\\w\\.-]*)\\s*\\}\\}");
 
     @Override
     public Map<String, Object> execute(Node node, OverAllState state) throws Exception {
@@ -222,12 +223,61 @@ public abstract class AbstractNode implements NodeExecutor {
     protected List<String> getConfigParamAsList(Node node, String key) {
         Object value = getConfigParam(node, key);
 
+        // 1. null 直接返回空列表
         if (value == null) {
             return Collections.emptyList();
         }
 
-        JSONArray jsonArray = JSONUtil.parseArray((String) value);
-        return jsonArray.toList(String.class);
+        // 2. 如果是 List，遍历并转为 String
+        if (value instanceof List<?>) {
+            return ((List<?>) value).stream()
+                    .map(this::safeToString)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
+
+        // 3. 如果是数组（Object[]），也支持
+        if (value instanceof Object[]) {
+            return Arrays.stream((Object[]) value)
+                    .map(this::safeToString)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
+
+        // 4. 尝试作为 JSON 字符串解析
+        String strValue = safeToString(value);
+        if (strValue != null) {
+            try {
+                JSONArray jsonArray = JSONUtil.parseArray(strValue);
+                if (jsonArray != null) {
+                    return jsonArray.toList(String.class); // Hutool 转换
+                }
+            } catch (Exception e) {
+                // JSON 解析失败，可能是普通字符串
+                log.debug("JSON 解析失败，按单值处理: key={}, value={}", key, strValue, e);
+            }
+        }
+
+        // 5. 兜底：当作单值处理（包装成单元素列表）
+        String singleValue = safeToString(value);
+        return singleValue != null ? Collections.singletonList(singleValue) : Collections.emptyList();
+    }
+
+    /**
+     * 安全转为字符串，避免 null 和异常
+     */
+    private String safeToString(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        if (obj instanceof String) {
+            return (String) obj;
+        }
+        if (obj instanceof Number || obj instanceof Boolean) {
+            return obj.toString();
+        }
+        // 其他类型（如 Date、自定义对象）也可调用 toString()
+        return obj.toString();
     }
 
     /**
@@ -280,19 +330,37 @@ public abstract class AbstractNode implements NodeExecutor {
             return prompt;
         }
 
-        // 使用正则表达式匹配 {{variableName}} 格式的变量
-        Pattern pattern = Pattern.compile("\\{\\{\\s*(\\w+)\\s*\\}\\}");
+        // 预编译正则表达式（静态常量，避免重复编译）
+        Pattern pattern = VARIABLE_PATTERN;
         Matcher matcher = pattern.matcher(prompt);
         StringBuffer result = new StringBuffer();
 
         while (matcher.find()) {
             String variableName = matcher.group(1);
-            Object value = state.value(variableName).orElse(null);
-            String replacement = value != null ? value.toString() : "";
-            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+            String replacement = resolveVariableValue(variableName, state);
+            matcher.appendReplacement(result, replacement);
         }
         matcher.appendTail(result);
 
         return result.toString();
     }
+
+    /**
+     * 解析变量值
+     */
+    private String resolveVariableValue(String variableName, OverAllState state) {
+        if (!state.data().containsKey(variableName)) {
+            log.warn("未找到变量值: {}", variableName);
+            return "{{" + variableName + "}}";
+        }
+
+        Object value = state.data().get(variableName);
+        if (value == null) {
+            log.debug("变量值为null: {}", variableName);
+            return "";
+        }
+
+        return value.toString();
+    }
+
 }

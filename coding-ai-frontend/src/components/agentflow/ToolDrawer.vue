@@ -32,9 +32,9 @@
              </template>
              <el-option 
                v-for="t in mcpTools" 
-               :key="t.server_code || t.tool_name" 
-               :label="t.tool_name" 
-               :value="t.tool_name" 
+               :key="t.name" 
+               :label="t.name" 
+               :value="t.name" 
              />
            </el-select>
         </div>
@@ -76,8 +76,7 @@ import { ref, watch, computed, onMounted } from 'vue'
 import { 
   EditPen, Plus, InfoFilled, Tools
 } from '@element-plus/icons-vue'
-import { WorkflowAPI, type McpServer, type McpToolParam } from '@/api/workflow'
-import { ElMessage } from 'element-plus'
+import { AgentFlowAPI, type ToolInfo } from '@/api/agentFlow'
 
 const props = defineProps<{
   modelValue: boolean
@@ -88,7 +87,7 @@ const emit = defineEmits(['update:modelValue', 'save'])
 
 const visible = ref(false)
 const nodeData = ref<any>(null)
-const mcpTools = ref<McpServer[]>([])
+const mcpTools = ref<ToolInfo[]>([])
 const activeCollapse = ref(['1'])
 
 // Form Data
@@ -98,19 +97,20 @@ const formData = ref({
 })
 
 const selectedToolParams = computed(() => {
-  const tool = mcpTools.value.find(t => t.tool_name === formData.value.tool)
-  return tool?.tool_params || []
+  const tool = mcpTools.value.find(t => t.name === formData.value.tool)
+  if (!tool || !tool.params) return []
+  return Object.entries(tool.params).map(([key, desc]) => ({ key, desc }))
 })
 
-// Load MCP Tools
+// Load Tools
 const loadMcpTools = async () => {
   try {
-    const response = await WorkflowAPI.getMcpServers()
+    const response = await AgentFlowAPI.getTools()
     if ((response.code === 1 || response.success) && response.data) {
-      mcpTools.value = response.data
+      mcpTools.value = response.data.filter((t: any) => t && t.name)
     }
   } catch (error) {
-    console.error('Failed to load MCP tools:', error)
+    console.error('Failed to load tools:', error)
   }
 }
 
@@ -125,6 +125,10 @@ watch(() => props.modelValue, (val) => {
   visible.value = val
   if (val) {
     initFormData()
+    // Ensure tools are loaded when drawer opens
+    if (mcpTools.value.length === 0) {
+        loadMcpTools()
+    }
   }
 })
 

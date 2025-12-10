@@ -6,6 +6,7 @@ import com.coding.agentflow.model.request.AgentFlowConfigRequest;
 import com.coding.agentflow.model.response.AgentFlowConfigResponse;
 import com.coding.agentflow.service.AgentFlowConfigService;
 import com.coding.agentflow.service.AgentFlowService;
+import com.coding.agentflow.service.tool.ToolManager;
 import com.coding.core.common.Result;
 import com.coding.graph.core.exception.GraphRunnerException;
 import com.coding.graph.core.exception.GraphStateException;
@@ -25,6 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -37,6 +39,13 @@ public class AgentFlowController {
     private final AgentFlowConfigService agentFlowConfigService;
     private final AgentFlowService agentFlowService;
     private final ObjectMapper objectMapper;
+    private final ToolManager toolManager;
+
+    @GetMapping("/tools")
+    @Operation(summary = "获取可用工具列表")
+    public Result<List<ToolManager.ToolInfo>> tools() {
+        return Result.success(toolManager.getAllTools());
+    }
 
     @GetMapping("/page")
     @Operation(summary = "分页查询")
@@ -64,7 +73,7 @@ public class AgentFlowController {
         return Result.success(agentFlowConfigService.removeAgentFlow(id));
     }
 
-    @GetMapping("/execute/stream")
+    @GetMapping(value = "/execute/stream", produces = "text/event-stream;charset=UTF-8")
     @Operation(summary = "流式执行工作流")
     public SseEmitter executeStream(@RequestParam Long flowId,
                                     @RequestParam String prompt) throws GraphStateException, GraphRunnerException {
