@@ -3,12 +3,11 @@ package com.coding.agentflow.service.node;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
 import com.coding.graph.core.state.OverAllState;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -32,10 +31,15 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@AllArgsConstructor
 public class LlmNode extends AbstractNode {
 
     private final ChatModel chatModel;
+    private final ChatMemory chatMemory;
+
+    public LlmNode(ChatModel chatModel, ChatMemory chatMemory) {
+        this.chatModel = chatModel;
+        this.chatMemory = chatMemory;
+    }
 
     @Override
     protected Map<String, Object> doExecute(Node node, OverAllState state) {
@@ -44,17 +48,26 @@ public class LlmNode extends AbstractNode {
         Double temperature = getConfigParamAsDouble(node, "temperature");
         Integer maxTokens = getConfigParamAsInteger(node, "maxTokens");
         Boolean stream = getConfigParamAsBoolean(node, "stream", false);
+        // Memory 相关配置
+        Boolean enableMemory = getConfigParamAsBoolean(node, "enableMemory", false);
+        Integer memorySize = getConfigParamAsInteger(node, "memorySize", 100);
+        // conversationId 从 state 获取，用于区分不同会话
+        String conversationId = state.value("conversationId", "default-" + node.getId());
+        
         List<Message> springMessages = getMessageList(node, state);
 
-        log.info("执行LLM节点，模型: {}, Temperature: {}, MaxTokens: {}, Stream: {}", model, temperature, maxTokens, stream);
+        log.info("执行LLM节点，模型: {}, Temperature: {}, MaxTokens: {}, Stream: {}, Memory: {}", 
+                model, temperature, maxTokens, stream, enableMemory);
 
         // 判断是否使用流式模式
         if (Boolean.TRUE.equals(stream)) {
-            return executeStreaming(node, springMessages, model, temperature, maxTokens, state);
+            return executeStreaming(node, springMessages, model, temperature, maxTokens, state, 
+                    enableMemory, memorySize, conversationId);
         }
 
         // 执行聊天请求
-        ChatResponse response = executeChatRequest(springMessages, model, temperature, maxTokens);
+        ChatResponse response = executeChatRequest(springMessages, model, temperature, maxTokens,
+                enableMemory, memorySize, conversationId);
         String output = response.getResult().getOutput().getText();
         Map<String, Object> usage = extractUsage(response.getMetadata());
 
@@ -121,8 +134,19 @@ public class LlmNode extends AbstractNode {
      */
     private Map<String, Object> executeStreaming(Node node, List<Message> messages,
                                                 String model, Double temperature, Integer maxTokens,
-                                                OverAllState state) {
-        ChatClient chatClient = ChatClient.builder(chatModel).build();
+                                                OverAllState state, Boolean enableMemory, 
+                                                Integer memorySize, String conversationId) {
+        // 构建 ChatClient，根据配置决定是否添加 Memory Advisor
+        ChatClient.Builder clientBuilder = ChatClient.builder(chatModel);
+        if (Boolean.TRUE.equals(enableMemory)) {
+            clientBuilder.defaultAdvisors(
+                    MessageChatMemoryAdvisor.builder(chatMemory)
+                            .conversationId(conversationId)
+                            .build()
+            );
+            log.info("[LlmNode] 启用 Memory Advisor, conversationId={}", conversationId);
+        }
+        ChatClient chatClient = clientBuilder.build();
 
         // 构建流式响应
         Flux<ChatResponse> chatResponseFlux = chatClient
@@ -163,8 +187,19 @@ public class LlmNode extends AbstractNode {
     /**
      * 执行聊天请求（普通模式）
      */
-    private ChatResponse executeChatRequest(List<Message> messages, String model, Double temperature, Integer maxTokens) {
-        ChatClient chatClient = ChatClient.builder(chatModel).build();
+    private ChatResponse executeChatRequest(List<Message> messages, String model, Double temperature, Integer maxTokens,
+                                           Boolean enableMemory, Integer memorySize, String conversationId) {
+        // 构建 ChatClient，根据配置决定是否添加 Memory Advisor
+        ChatClient.Builder clientBuilder = ChatClient.builder(chatModel);
+        if (Boolean.TRUE.equals(enableMemory)) {
+            clientBuilder.defaultAdvisors(
+                    MessageChatMemoryAdvisor.builder(chatMemory)
+                            .conversationId(conversationId)
+                            .build()
+            );
+            log.info("[LlmNode] 启用 Memory Advisor, conversationId={}", conversationId);
+        }
+        ChatClient chatClient = clientBuilder.build();
 
         return chatClient
                 .prompt()

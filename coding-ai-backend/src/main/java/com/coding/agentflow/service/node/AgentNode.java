@@ -3,6 +3,7 @@ package com.coding.agentflow.service.node;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
 import com.coding.agentflow.service.tool.ToolManager;
+import com.coding.agentflow.utils.StreamingToolCallMerger;
 import com.coding.graph.core.state.OverAllState;
 import com.coding.core.model.entity.KnowledgeVectorDO;
 import com.coding.core.repository.KnowledgeVectorRepository;
@@ -12,17 +13,19 @@ import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
-import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.tool.ToolCallback;
@@ -46,21 +49,27 @@ public class AgentNode extends AbstractNode {
     private final EmbeddingModel embeddingModel;
     private final KnowledgeVectorRepository knowledgeVectorRepository;
     private final ToolManager toolManager;
+    private final ChatMemory chatMemory;
 
     public AgentNode(@Value("${spring.ai.openai.embedding.options.dimensions:1024}") Integer defaultDimensions,
                      ChatModel chatModel,
                      EmbeddingModel embeddingModel,
                      KnowledgeVectorRepository knowledgeVectorRepository,
-                     ToolManager toolManager) {
+                     ToolManager toolManager,
+                     ChatMemory chatMemory) {
         this.DEFAULT_DIMENSIONS = defaultDimensions;
         this.chatModel = chatModel;
         this.embeddingModel = embeddingModel;
         this.knowledgeVectorRepository = knowledgeVectorRepository;
         this.toolManager = toolManager;
+        this.chatMemory = chatMemory;
     }
 
     @Override
     protected Map<String, Object> doExecute(Node node, OverAllState state) throws Exception {
+        long startTime = System.currentTimeMillis();
+        log.info("[AgentNode] 开始执行, nodeId={}", node.getId());
+        
         // 获取配置参数 - 需要支持ToolCall
         String chatModelName = getConfigParamAsString(node, "chatModel", "qwen-plus");
         Boolean isStream = getConfigParamAsBoolean(node, "isStream", Boolean.TRUE);
@@ -71,8 +80,14 @@ public class AgentNode extends AbstractNode {
         String rerankModelName = getConfigParamAsString(node, "rerankModel", "");
         // 工具名称列表
         List<String> tools = getConfigParamAsList(node, "tools");
+        // Memory 相关配置
+        Boolean enableMemory = getConfigParamAsBoolean(node, "enableMemory", false);
+        Integer memorySize = getConfigParamAsInteger(node, "memorySize", 100);
+        // conversationId 从 state 获取，用于区分不同会话
+        String conversationId = state.value("conversationId", "default-" + node.getId());
 
-        log.info("执行Agent节点，模型: {}, 知识库: {}, 工具: {}", chatModel, knowledgeBaseIds, tools);
+        log.info("[AgentNode] 配置解析完成, 模型: {}, 知识库: {}, 工具: {}, Memory: {}, 耗时: {}ms", 
+                chatModelName, knowledgeBaseIds, tools, enableMemory, System.currentTimeMillis() - startTime);
 
         List<Message> springMessages = new ArrayList<>();
         Object messagesObj = node.getConfigParams().get("messages");
@@ -93,7 +108,10 @@ public class AgentNode extends AbstractNode {
         AssertUtil.isNotBlank(userQuery, "Agent节点的用户提示词不能为空！");
 
         // 2. 检索知识库并构建RAG上下文
+        long ragStartTime = System.currentTimeMillis();
         String ragContext = retrieveRagContext(knowledgeBaseIds, embeddingModelName, rerankModelName, userQuery, topK);
+        log.info("[AgentNode] RAG检索完成, 上下文长度: {}, 耗时: {}ms", 
+                ragContext.length(), System.currentTimeMillis() - ragStartTime);
         boolean ragConsumed = false;
         boolean hasSystem = false;
 
@@ -130,12 +148,42 @@ public class AgentNode extends AbstractNode {
              springMessages.add(0, new SystemMessage("你是一个乐于助人的AI助手，能够帮助用户完成任务。"));
         }
 
-        // 构建ChatClient - 工具调用 & 思考内容
-        ChatClient.ChatClientRequestSpec chatRequest = buildChatRequest(this.chatModel, chatModelName, tools, springMessages);
+        // 5. 如果启用 Memory，读取历史消息并插入到消息列表中
+        final String finalConversationId = conversationId;
+        final String finalUserQuery = userQuery;
+        if (Boolean.TRUE.equals(enableMemory)) {
+            List<Message> historyMessages = chatMemory.get(conversationId);
+            if (historyMessages != null && !historyMessages.isEmpty()) {
+                // 限制历史消息数量
+                int historyCount = Math.min(historyMessages.size(), memorySize);
+                List<Message> limitedHistory = historyMessages.subList(
+                        historyMessages.size() - historyCount, historyMessages.size());
+                // 将历史消息插入到 system 消息之后，当前消息之前
+                int insertIndex = 1; // system 消息在索引 0
+                springMessages.addAll(insertIndex, limitedHistory);
+                log.info("[AgentNode] 加载历史消息, conversationId={}, 历史条数: {}", conversationId, limitedHistory.size());
+            }
+        }
+
+        // 获取工具回调
+        long toolLoadStartTime = System.currentTimeMillis();
+        List<ToolCallback> toolCallbacks = toolManager.getToolCallbacks(Sets.newHashSet(tools));
+        Map<String, ToolCallback> toolCallbackMap = new HashMap<>();
+        for (ToolCallback tc : toolCallbacks) {
+            toolCallbackMap.put(tc.getToolDefinition().name(), tc);
+        }
+        log.info("[AgentNode] 工具加载完成, 工具数量: {}, 耗时: {}ms", 
+                toolCallbacks.size(), System.currentTimeMillis() - toolLoadStartTime);
+        
+        log.info("[AgentNode] 准备阶段完成, 总耗时: {}ms, 开始{}调用LLM", 
+                System.currentTimeMillis() - startTime, isStream ? "流式" : "同步");
 
         // Agent通常会进行多轮思考和工具调用
         if (isStream) {
-            Flux<ChatResponse> chatResponseFlux = chatRequest.stream().chatResponse();
+            // 使用手动 tool call 处理模式，解决 Qwen 等 API 的流式 tool call 合并问题
+            // 参考 Spring AI PR #4794: https://github.com/spring-projects/spring-ai/pull/4794
+            Flux<ChatResponse> chatResponseFlux = executeStreamingWithToolCalls(
+                    springMessages, chatModelName, toolCallbacks, toolCallbackMap);
             // 使用 StreamingChatGenerator 包装流式响应
             var generator = StreamingChatGenerator.builder()
                     .startingNode(node.getId())
@@ -144,6 +192,17 @@ public class AgentNode extends AbstractNode {
                         // mapResult 在流式结束时调用，返回最终完整的结果
                         String output = response.getResult().getOutput().getText();
                         Map<String, Object> usage = extractUsage(response.getMetadata());
+
+                        // 如果启用 Memory，保存当前轮次的对话到 Memory
+                        if (Boolean.TRUE.equals(enableMemory)) {
+                            try {
+                                chatMemory.add(finalConversationId, new UserMessage(finalUserQuery));
+                                chatMemory.add(finalConversationId, new AssistantMessage(output));
+                                log.info("[AgentNode] 保存对话到 Memory, conversationId={}", finalConversationId);
+                            } catch (Exception e) {
+                                log.error("[AgentNode] 保存 Memory 失败", e);
+                            }
+                        }
 
                         Map<String, Object> finalResult = new HashMap<>();
                         finalResult.put("model", chatModelName);
@@ -160,7 +219,20 @@ public class AgentNode extends AbstractNode {
             return resultData;
 
         } else {
+            // 非流式模式使用 ChatClient（内部 tool 执行）
+            ChatClient.ChatClientRequestSpec chatRequest = buildChatRequest(this.chatModel, chatModelName, tools, springMessages);
             String output = chatRequest.call().content();
+
+            // 如果启用 Memory，保存当前轮次的对话到 Memory
+            if (Boolean.TRUE.equals(enableMemory)) {
+                try {
+                    chatMemory.add(finalConversationId, new UserMessage(finalUserQuery));
+                    chatMemory.add(finalConversationId, new AssistantMessage(output));
+                    log.info("[AgentNode] 保存对话到 Memory, conversationId={}", finalConversationId);
+                } catch (Exception e) {
+                    log.error("[AgentNode] 保存 Memory 失败", e);
+                }
+            }
 
             // 包装返回结果
             Map<String, Object> resultData = new HashMap<>();
@@ -188,7 +260,130 @@ public class AgentNode extends AbstractNode {
     }
 
     /**
-     * 构建Chat请求
+     * 执行流式对话，手动处理 tool call 合并和执行。
+     * 解决 Qwen 等 OpenAI 兼容 API 的流式 tool call 合并问题。
+     * 
+     * 策略：先聚合检测是否有 tool call，如果有则执行后递归；如果没有则重新发起流式请求返回。
+     */
+    private Flux<ChatResponse> executeStreamingWithToolCalls(
+            List<Message> messages,
+            String chatModelName,
+            List<ToolCallback> toolCallbacks,
+            Map<String, ToolCallback> toolCallbackMap) {
+        
+        final long llmStartTime = System.currentTimeMillis();
+        final int round = countToolResponseMessages(messages) + 1;
+        log.info("[AgentNode] 第{}轮LLM调用开始, 消息数量: {}", round, messages.size());
+        
+        // 构建 ChatOptions，禁用内部 tool 执行
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model(chatModelName)
+                .internalToolExecutionEnabled(false)  // 禁用内部 tool 执行，手动处理
+                .streamUsage(true)
+                .parallelToolCalls(true)
+                .toolCallbacks(toolCallbacks)
+                .build();
+
+        Prompt prompt = new Prompt(messages, options);
+        
+        // 获取流式响应并使用自定义聚合器处理 tool call 合并
+        Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
+        
+        // 使用自定义聚合器检测是否有 tool calls
+        return StreamingToolCallMerger.aggregateWithToolCallMerging(streamResponse)
+                .doOnNext(resp -> log.info("[AgentNode] 第{}轮LLM响应聚合完成, 耗时: {}ms", 
+                        round, System.currentTimeMillis() - llmStartTime))
+                .flatMap(aggregatedResponse -> {
+                    // 检查是否有 tool calls 需要执行
+                    if (aggregatedResponse.getResult() != null 
+                            && aggregatedResponse.getResult().getOutput() != null
+                            && aggregatedResponse.getResult().getOutput().hasToolCalls()) {
+                        
+                        int toolCallCount = aggregatedResponse.getResult().getOutput().getToolCalls().size();
+                        log.info("[AgentNode] 第{}轮检测到{}个tool calls, 准备执行", round, toolCallCount);
+                        
+                        // 执行 tool calls 并继续对话
+                        return executeToolCallsAndContinue(
+                                messages, aggregatedResponse, chatModelName, 
+                                toolCallbacks, toolCallbackMap);
+                    }
+                    // 没有 tool calls，直接返回已聚合的结果（避免重复请求）
+                    log.info("[AgentNode] 第{}轮无tool calls, 返回聚合结果", round);
+                    return Flux.just(aggregatedResponse);
+                });
+    }
+    
+    /**
+     * 统计消息列表中 ToolResponseMessage 的数量（用于计算轮次）
+     */
+    private int countToolResponseMessages(List<Message> messages) {
+        return (int) messages.stream()
+                .filter(m -> m instanceof ToolResponseMessage)
+                .count();
+    }
+
+    /**
+     * 执行 tool calls 并继续对话
+     */
+    private Flux<ChatResponse> executeToolCallsAndContinue(
+            List<Message> originalMessages,
+            ChatResponse toolCallResponse,
+            String chatModelName,
+            List<ToolCallback> toolCallbacks,
+            Map<String, ToolCallback> toolCallbackMap) {
+        
+        AssistantMessage assistantMessage = toolCallResponse.getResult().getOutput();
+        List<AssistantMessage.ToolCall> toolCalls = assistantMessage.getToolCalls();
+        
+        long toolExecStartTime = System.currentTimeMillis();
+        log.info("[AgentNode] 开始执行 {} 个 tool calls", toolCalls.size());
+        
+        // 执行所有 tool calls
+        List<ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
+        
+        for (int i = 0; i < toolCalls.size(); i++) {
+            AssistantMessage.ToolCall toolCall = toolCalls.get(i);
+            String toolName = toolCall.name();
+            String toolArgs = toolCall.arguments();
+            String toolCallId = toolCall.id();
+            
+            long singleToolStartTime = System.currentTimeMillis();
+            log.info("[AgentNode] 执行工具 [{}/{}]: {}, 参数: {}", i + 1, toolCalls.size(), toolName, toolArgs);
+            
+            ToolCallback callback = toolCallbackMap.get(toolName);
+            if (callback != null) {
+                try {
+                    String result = callback.call(toolArgs);
+                    long toolDuration = System.currentTimeMillis() - singleToolStartTime;
+                    log.info("[AgentNode] 工具 {} 执行成功, 耗时: {}ms, 结果长度: {}", 
+                            toolName, toolDuration, result != null ? result.length() : 0);
+                    toolResponses.add(new ToolResponseMessage.ToolResponse(toolCallId, toolName, result));
+                } catch (Exception e) {
+                    long toolDuration = System.currentTimeMillis() - singleToolStartTime;
+                    log.error("[AgentNode] 工具 {} 执行失败, 耗时: {}ms", toolName, toolDuration, e);
+                    toolResponses.add(new ToolResponseMessage.ToolResponse(
+                            toolCallId, toolName, "工具执行失败: " + e.getMessage()));
+                }
+            } else {
+                log.warn("[AgentNode] 未找到工具: {}", toolName);
+                toolResponses.add(new ToolResponseMessage.ToolResponse(
+                        toolCallId, toolName, "未找到工具: " + toolName));
+            }
+        }
+        
+        log.info("[AgentNode] 所有工具执行完成, 总耗时: {}ms", System.currentTimeMillis() - toolExecStartTime);
+        
+        // 构建新的消息列表，包含 assistant message 和 tool responses
+        List<Message> newMessages = new ArrayList<>(originalMessages);
+        newMessages.add(assistantMessage);
+        newMessages.add(ToolResponseMessage.builder().responses(toolResponses).build());
+        
+        // 递归调用，继续对话
+        return executeStreamingWithToolCalls(newMessages, chatModelName, toolCallbacks, toolCallbackMap);
+    }
+
+    /**
+     * 构建Chat请求（用于非流式模式）
      */
     private ChatClient.ChatClientRequestSpec buildChatRequest(ChatModel chatModel, String chatModelName, List<String> tools, List<Message> messages) {
         ChatClient chatClient = ChatClient.builder(chatModel).build();
