@@ -4,6 +4,7 @@ import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
 import com.coding.agentflow.service.tool.ToolManager;
 import com.coding.agentflow.utils.StreamingToolCallMerger;
+import com.coding.core.model.model.KnowledgeVectorModel;
 import com.coding.graph.core.state.OverAllState;
 import com.coding.core.model.entity.KnowledgeVectorDO;
 import com.coding.core.repository.KnowledgeVectorRepository;
@@ -22,6 +23,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
@@ -69,7 +71,7 @@ public class AgentNode extends AbstractNode {
     protected Map<String, Object> doExecute(Node node, OverAllState state) throws Exception {
         long startTime = System.currentTimeMillis();
         log.info("[AgentNode] 开始执行, nodeId={}", node.getId());
-        
+
         // 获取配置参数 - 需要支持ToolCall
         String chatModelName = getConfigParamAsString(node, "chatModel", "qwen-plus");
         Boolean isStream = getConfigParamAsBoolean(node, "isStream", Boolean.TRUE);
@@ -86,13 +88,13 @@ public class AgentNode extends AbstractNode {
         // conversationId 从 state 获取，用于区分不同会话
         String conversationId = state.value("conversationId", "default-" + node.getId());
 
-        log.info("[AgentNode] 配置解析完成, 模型: {}, 知识库: {}, 工具: {}, Memory: {}, 耗时: {}ms", 
+        log.info("[AgentNode] 配置解析完成, 模型: {}, 知识库: {}, 工具: {}, Memory: {}, 耗时: {}ms",
                 chatModelName, knowledgeBaseIds, tools, enableMemory, System.currentTimeMillis() - startTime);
 
         List<Message> springMessages = new ArrayList<>();
         Object messagesObj = node.getConfigParams().get("messages");
         String userQuery = "";
-        
+
         // 1. 提取用户查询用于RAG (取最后一个 User 消息)
         if (messagesObj instanceof List) {
             List<Map<String, String>> messagesConfig = (List<Map<String, String>>) messagesObj;
@@ -110,7 +112,7 @@ public class AgentNode extends AbstractNode {
         // 2. 检索知识库并构建RAG上下文
         long ragStartTime = System.currentTimeMillis();
         String ragContext = retrieveRagContext(knowledgeBaseIds, embeddingModelName, rerankModelName, userQuery, topK);
-        log.info("[AgentNode] RAG检索完成, 上下文长度: {}, 耗时: {}ms", 
+        log.info("[AgentNode] RAG检索完成, 上下文长度: {}, 耗时: {}ms",
                 ragContext.length(), System.currentTimeMillis() - ragStartTime);
         boolean ragConsumed = false;
         boolean hasSystem = false;
@@ -140,12 +142,12 @@ public class AgentNode extends AbstractNode {
 
         // 4. 如果 RAG 上下文未被注入（没有系统消息），或者需要默认系统消息
         if (StringUtils.isNotBlank(ragContext) && !ragConsumed) {
-             springMessages.add(0, new SystemMessage(ragContext));
-             hasSystem = true;
-        } 
-        
+            springMessages.add(0, new SystemMessage(ragContext));
+            hasSystem = true;
+        }
+
         if (!hasSystem) {
-             springMessages.add(0, new SystemMessage("你是一个乐于助人的AI助手，能够帮助用户完成任务。"));
+            springMessages.add(0, new SystemMessage("你是一个乐于助人的AI助手，能够帮助用户完成任务。"));
         }
 
         // 5. 如果启用 Memory，读取历史消息并插入到消息列表中
@@ -172,16 +174,15 @@ public class AgentNode extends AbstractNode {
         for (ToolCallback tc : toolCallbacks) {
             toolCallbackMap.put(tc.getToolDefinition().name(), tc);
         }
-        log.info("[AgentNode] 工具加载完成, 工具数量: {}, 耗时: {}ms", 
+        log.info("[AgentNode] 工具加载完成, 工具数量: {}, 耗时: {}ms",
                 toolCallbacks.size(), System.currentTimeMillis() - toolLoadStartTime);
-        
-        log.info("[AgentNode] 准备阶段完成, 总耗时: {}ms, 开始{}调用LLM", 
+
+        log.info("[AgentNode] 准备阶段完成, 总耗时: {}ms, 开始{}调用LLM",
                 System.currentTimeMillis() - startTime, isStream ? "流式" : "同步");
 
         // Agent通常会进行多轮思考和工具调用
         if (isStream) {
             // 使用手动 tool call 处理模式，解决 Qwen 等 API 的流式 tool call 合并问题
-            // 参考 Spring AI PR #4794: https://github.com/spring-projects/spring-ai/pull/4794
             Flux<ChatResponse> chatResponseFlux = executeStreamingWithToolCalls(
                     springMessages, chatModelName, toolCallbacks, toolCallbackMap);
             // 使用 StreamingChatGenerator 包装流式响应
@@ -262,7 +263,7 @@ public class AgentNode extends AbstractNode {
     /**
      * 执行流式对话，手动处理 tool call 合并和执行。
      * 解决 Qwen 等 OpenAI 兼容 API 的流式 tool call 合并问题。
-     * 
+     *
      * 策略：先聚合检测是否有 tool call，如果有则执行后递归；如果没有则重新发起流式请求返回。
      */
     private Flux<ChatResponse> executeStreamingWithToolCalls(
@@ -270,11 +271,11 @@ public class AgentNode extends AbstractNode {
             String chatModelName,
             List<ToolCallback> toolCallbacks,
             Map<String, ToolCallback> toolCallbackMap) {
-        
+
         final long llmStartTime = System.currentTimeMillis();
         final int round = countToolResponseMessages(messages) + 1;
         log.info("[AgentNode] 第{}轮LLM调用开始, 消息数量: {}", round, messages.size());
-        
+
         // 构建 ChatOptions，禁用内部 tool 执行
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .model(chatModelName)
@@ -285,34 +286,41 @@ public class AgentNode extends AbstractNode {
                 .build();
 
         Prompt prompt = new Prompt(messages, options);
-        
-        // 获取流式响应并使用自定义聚合器处理 tool call 合并
+
+        // 获取流式响应
         Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
-        
-        // 使用自定义聚合器检测是否有 tool calls
-        return StreamingToolCallMerger.aggregateWithToolCallMerging(streamResponse)
-                .doOnNext(resp -> log.info("[AgentNode] 第{}轮LLM响应聚合完成, 耗时: {}ms", 
-                        round, System.currentTimeMillis() - llmStartTime))
-                .flatMap(aggregatedResponse -> {
-                    // 检查是否有 tool calls 需要执行
-                    if (aggregatedResponse.getResult() != null 
-                            && aggregatedResponse.getResult().getOutput() != null
-                            && aggregatedResponse.getResult().getOutput().hasToolCalls()) {
-                        
-                        int toolCallCount = aggregatedResponse.getResult().getOutput().getToolCalls().size();
-                        log.info("[AgentNode] 第{}轮检测到{}个tool calls, 准备执行", round, toolCallCount);
-                        
-                        // 执行 tool calls 并继续对话
-                        return executeToolCallsAndContinue(
-                                messages, aggregatedResponse, chatModelName, 
-                                toolCallbacks, toolCallbackMap);
+
+        // 使用 streamAndAggregate：边流式输出边聚合，最后追加聚合结果
+        // 这样用户可以看到 AI 的思考过程（如 "让我帮你查一下..."）
+        return StreamingToolCallMerger.streamAndAggregate(streamResponse)
+                .flatMap(response -> {
+                    // 检查是否是聚合结果（最后一个特殊响应）
+                    if (StreamingToolCallMerger.isAggregatedResponse(response)) {
+                        log.info("[AgentNode] 第{}轮LLM响应聚合完成, 耗时: {}ms",
+                                round, System.currentTimeMillis() - llmStartTime);
+
+                        // 检查是否有 tool calls 需要执行
+                        if (response.getResult() != null
+                                && response.getResult().getOutput() != null
+                                && response.getResult().getOutput().hasToolCalls()) {
+
+                            int toolCallCount = response.getResult().getOutput().getToolCalls().size();
+                            log.info("[AgentNode] 第{}轮检测到{}个tool calls, 准备执行", round, toolCallCount);
+
+                            // 执行 tool calls 并继续对话
+                            return executeToolCallsAndContinue(
+                                    messages, response, chatModelName,
+                                    toolCallbacks, toolCallbackMap);
+                        }
+                        // 没有 tool calls，不再发送聚合结果（前面已经流式输出了）
+                        log.info("[AgentNode] 第{}轮无tool calls, 流式输出完成", round);
+                        return Flux.empty();
                     }
-                    // 没有 tool calls，直接返回已聚合的结果（避免重复请求）
-                    log.info("[AgentNode] 第{}轮无tool calls, 返回聚合结果", round);
-                    return Flux.just(aggregatedResponse);
+                    // 普通 chunk，直接透传给前端
+                    return Flux.just(response);
                 });
     }
-    
+
     /**
      * 统计消息列表中 ToolResponseMessage 的数量（用于计算轮次）
      */
@@ -331,55 +339,111 @@ public class AgentNode extends AbstractNode {
             String chatModelName,
             List<ToolCallback> toolCallbacks,
             Map<String, ToolCallback> toolCallbackMap) {
-        
+
         AssistantMessage assistantMessage = toolCallResponse.getResult().getOutput();
         List<AssistantMessage.ToolCall> toolCalls = assistantMessage.getToolCalls();
-        
-        long toolExecStartTime = System.currentTimeMillis();
-        log.info("[AgentNode] 开始执行 {} 个 tool calls", toolCalls.size());
-        
-        // 执行所有 tool calls
-        List<ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
-        
-        for (int i = 0; i < toolCalls.size(); i++) {
-            AssistantMessage.ToolCall toolCall = toolCalls.get(i);
-            String toolName = toolCall.name();
-            String toolArgs = toolCall.arguments();
-            String toolCallId = toolCall.id();
-            
-            long singleToolStartTime = System.currentTimeMillis();
-            log.info("[AgentNode] 执行工具 [{}/{}]: {}, 参数: {}", i + 1, toolCalls.size(), toolName, toolArgs);
-            
-            ToolCallback callback = toolCallbackMap.get(toolName);
-            if (callback != null) {
-                try {
-                    String result = callback.call(toolArgs);
-                    long toolDuration = System.currentTimeMillis() - singleToolStartTime;
-                    log.info("[AgentNode] 工具 {} 执行成功, 耗时: {}ms, 结果长度: {}", 
-                            toolName, toolDuration, result != null ? result.length() : 0);
-                    toolResponses.add(new ToolResponseMessage.ToolResponse(toolCallId, toolName, result));
-                } catch (Exception e) {
-                    long toolDuration = System.currentTimeMillis() - singleToolStartTime;
-                    log.error("[AgentNode] 工具 {} 执行失败, 耗时: {}ms", toolName, toolDuration, e);
+
+        // 提取工具名称列表
+        List<String> toolNames = toolCalls.stream()
+                .map(AssistantMessage.ToolCall::name)
+                .toList();
+
+        // 创建工具调用开始的状态消息（JSON格式，前端可解析）
+        Flux<ChatResponse> startFlux = Flux.just(createToolStatusResponse("tool_call_start", toolNames, 0));
+
+        // 使用 Flux.defer 延迟执行工具调用，确保状态消息先发出
+        Flux<ChatResponse> toolExecutionFlux = Flux.defer(() -> {
+            long toolExecStartTime = System.currentTimeMillis();
+            log.info("[AgentNode] 开始执行 {} 个 tool calls", toolCalls.size());
+
+            // 执行所有 tool calls
+            List<ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
+
+            for (int i = 0; i < toolCalls.size(); i++) {
+                AssistantMessage.ToolCall toolCall = toolCalls.get(i);
+                String toolName = toolCall.name();
+                String toolArgs = toolCall.arguments();
+                String toolCallId = toolCall.id();
+
+                long singleToolStartTime = System.currentTimeMillis();
+                log.info("[AgentNode] 执行工具 [{}/{}]: {}, 参数: {}", i + 1, toolCalls.size(), toolName, toolArgs);
+
+                ToolCallback callback = toolCallbackMap.get(toolName);
+                if (callback != null) {
+                    try {
+                        String result = callback.call(toolArgs);
+                        long toolDuration = System.currentTimeMillis() - singleToolStartTime;
+                        log.info("[AgentNode] 工具 {} 执行成功, 耗时: {}ms, 结果长度: {}",
+                                toolName, toolDuration, result != null ? result.length() : 0);
+                        toolResponses.add(new ToolResponseMessage.ToolResponse(toolCallId, toolName, result));
+                    } catch (Exception e) {
+                        long toolDuration = System.currentTimeMillis() - singleToolStartTime;
+                        log.error("[AgentNode] 工具 {} 执行失败, 耗时: {}ms", toolName, toolDuration, e);
+                        toolResponses.add(new ToolResponseMessage.ToolResponse(
+                                toolCallId, toolName, "工具执行失败: " + e.getMessage()));
+                    }
+                } else {
+                    log.warn("[AgentNode] 未找到工具: {}", toolName);
                     toolResponses.add(new ToolResponseMessage.ToolResponse(
-                            toolCallId, toolName, "工具执行失败: " + e.getMessage()));
+                            toolCallId, toolName, "未找到工具: " + toolName));
                 }
-            } else {
-                log.warn("[AgentNode] 未找到工具: {}", toolName);
-                toolResponses.add(new ToolResponseMessage.ToolResponse(
-                        toolCallId, toolName, "未找到工具: " + toolName));
             }
+
+            long totalDuration = System.currentTimeMillis() - toolExecStartTime;
+            log.info("[AgentNode] 所有工具执行完成, 总耗时: {}ms", totalDuration);
+
+            // 创建工具调用完成的状态消息
+            Flux<ChatResponse> endFlux = Flux.just(createToolStatusResponse("tool_call_end", toolNames, totalDuration));
+
+            // 构建新的消息列表，包含 assistant message 和 tool responses
+            List<Message> newMessages = new ArrayList<>(originalMessages);
+            newMessages.add(assistantMessage);
+            newMessages.add(ToolResponseMessage.builder().responses(toolResponses).build());
+
+            // 先发送完成状态，再递归调用继续对话
+            return endFlux.concatWith(
+                    executeStreamingWithToolCalls(newMessages, chatModelName, toolCallbacks, toolCallbackMap));
+        });
+
+        // 先发送开始状态消息，再执行工具调用
+        return startFlux.concatWith(toolExecutionFlux);
+    }
+
+    /**
+     * 创建工具调用状态的 ChatResponse（JSON格式，前端可解析做特殊处理）
+     *
+     * @param type 状态类型：tool_call_start 或 tool_call_end
+     * @param tools 工具名称列表
+     * @param duration 执行耗时（毫秒），仅在 tool_call_end 时有效
+     */
+    private ChatResponse createToolStatusResponse(String type, List<String> tools, long duration) {
+        // 构建 JSON 格式的状态消息
+        StringBuilder json = new StringBuilder();
+        json.append("{\"type\":\"").append(type).append("\",");
+        json.append("\"tools\":[");
+        for (int i = 0; i < tools.size(); i++) {
+            if (i > 0) json.append(",");
+            json.append("\"").append(tools.get(i)).append("\"");
         }
-        
-        log.info("[AgentNode] 所有工具执行完成, 总耗时: {}ms", System.currentTimeMillis() - toolExecStartTime);
-        
-        // 构建新的消息列表，包含 assistant message 和 tool responses
-        List<Message> newMessages = new ArrayList<>(originalMessages);
-        newMessages.add(assistantMessage);
-        newMessages.add(ToolResponseMessage.builder().responses(toolResponses).build());
-        
-        // 递归调用，继续对话
-        return executeStreamingWithToolCalls(newMessages, chatModelName, toolCallbacks, toolCallbackMap);
+        json.append("]");
+        if ("tool_call_end".equals(type)) {
+            json.append(",\"duration\":").append(duration);
+        }
+        json.append("}");
+
+        // 使用特殊的 metadata 标记这是工具状态消息
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("__tool_status__", true);
+        metadata.put("__tool_status_type__", type);
+
+        AssistantMessage statusMessage = AssistantMessage.builder()
+                .content(json.toString())
+                .properties(metadata)
+                .build();
+        Generation generation = new Generation(statusMessage);
+        return ChatResponse.builder()
+                .generations(List.of(generation))
+                .build();
     }
 
     /**
@@ -435,11 +499,11 @@ public class AgentNode extends AbstractNode {
             String embeddingStr = embeddingBuilder.toString();
 
             // 2. 从每个知识库中检索相关文档
-            List<KnowledgeVectorDO> allRetrievedDocs = new ArrayList<>();
+            List<KnowledgeVectorModel> allRetrievedDocs = new ArrayList<>();
             for (String knowledgeBaseIdStr : knowledgeBaseIds) {
                 try {
                     Long knowledgeBaseId = Long.parseLong(knowledgeBaseIdStr);
-                    List<KnowledgeVectorDO> docs = knowledgeVectorRepository.similaritySearch(
+                    List<KnowledgeVectorModel> docs = knowledgeVectorRepository.similaritySearch(
                             knowledgeBaseId, embeddingStr, topK);
                     if (docs != null && !docs.isEmpty()) {
                         allRetrievedDocs.addAll(docs);
@@ -455,8 +519,8 @@ public class AgentNode extends AbstractNode {
             }
 
             // 4. TODO: 重排序 (rerank)
-            List<KnowledgeVectorDO> topDocs = allRetrievedDocs.stream()
-                    .sorted(Comparator.comparing(KnowledgeVectorDO::getSimilarity).reversed())
+            List<KnowledgeVectorModel> topDocs = allRetrievedDocs.stream()
+                    .sorted(Comparator.comparing(KnowledgeVectorModel::getSimilarity).reversed())
                     .limit(topK)
                     .toList();
 
@@ -465,7 +529,7 @@ public class AgentNode extends AbstractNode {
             contextBuilder.append("以下是从知识库中检索到的相关信息，请参考这些信息来回答用户的问题：\n\n");
 
             for (int i = 0; i < topDocs.size(); i++) {
-                KnowledgeVectorDO doc = topDocs.get(i);
+                KnowledgeVectorModel doc = topDocs.get(i);
                 contextBuilder.append("[文档 ").append(i + 1).append("]\n");
                 contextBuilder.append(doc.getContent()).append("\n\n");
             }

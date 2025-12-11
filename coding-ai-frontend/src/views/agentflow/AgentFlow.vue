@@ -162,6 +162,7 @@
       >
         <div class="chat-header" @mousedown="onChatDragStart">
           <span style="cursor: move; flex: 1;">Agent Chat</span>
+          <el-icon class="header-icon" @click="clearChatHistory" title="清除对话"><Delete /></el-icon>
           <el-icon class="close-icon" @click="chatVisible = false"><Close /></el-icon>
         </div>
         <div class="chat-messages" ref="messagesContainer">
@@ -171,6 +172,31 @@
               <el-icon v-else><Cpu /></el-icon>
             </div>
             <div class="message-content">
+              <!-- 工具执行状态列表 -->
+              <div v-if="msg.toolExecutions && msg.toolExecutions.length > 0" class="tool-executions">
+                <div 
+                  v-for="(exec, execIdx) in msg.toolExecutions" 
+                  :key="execIdx" 
+                  class="tool-execution-item"
+                  :class="exec.status"
+                >
+                  <el-icon class="tool-exec-icon" :class="{ 'is-loading': exec.status === 'running' }">
+                    <Loading v-if="exec.status === 'running'" />
+                    <CircleCheckFilled v-else />
+                  </el-icon>
+                  <span class="tool-exec-text">
+                    <template v-if="exec.status === 'running'">
+                      正在执行 <strong>{{ exec.tools.join(', ') }}</strong> 工具...
+                    </template>
+                    <template v-else>
+                      <strong>{{ exec.tools.join(', ') }}</strong> 工具执行完成
+                      <span class="tool-duration" v-if="exec.duration">[耗时 {{ (exec.duration / 1000).toFixed(1) }}s]</span>
+                    </template>
+                  </span>
+                </div>
+              </div>
+              
+              <!-- 执行步骤流程 -->
               <div v-if="msg.steps && msg.steps.length > 0" class="process-flow">
                 <el-collapse>
                   <el-collapse-item title="Process Flow" name="1">
@@ -187,7 +213,18 @@
                   </el-collapse-item>
                 </el-collapse>
               </div>
-              <div class="bubble" v-if="msg.content">{{ msg.content }}</div>
+              
+              <!-- 加载状态 -->
+              <div v-if="msg.loading" class="loading-indicator">
+                <span class="loading-dot"></span>
+                <span class="loading-dot"></span>
+                <span class="loading-dot"></span>
+              </div>
+              
+              <!-- 文本内容 (Markdown 渲染) -->
+              <div class="bubble" v-if="msg.content && !msg.loading">
+                <MarkdownRenderer :content="msg.content" />
+              </div>
             </div>
           </div>
         </div>
@@ -197,12 +234,13 @@
             type="textarea"
             :rows="1"
             placeholder="Type your question..."
-            @keydown.enter.prevent="handleSendMessage"
+            @keydown.enter.exact="onEnterKey"
             resize="none"
             class="input-area"
           />
-          <el-button type="primary" circle @click="handleSendMessage" :loading="isSending" class="send-btn">
-            <el-icon><Promotion /></el-icon>
+          <el-button type="primary" circle @click="handleSendMessage" :disabled="isSending" class="send-btn">
+            <el-icon v-if="!isSending"><Promotion /></el-icon>
+            <el-icon v-else class="is-loading"><Loading /></el-icon>
           </el-button>
         </div>
       </div>
@@ -269,6 +307,7 @@ import RetrieverDrawer from '@/components/agentflow/RetrieverDrawer.vue'
 import ToolDrawer from '@/components/agentflow/ToolDrawer.vue'
 import StartNodeDrawer from '@/components/agentflow/StartNodeDrawer.vue'
 import DirectReplyDrawer from '@/components/agentflow/DirectReplyDrawer.vue'
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import { AgentFlowAPI } from '@/api/agentFlow'
 import {
   EditPen,
@@ -309,9 +348,28 @@ const router = useRouter()
 const flowId = ref<number | string | null>(route.params.id ? String(route.params.id) : null)
 const flowName = ref('Agent Flow Configuration')
 
+// 工具执行状态
+interface ToolExecution {
+  tools: string[]
+  status: 'running' | 'done'
+  duration?: number
+}
+
+// 聊天消息类型
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  type?: string
+  nodeId?: string
+  state?: any
+  steps?: any[]
+  loading?: boolean
+  toolExecutions?: ToolExecution[]
+}
+
 // 聊天相关状态
 const chatVisible = ref(false)
-const chatMessages = ref<Array<{role: 'user' | 'assistant', content: string, type?: string, nodeId?: string, state?: any, steps?: any[]}>>([
+const chatMessages = ref<ChatMessage[]>([
   { role: 'assistant', content: '你好！有什么问题我可以帮助你吗？' }
 ])
 const userInput = ref('')
@@ -459,7 +517,11 @@ const exportWorkflowData = () => {
         configParams.inputPrompt = data.inputPrompt
         configParams.enableFeedback = data.enableFeedback
       } else if (type === 'condition-basic') {
-        configParams.branches = data.branches
+        // 复制 branches 并追加 ELSE 分支
+        const branches = data.branches ? [...data.branches] : []
+        // 追加 ELSE 分支（只需要 id 和 label）
+        branches.push({ id: 'else', label: 'ELSE' })
+        configParams.branches = branches
       } else if (type === 'retriever') {
         configParams.query = data.query
         configParams.topK = data.topK
@@ -491,13 +553,44 @@ const exportWorkflowData = () => {
         outputParams: []
       }
     }),
-    edges: flowData.edges.map((edge: Edge) => ({
-      id: edge.id,
-      source: edge.source,
-      sourceHandle: edge.sourceHandle,
-      target: edge.target,
-      targetHandle: edge.targetHandle
-    }))
+    edges: flowData.edges.map((edge: Edge) => {
+      const edgeData: any = {
+        id: edge.id,
+        source: edge.source,
+        sourceHandle: edge.sourceHandle,
+        target: edge.target,
+        targetHandle: edge.targetHandle
+      }
+      
+      // 为 Condition 和 Condition Agent 的出边添加 label
+      const sourceNode = flowData.nodes.find((n: Node) => n.id === edge.source)
+      if (sourceNode && sourceNode.data) {
+        const sourceType = sourceNode.data.type
+        
+        if (sourceType === 'condition-basic') {
+          // Condition 节点：从 branches 中根据 sourceHandle 找到对应的 label
+          const branches = sourceNode.data.branches || []
+          // sourceHandle 可能是 'if', 'else-if-1', 'else' 等
+          if (edge.sourceHandle === 'else') {
+            edgeData.label = 'ELSE'
+          } else {
+            const branch = branches.find((b: any) => b.id === edge.sourceHandle)
+            if (branch) {
+              edgeData.label = branch.label // 如 'IF', 'ELSE IF'
+            }
+          }
+        } else if (sourceType === 'condition-agent') {
+          // Condition Agent 节点：从 scenarios 中根据 sourceHandle 找到对应的 scenario
+          const scenarios = sourceNode.data.scenarios || []
+          const handleIndex = parseInt(edge.sourceHandle || '0', 10)
+          if (!isNaN(handleIndex) && scenarios[handleIndex]) {
+            edgeData.label = scenarios[handleIndex] // scenario 值
+          }
+        }
+      }
+      
+      return edgeData
+    })
   }
 
   console.log('导出数据:', backendRequest)
@@ -595,6 +688,21 @@ const scrollToBottom = () => {
   }
 }
 
+// 清除对话历史
+const clearChatHistory = () => {
+  chatMessages.value = [
+    { role: 'assistant', content: '你好！有什么问题我可以帮助你吗？' }
+  ]
+}
+
+// 回车键发送
+const onEnterKey = (e: KeyboardEvent) => {
+  if (!e.shiftKey) {
+    e.preventDefault()
+    handleSendMessage()
+  }
+}
+
 // 发送消息
 const handleSendMessage = async () => {
   if (!userInput.value.trim() || isSending.value) return
@@ -611,9 +719,9 @@ const handleSendMessage = async () => {
   // 添加用户消息
   chatMessages.value.push({ role: 'user', content: prompt })
   
-  // 添加一个空的助手消息用于流式输出，带上 steps 数组
+  // 添加一个空的助手消息用于流式输出，带上 steps 数组和加载状态
   const assistantMsgIndex = chatMessages.value.length
-  chatMessages.value.push({ role: 'assistant', content: '', steps: [] })
+  chatMessages.value.push({ role: 'assistant', content: '', steps: [], loading: true })
   
   // 重置所有节点的执行状态
   elements.value.forEach((el) => {
@@ -633,8 +741,44 @@ const handleSendMessage = async () => {
         const data = JSON.parse(event.data)
         
         if (data.type === 'chunk') {
-          // 追加内容
-          chatMessages.value[assistantMsgIndex].content += data.content
+          // 关闭加载状态
+          chatMessages.value[assistantMsgIndex].loading = false
+          
+          const content = data.content || ''
+          
+          // 尝试解析 JSON 格式的工具状态消息
+          let toolStatus: { type?: string; tools?: string[]; duration?: number } | null = null
+          try {
+            if (content.startsWith('{') && content.includes('"type"')) {
+              toolStatus = JSON.parse(content)
+            }
+          } catch {
+            // 不是 JSON，当作普通文本处理
+          }
+          
+          if (toolStatus && toolStatus.type === 'tool_call_start') {
+            // 工具调用开始
+            if (!chatMessages.value[assistantMsgIndex].toolExecutions) {
+              chatMessages.value[assistantMsgIndex].toolExecutions = []
+            }
+            chatMessages.value[assistantMsgIndex].toolExecutions.push({
+              tools: toolStatus.tools || [],
+              status: 'running'
+            })
+          } else if (toolStatus && toolStatus.type === 'tool_call_end') {
+            // 工具调用完成，更新最后一个 running 状态的工具执行
+            const executions = chatMessages.value[assistantMsgIndex].toolExecutions
+            if (executions && executions.length > 0) {
+              const lastRunning = executions.find(e => e.status === 'running')
+              if (lastRunning) {
+                lastRunning.status = 'done'
+                lastRunning.duration = toolStatus.duration
+              }
+            }
+          } else {
+            // 普通文本内容
+            chatMessages.value[assistantMsgIndex].content += content
+          }
           scrollToBottom()
         } else if (data.type === 'node_complete') {
            // 处理节点完成状态
@@ -683,6 +827,12 @@ const handleSendMessage = async () => {
              })
            }
         } else if (data.type === 'finish') {
+          chatMessages.value[assistantMsgIndex].loading = false
+          // 标记所有工具执行为完成
+          const executions = chatMessages.value[assistantMsgIndex].toolExecutions
+          if (executions) {
+            executions.forEach(e => { if (e.status === 'running') e.status = 'done' })
+          }
           eventSource.close()
           isSending.value = false
         }
@@ -695,6 +845,7 @@ const handleSendMessage = async () => {
       console.error('SSE错误:', error)
       eventSource.close()
       isSending.value = false
+      chatMessages.value[assistantMsgIndex].loading = false
       // 如果消息为空，提示错误
       if (!chatMessages.value[assistantMsgIndex].content) {
         chatMessages.value[assistantMsgIndex].content = '执行出错，请重试。'
@@ -759,6 +910,8 @@ const onDrop = (event: DragEvent) => {
        additionalData.embeddingModel = 'text-embedding-v4'
     } else if (nodeData.type === 'start') {
       additionalData.inputs = false
+    } else if (nodeData.type === 'reply') {
+      additionalData.outputs = [] // Direct Reply 节点没有输出端口
     }
 
     const newNode = {
@@ -1022,6 +1175,26 @@ const elements = ref<(Node | Edge)[]>([])
 .process-flow {
   width: 100%;
   margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.process-flow :deep(.el-collapse) {
+  border: none;
+  background: transparent;
+}
+
+.process-flow :deep(.el-collapse-item__header) {
+  padding: 0 8px;
+  font-size: 12px;
+  height: 32px;
+  line-height: 32px;
+}
+
+.process-flow :deep(.el-collapse-item__content) {
+  padding: 8px 12px;
 }
 .step-item {
   display: flex;
@@ -1199,11 +1372,14 @@ const elements = ref<(Node | Edge)[]>([])
   font-weight: 600;
 }
 
+.header-icon,
 .close-icon {
   cursor: pointer;
   padding: 4px;
   border-radius: 50%;
+  margin-left: 8px;
 }
+.header-icon:hover,
 .close-icon:hover {
   background: rgba(255, 255, 255, 0.2);
 }
@@ -1282,6 +1458,35 @@ const elements = ref<(Node | Edge)[]>([])
   border-bottom-left-radius: 4px;
 }
 
+/* Markdown 样式覆盖 - 减少间距 */
+.bubble :deep(.markdown-body) {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.bubble :deep(.markdown-body p) {
+  margin-bottom: 8px;
+}
+.bubble :deep(.markdown-body p:last-child) {
+  margin-bottom: 0;
+}
+.bubble :deep(.markdown-body h1),
+.bubble :deep(.markdown-body h2),
+.bubble :deep(.markdown-body h3) {
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+.bubble :deep(.markdown-body ul),
+.bubble :deep(.markdown-body ol) {
+  margin-bottom: 8px;
+  padding-left: 1.5em;
+}
+.bubble :deep(.markdown-body pre) {
+  margin-bottom: 8px;
+}
+.bubble :deep(.markdown-body code) {
+  font-size: 12px;
+}
+
 .chat-input {
   padding: 12px;
   background: white;
@@ -1298,11 +1503,115 @@ const elements = ref<(Node | Edge)[]>([])
 .send-btn {
   background-color: #6200ee;
   border-color: #6200ee;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
 }
 .send-btn:hover {
   background-color: #5b00dc;
   border-color: #5b00dc;
 }
+.send-btn:disabled {
+  background-color: #6200ee;
+  border-color: #6200ee;
+  opacity: 0.7;
+}
+.send-btn .el-icon {
+  font-size: 16px;
+}
+.send-btn .is-loading {
+  animation: spin 1s linear infinite;
+}
 
+/* 加载动画 */
+.loading-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.loading-dot {
+  width: 8px;
+  height: 8px;
+  background: #6200ee;
+  border-radius: 50%;
+  animation: loading-bounce 1.4s infinite ease-in-out both;
+}
+
+.loading-dot:nth-child(1) { animation-delay: -0.32s; }
+.loading-dot:nth-child(2) { animation-delay: -0.16s; }
+.loading-dot:nth-child(3) { animation-delay: 0s; }
+
+@keyframes loading-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* 工具执行状态列表 */
+.tool-executions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tool-execution-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.tool-execution-item.running {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fbbf24;
+  color: #92400e;
+}
+
+.tool-execution-item.done {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border: 1px solid #34d399;
+  color: #065f46;
+}
+
+.tool-exec-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.tool-execution-item.running .tool-exec-icon {
+  color: #d97706;
+}
+
+.tool-execution-item.done .tool-exec-icon {
+  color: #059669;
+}
+
+.tool-exec-icon.is-loading {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.tool-exec-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.tool-exec-text strong {
+  font-weight: 600;
+}
+
+.tool-duration {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-left: 4px;
+}
 
 </style>

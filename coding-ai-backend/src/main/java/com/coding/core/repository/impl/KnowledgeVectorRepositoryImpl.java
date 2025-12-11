@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.core.mapper.postgresql.KnowledgeVectorMapper;
 import com.coding.core.model.entity.KnowledgeVectorDO;
+import com.coding.core.model.model.KnowledgeVectorModel;
 import com.coding.core.model.request.KnowledgeVectorPageRequest;
 import com.coding.core.repository.KnowledgeVectorRepository;
 import jakarta.annotation.Resource;
@@ -116,7 +117,7 @@ public class KnowledgeVectorRepositoryImpl implements KnowledgeVectorRepository 
     }
 
     @Override
-    public List<KnowledgeVectorDO> similaritySearch(Long knowledgeBaseId, String embedding, Integer topK) {
+    public List<KnowledgeVectorModel> similaritySearch(Long knowledgeBaseId, String embedding, Integer topK) {
         return knowledgeVectorMapper.similaritySearch(knowledgeBaseId, embedding, topK);
     }
 }

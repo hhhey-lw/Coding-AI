@@ -12,12 +12,10 @@
         <div class="section-container">
             <div class="section-header">
                 <span class="required-label">Message</span>
+                <el-tooltip content="支持引用变量" placement="top">
+                  <span class="variable-hint" v-pre>{{x}}</span>
+                </el-tooltip>
                 <div class="spacer"></div>
-                <div class="variable-icon">
-                    <el-tooltip content="Type {{ to select variables" placement="top">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tabler-icon tabler-icon-variable" style="color: teal;"><path d="M5 4c-2.5 5 -2.5 10 0 16m14 -16c2.5 5 2.5 10 0 16m-10 -11h1c1 0 1 1 2.016 3.527c.984 2.473 .984 3.473 1.984 3.473h1"></path><path d="M8 16c1.5 0 3 -2 4 -3.5s2.5 -3.5 4 -3.5"></path></svg>
-                    </el-tooltip>
-                </div>
             </div>
             
             <div class="editor-container">
@@ -122,9 +120,10 @@ const handleClose = (done: () => void) => {
     flex-grow: 1;
 }
 
-.variable-icon {
-    display: flex;
-    align-items: center;
+.variable-hint {
+    color: #409eff;
+    font-size: 12px;
+    margin-left: 8px;
     cursor: help;
 }
 

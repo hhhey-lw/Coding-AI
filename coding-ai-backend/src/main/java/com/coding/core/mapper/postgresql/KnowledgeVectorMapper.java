@@ -2,6 +2,7 @@ package com.coding.core.mapper.postgresql;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.coding.core.model.entity.KnowledgeVectorDO;
+import com.coding.core.model.model.KnowledgeVectorModel;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -28,7 +29,7 @@ public interface KnowledgeVectorMapper extends BaseMapper<KnowledgeVectorDO> {
      * @param topK 返回数量
      * @return 相似向量列表
      */
-    List<KnowledgeVectorDO> similaritySearch(
+    List<KnowledgeVectorModel> similaritySearch(
             @Param("knowledgeBaseId") Long knowledgeBaseId,
             @Param("embedding") String embedding,
             @Param("topK") Integer topK

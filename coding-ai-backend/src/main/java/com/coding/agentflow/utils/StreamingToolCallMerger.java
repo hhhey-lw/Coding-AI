@@ -209,4 +209,104 @@ public class StreamingToolCallMerger {
                 })
                 .flux();
     }
+
+    /**
+     * 流式输出并同时检测 tool calls。
+     *
+     * 此方法会：
+     * 1. 透传所有文本 chunks 给下游（实现真正的流式输出）
+     * 2. 同时在后台聚合 tool calls
+     * 3. 在流结束时，发送一个包含完整 tool calls 的聚合响应
+     *
+     * 这样用户可以看到 AI 的思考过程，同时系统也能检测到 tool calls。
+     *
+     * @param chatResponseFlux 原始流式响应
+     * @return 透传的流式响应 + 最后一个聚合响应（包含完整 tool calls）
+     */
+    public static Flux<ChatResponse> streamAndAggregate(Flux<ChatResponse> chatResponseFlux) {
+        AtomicReference<StringBuilder> textContentRef = new AtomicReference<>(new StringBuilder());
+        AtomicReference<List<ToolCall>> accumulatedToolCallsRef = new AtomicReference<>(new ArrayList<>());
+        AtomicReference<ChatResponseMetadata> lastMetadataRef = new AtomicReference<>();
+        AtomicReference<ChatGenerationMetadata> lastGenMetadataRef = new AtomicReference<>();
+        AtomicReference<Map<String, Object>> lastMessageMetadataRef = new AtomicReference<>(new HashMap<>());
+
+        return chatResponseFlux
+                // 透传每个 chunk，同时累积数据
+                .doOnNext(response -> {
+                    if (response == null || response.getResults() == null || response.getResults().isEmpty()) {
+                        return;
+                    }
+
+                    Generation generation = response.getResult();
+                    if (generation == null) {
+                        return;
+                    }
+
+                    AssistantMessage output = generation.getOutput();
+                    if (output != null) {
+                        // 累积文本内容
+                        if (output.getText() != null) {
+                            textContentRef.get().append(output.getText());
+                        }
+
+                        // 累积 tool calls
+                        if (output.hasToolCalls()) {
+                            accumulatedToolCallsRef.get().addAll(output.getToolCalls());
+                        }
+
+                        // 保存消息元数据
+                        if (output.getMetadata() != null && !output.getMetadata().isEmpty()) {
+                            lastMessageMetadataRef.get().putAll(output.getMetadata());
+                        }
+                    }
+
+                    // 保存响应元数据
+                    if (response.getMetadata() != null) {
+                        lastMetadataRef.set(response.getMetadata());
+                    }
+
+                    // 保存生成元数据
+                    if (generation.getMetadata() != null) {
+                        lastGenMetadataRef.set(generation.getMetadata());
+                    }
+                })
+                // 在流结束后，追加一个聚合响应（包含完整的 tool calls）
+                .concatWith(Flux.defer(() -> {
+                    // 合并所有累积的 tool calls
+                    List<ToolCall> mergedToolCalls = mergeToolCalls(accumulatedToolCallsRef.get());
+
+                    // 创建最终的 AssistantMessage（标记为聚合结果）
+                    Map<String, Object> metadata = new HashMap<>(lastMessageMetadataRef.get());
+                    metadata.put("__aggregated__", true);  // 标记这是聚合结果
+
+                    AssistantMessage finalMessage = AssistantMessage.builder()
+                            .content(textContentRef.get().toString())
+                            .properties(metadata)
+                            .toolCalls(mergedToolCalls)
+                            .media(Collections.emptyList())
+                            .build();
+
+                    // 创建最终的 Generation
+                    Generation finalGeneration = new Generation(finalMessage, lastGenMetadataRef.get());
+
+                    // 构建最终的 ChatResponse
+                    ChatResponse aggregatedResponse = ChatResponse.builder()
+                            .generations(List.of(finalGeneration))
+                            .metadata(lastMetadataRef.get())
+                            .build();
+
+                    return Flux.just(aggregatedResponse);
+                }));
+    }
+
+    /**
+     * 检查 ChatResponse 是否是聚合结果（由 streamAndAggregate 生成）
+     */
+    public static boolean isAggregatedResponse(ChatResponse response) {
+        if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
+            return false;
+        }
+        Map<String, Object> metadata = response.getResult().getOutput().getMetadata();
+        return metadata != null && Boolean.TRUE.equals(metadata.get("__aggregated__"));
+    }
 }

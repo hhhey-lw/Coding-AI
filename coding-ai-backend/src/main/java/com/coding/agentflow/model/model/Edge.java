@@ -11,6 +11,9 @@ public class Edge {
     @Schema(name = "边唯一标识")
     private String id;
 
+    @Schema(name = "标签")
+    private String label;
+
     @Schema(name = "源节点ID")
     private String source;
 

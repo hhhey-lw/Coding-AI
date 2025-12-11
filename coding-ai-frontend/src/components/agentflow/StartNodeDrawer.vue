@@ -55,18 +55,6 @@
             <el-icon><Plus /></el-icon> Add Flow State
         </el-button>
 
-        <!-- Persist State Section -->
-        <div class="section-container">
-             <div class="section-header">
-                 <span>Persist State</span>
-                 <el-tooltip content="Persist the state in the same session" placement="top">
-                    <el-icon><InfoFilled /></el-icon>
-                 </el-tooltip>
-                 <div class="spacer"></div>
-                 <el-switch v-model="nodeData.persistState" />
-             </div>
-        </div>
-
       </el-form>
     </div>
   </el-drawer>

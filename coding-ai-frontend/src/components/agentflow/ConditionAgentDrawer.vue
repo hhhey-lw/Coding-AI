@@ -68,17 +68,17 @@
       <!-- Input Section -->
       <div class="form-section">
         <div class="section-label row-between">
-          <span>Input <span class="required">*</span></span>
-          <div class="content-tools">
-             <el-icon><InfoFilled /></el-icon>
-             <el-icon><FullScreen /></el-icon>
-          </div>
+          <span>
+            Input <span class="required">*</span>
+            <el-tooltip content="支持引用变量" placement="top">
+              <span class="variable-hint" v-pre>{{x}}</span>
+            </el-tooltip>
+          </span>
         </div>
-        <el-input 
+        <VariableInput 
           v-model="formData.input" 
-          type="textarea" 
-          :rows="2" 
-          resize="none"
+          :variables="availableVariables"
+          class="condition-agent-input"
         />
       </div>
 
@@ -129,6 +129,8 @@ import {
 } from '@element-plus/icons-vue'
 import { WorkflowAPI, type ModelInfo } from '@/api/workflow'
 import { ElMessage } from 'element-plus'
+import VariableInput from '@/components/common/VariableInput.vue'
+import { useGraphVariables } from '@/composables/useGraphVariables'
 
 const props = defineProps<{
   modelValue: boolean
@@ -136,6 +138,10 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits(['update:modelValue', 'save'])
+
+// 获取当前节点可用的变量
+const currentNodeId = computed(() => props.node?.id || '')
+const { availableVariables } = useGraphVariables(currentNodeId)
 
 const visible = ref(false)
 const nodeData = ref<any>(null)
@@ -355,5 +361,19 @@ onMounted(() => {
 }
 :deep(.el-input__wrapper:hover) {
   box-shadow: 0 0 0 1px #374151 inset;
+}
+
+/* Variable Input 样式调整 */
+.condition-agent-input :deep(.variable-editor) {
+  min-height: 60px;
+  padding: 8px 12px;
+}
+
+/* 变量引用标识 */
+.variable-hint {
+  color: #409eff;
+  font-size: 12px;
+  margin-left: 8px;
+  cursor: help;
 }
 </style>

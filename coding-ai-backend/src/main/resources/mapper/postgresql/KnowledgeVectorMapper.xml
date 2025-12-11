@@ -49,7 +49,7 @@
           AND deleted = 0
     </select>
 
-    <select id="similaritySearch" resultType="com.coding.core.model.entity.KnowledgeVectorDO">
+    <select id="similaritySearch" resultType="com.coding.core.model.model.KnowledgeVectorModel">
         SELECT
             id,
             knowledge_base_id,

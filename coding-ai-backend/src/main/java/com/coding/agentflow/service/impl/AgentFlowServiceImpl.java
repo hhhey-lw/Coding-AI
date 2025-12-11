@@ -101,20 +101,11 @@ public class AgentFlowServiceImpl implements AgentFlowService {
                     if (StringUtils.isBlank(edge.getTarget())) {
                         throw new GraphStateException("条件边的重点不能为空，from：" + sourceId + "，to：" + edge.getTarget());
                     }
-                    // 简化，这里直接用target作为label
-                    routeMap.put(edge.getTarget(), edge.getTarget());
+                    // 标签 映射到 目标节点ID
+                    routeMap.put(edge.getLabel(), edge.getTarget());
                 }
 
                 try {
-                    // 解析分支配置
-                    Object branchesObj = sourceNode.getConfigParams() != null ? sourceNode.getConfigParams().get("branches") : null;
-                    List<Branch> branches;
-                    if (branchesObj != null) {
-                        branches = objectMapper.convertValue(branchesObj, new TypeReference<List<Branch>>() {
-                        });
-                    } else {
-                        branches = List.of();
-                    }
 
                     stateGraph.addConditionalEdges(sourceId,
                             AsyncEdgeAction.edge_async((OverAllState state) -> {
@@ -123,6 +114,16 @@ public class AgentFlowServiceImpl implements AgentFlowService {
                                 if (NodeTypeEnum.CONDITION_AGENT.equals(sourceNode.getType())) {
                                     // 利用条件Agent节点进行智能评估
                                     return conditionAgentNode.getSelectedLabel(conditionAgentNode.execute(nodeMap.get(sourceId), state));
+                                }
+
+                                // 解析分支配置
+                                Object branchesObj = sourceNode.getConfigParams() != null ? sourceNode.getConfigParams().get("branches") : null;
+                                List<Branch> branches;
+                                if (branchesObj != null) {
+                                    branches = objectMapper.convertValue(branchesObj, new TypeReference<List<Branch>>() {
+                                    });
+                                } else {
+                                    branches = List.of();
                                 }
 
                                 // 遍历分支，找到第一个满足条件的分支

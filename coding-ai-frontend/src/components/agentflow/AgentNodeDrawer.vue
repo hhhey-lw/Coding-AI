@@ -76,11 +76,6 @@
              <div class="section-label">Temperature</div>
              <el-input-number v-model="formData.temperature" :step="0.1" :min="0" :max="1" style="width: 100%" />
           </div>
-
-           <div class="param-item row-between">
-             <div class="section-label">Streaming</div>
-             <el-switch v-model="formData.streaming" />
-          </div>
         </div>
       </div>
 
@@ -106,12 +101,13 @@
           </div>
 
           <div class="param-item">
-             <div class="section-label row-between">
-                <span>Content <span class="required">*</span></span>
-                <div class="content-tools">
-                  <el-icon><MagicStick /></el-icon>
-                  <el-icon><FullScreen /></el-icon>
-                </div>
+             <div class="section-label">
+                <span>
+                  Content <span class="required">*</span>
+                  <el-tooltip content="支持引用变量" placement="top">
+                    <span class="variable-hint" v-pre>{{x}}</span>
+                  </el-tooltip>
+                </span>
              </div>
              <VariableInput 
                v-model="msg.content" 
@@ -228,14 +224,6 @@
         </div>
       </div>
 
-      <!-- Update Flow State -->
-      <div class="form-section">
-        <div class="section-label">Update Flow State <el-icon><InfoFilled /></el-icon></div>
-        <el-button class="add-btn" plain type="primary">
-          <el-icon><Plus /></el-icon> Add Update Flow State
-        </el-button>
-      </div>
-
     </div>
   </el-drawer>
 </template>
@@ -244,7 +232,7 @@
 import { ref, watch, computed, onMounted } from 'vue'
 import { 
   EditPen, Cpu, Setting, Plus, 
-  MagicStick, FullScreen, Tools, InfoFilled 
+  MagicStick, Tools, InfoFilled 
 } from '@element-plus/icons-vue'
 import { WorkflowAPI, type ModelInfo } from '@/api/workflow'
 import { AgentFlowAPI, type ToolInfo } from '@/api/agentFlow'
@@ -623,5 +611,13 @@ const removeKnowledge = () => {
 }
 :deep(.el-drawer__body) {
   padding: 0;
+}
+
+/* 变量引用标识 */
+.variable-hint {
+  color: #409eff;
+  font-size: 12px;
+  margin-left: 8px;
+  cursor: help;
 }
 </style>

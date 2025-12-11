@@ -2,6 +2,7 @@ package com.coding.agentflow.service.node;
 
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.core.model.model.KnowledgeVectorModel;
 import com.coding.graph.core.state.OverAllState;
 import com.coding.core.model.entity.KnowledgeVectorDO;
 import com.coding.core.repository.KnowledgeVectorRepository;
@@ -119,11 +120,11 @@ public class RetrieverNode extends AbstractNode {
             String embeddingStr = convertEmbeddingToString(queryEmbedding);
 
             // 3. 从每个知识库中检索相关文档
-            List<KnowledgeVectorDO> allRetrievedDocs = new ArrayList<>();
+            List<KnowledgeVectorModel> allRetrievedDocs = new ArrayList<>();
             for (String knowledgeBaseIdStr : knowledgeBaseIds) {
                 try {
                     Long knowledgeBaseId = Long.parseLong(knowledgeBaseIdStr);
-                    List<KnowledgeVectorDO> docs = knowledgeVectorRepository.similaritySearch(
+                    List<KnowledgeVectorModel> docs = knowledgeVectorRepository.similaritySearch(
                             knowledgeBaseId, embeddingStr, topK);
                     
                     if (docs != null && !docs.isEmpty()) {
@@ -142,8 +143,8 @@ public class RetrieverNode extends AbstractNode {
             }
 
             // 5. 按相似度排序并限制返回数量
-            List<KnowledgeVectorDO> topDocs = allRetrievedDocs.stream()
-                    .sorted(Comparator.comparing(KnowledgeVectorDO::getSimilarity).reversed())
+            List<KnowledgeVectorModel> topDocs = allRetrievedDocs.stream()
+                    .sorted(Comparator.comparing(KnowledgeVectorModel::getSimilarity).reversed())
                     .limit(topK)
                     .collect(Collectors.toList());
 
@@ -174,7 +175,7 @@ public class RetrieverNode extends AbstractNode {
     /**
      * 将KnowledgeVectorDO转换为Map格式
      */
-    private Map<String, Object> convertToDocumentMap(KnowledgeVectorDO doc) {
+    private Map<String, Object> convertToDocumentMap(KnowledgeVectorModel doc) {
         Map<String, Object> result = new HashMap<>();
         result.put("id", doc.getId());
         result.put("content", doc.getContent());

@@ -3,6 +3,7 @@ package com.coding.core.service.impl;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.coding.core.model.entity.KnowledgeVectorDO;
+import com.coding.core.model.model.KnowledgeVectorModel;
 import com.coding.core.model.request.KnowledgeVectorAddRequest;
 import com.coding.core.model.request.KnowledgeVectorPageRequest;
 import com.coding.core.model.request.KnowledgeVectorUpdateRequest;
@@ -194,7 +195,7 @@ public class KnowledgeVectorMgmtServiceImpl implements KnowledgeVectorMgmtServic
         String queryEmbedding = generateEmbedding(query);
         
         // 执行相似性搜索
-        List<KnowledgeVectorDO> vectors = knowledgeVectorRepository.similaritySearch(
+        List<KnowledgeVectorModel> vectors = knowledgeVectorRepository.similaritySearch(
                 knowledgeBaseId, queryEmbedding, topK);
         
         return vectors.stream()
@@ -265,6 +266,22 @@ public class KnowledgeVectorMgmtServiceImpl implements KnowledgeVectorMgmtServic
             log.error("生成向量嵌入失败: content length={}", content != null ? content.length() : 0, e);
             throw new RuntimeException("生成向量嵌入失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 转换为VO
+     */
+    private KnowledgeVectorVO convertToVO(KnowledgeVectorModel vector) {
+        return KnowledgeVectorVO.builder()
+                .id(vector.getId())
+                .knowledgeBaseId(vector.getKnowledgeBaseId())
+                .content(vector.getContent())
+                .metadata(vector.getMetadata())
+                .fileName(vector.getFileName())
+                .fileType(vector.getFileType())
+                .createTime(vector.getCreateTime())
+                .updateTime(vector.getUpdateTime())
+                .build();
     }
 
     /**

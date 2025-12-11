@@ -21,18 +21,21 @@
       <!-- Retriever Query -->
       <div class="form-section">
         <div class="section-label row-between">
-          <span>Retriever Query <span class="required">*</span></span>
+          <span>
+            Retriever Query <span class="required">*</span>
+            <el-tooltip content="支持引用变量" placement="top">
+              <span class="variable-hint" v-pre>{{x}}</span>
+            </el-tooltip>
+          </span>
           <div class="content-tools">
              <el-icon><Key /></el-icon>
              <el-icon><FullScreen /></el-icon>
           </div>
         </div>
-        <el-input 
+        <VariableInput 
           v-model="formData.query" 
-          type="textarea" 
-          :rows="4" 
-          resize="none"
-          placeholder="Enter your query here"
+          :variables="availableVariables"
+          class="retriever-query-input"
         />
       </div>
 
@@ -87,31 +90,29 @@
         </el-select>
       </div> -->
 
-      <!-- Update Flow State -->
-       <div class="form-section">
-        <div class="section-label">Update Flow State <el-icon><InfoFilled /></el-icon></div>
-        <el-button class="add-btn" plain type="primary">
-          <el-icon><Plus /></el-icon> Add Update Flow State
-        </el-button>
-      </div>
-
     </div>
   </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { 
-  EditPen, FullScreen, Key, Plus, InfoFilled
+  EditPen, FullScreen, Key
 } from '@element-plus/icons-vue'
 import { KnowledgeBaseAPI } from '@/api/knowledge'
 import type { KnowledgeBase } from '@/types/knowledge'
 import { WorkflowAPI, type ModelInfo } from '@/api/workflow'
+import VariableInput from '@/components/common/VariableInput.vue'
+import { useGraphVariables } from '@/composables/useGraphVariables'
 
 const props = defineProps<{
   modelValue: boolean
   node: any
 }>()
+
+// 获取当前节点可用的变量
+const currentNodeId = computed(() => props.node?.id || '')
+const { availableVariables } = useGraphVariables(currentNodeId)
 
 const emit = defineEmits(['update:modelValue', 'save'])
 
@@ -297,5 +298,19 @@ const handleClose = (done: () => void) => {
 }
 :deep(.el-drawer__body) {
   padding: 0;
+}
+
+/* 变量引用标识 */
+.variable-hint {
+  color: #409eff;
+  font-size: 12px;
+  margin-left: 8px;
+  cursor: help;
+}
+
+/* Variable Input 样式调整 */
+.retriever-query-input :deep(.variable-editor) {
+  min-height: 80px;
+  padding: 8px 12px;
 }
 </style>

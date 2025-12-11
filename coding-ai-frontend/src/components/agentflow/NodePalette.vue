@@ -72,7 +72,7 @@ const availableNodes = [
   {
     type: 'agent',
     label: 'Agent',
-    description: 'Dynamically choose and utilize tools during runtime, enabling multi-step reasoning',
+    description: '在运行时动态选择和使用工具',
     icon: 'Cpu',
     iconColor: '#4DD0E1',
     data: { theme: 'theme-cyan', color: '#22d3ee', icon: 'Cpu' }
@@ -80,7 +80,7 @@ const availableNodes = [
   {
     type: 'condition-basic', // Mapping to Condition
     label: 'Condition',
-    description: 'Split flows based on If Else conditions',
+    description: '基于条件选择某条路径执行',
     icon: 'Share', 
     iconColor: '#FFB938',
     data: { theme: 'theme-orange', color: '#f59e0b', icon: 'Connection' }
@@ -88,7 +88,7 @@ const availableNodes = [
   {
     type: 'condition-agent',
     label: 'Condition Agent',
-    description: 'Utilize an agent to split flows based on dynamic conditions',
+    description: '利用LLM根据场景智能选择某条路径',
     icon: 'Share',
     iconColor: '#ff8fab',
     data: { theme: 'theme-pink', color: '#fb7185', icon: 'Share' }
@@ -97,7 +97,7 @@ const availableNodes = [
   {
     type: 'reply',
     label: 'Direct Reply',
-    description: 'Directly reply to the user with a message',
+    description: '结束节点，直接回复用户请求',
     icon: 'ChatDotRound',
     iconColor: '#4DDBBB',
     data: { theme: 'theme-teal', color: '#2dd4bf', icon: 'ChatDotRound' }
@@ -107,7 +107,7 @@ const availableNodes = [
   {
     type: 'human',
     label: 'Human Input',
-    description: 'Request human input, approval or rejection during execution',
+    description: '在执行期间请求人工输入、批准或拒绝',
     icon: 'User',
     iconColor: '#6E6EFD',
     data: { theme: 'theme-purple', color: '#818cf8', icon: 'User' }
@@ -116,7 +116,7 @@ const availableNodes = [
   {
     type: 'llm',
     label: 'LLM',
-    description: 'Large language models to analyze user-provided inputs and generate responses',
+    description: '大型语言模型，文本补全',
     icon: 'MagicStick',
     iconColor: '#64B5F6',
     data: { theme: 'theme-blue', color: '#60a5fa', icon: 'MagicStick' }
@@ -125,7 +125,7 @@ const availableNodes = [
   {
     type: 'retriever',
     label: 'Retriever',
-    description: 'Retrieve information from vector database',
+    description: '从知识库中检索信息',
     icon: 'Files',
     iconColor: '#b8bedd',
     data: { theme: 'theme-slate', color: '#9ca3af', icon: 'Files' }
@@ -133,7 +133,7 @@ const availableNodes = [
   {
     type: 'start',
     label: 'Start',
-    description: 'Starting point of the agentflow',
+    description: '开始节点，表示流程的起点',
     icon: 'VideoPlay',
     iconColor: '#7EE787',
     data: { theme: 'theme-green', color: '#4ade80', icon: 'VideoPlay' }
@@ -142,7 +142,7 @@ const availableNodes = [
   {
     type: 'tool',
     label: 'Tool',
-    description: 'Tools allow LLM to interact with external systems',
+    description: '工具节点，调用的外部工具或服务',
     icon: 'Tools',
     iconColor: '#d4a373',
     data: { theme: 'theme-brown', color: '#d97706', icon: 'Tools' }

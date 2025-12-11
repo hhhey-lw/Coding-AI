@@ -1,4 +1,4 @@
-package com.coding.core.model.entity;
+package com.coding.core.model.model;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @TableName("knowledge_vector")
-public class KnowledgeVectorDO {
+public class KnowledgeVectorModel {
 
     /**
      * 主键ID（UUID）
@@ -64,10 +64,10 @@ public class KnowledgeVectorDO {
     @TableField("file_type")
     private String fileType;
 
-//    /**
-//     * 相似度评分
-//     */
-//    private Double similarity;
+    /**
+     * 相似度评分
+     */
+    private Double similarity;
 
     /**
      * 创建时间

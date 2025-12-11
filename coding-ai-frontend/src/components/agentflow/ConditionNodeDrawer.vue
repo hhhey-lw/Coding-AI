@@ -44,30 +44,47 @@
           <div v-if="branch.conditions && branch.conditions.length > 0">
              <!-- Left Value (Variable) -->
               <div class="param-item">
-                 <div class="section-label">Variable (Left) <span class="required">*</span></div>
-                 <el-input v-model="branch.conditions[0].leftValue" placeholder="e.g. {{ input }}" />
+                 <div class="section-label">
+                   Variable (Left) <span class="required">*</span>
+                   <el-tooltip content="支持引用变量" placement="top">
+                     <span class="variable-hint" v-pre>{{x}}</span>
+                   </el-tooltip>
+                 </div>
+                 <VariableInput 
+                   v-model="branch.conditions[0].leftValue" 
+                   :variables="availableVariables"
+                   class="condition-variable-input"
+                 />
               </div>
 
               <!-- Operator -->
               <div class="param-item">
                  <div class="section-label">Operator <span class="required">*</span></div>
-                 <el-select v-model="branch.conditions[0].operator" style="width: 100%">
-                   <el-option label="Equals (==)" value="EQ" />
-                   <el-option label="Not Equals (!=)" value="NEQ" />
-                   <el-option label="Greater Than (>)" value="GT" />
-                   <el-option label="Less Than (<)" value="LT" />
-                   <el-option label="Contains" value="CONTAINS" />
+                 <el-select v-model="branch.conditions[0].operator" style="width: 100%" @change="onOperatorChange(branch.conditions[0])">
+                   <el-option label="为空" value="IS_EMPTY" />
+                   <el-option label="不为空" value="NOT_EMPTY" />
+                   <el-option label="等于" value="EQUALS" />
+                   <el-option label="不等于" value="NOT_EQUALS" />
                  </el-select>
               </div>
 
-              <!-- Right Value -->
-              <div class="param-item">
-                 <div class="section-label">Value (Right) <span class="required">*</span></div>
-                 <el-input v-model="branch.conditions[0].rightValue" placeholder="Value to compare" />
+              <!-- Right Value (仅当操作符需要右值时显示) -->
+              <div class="param-item" v-if="!isUnaryOperator(branch.conditions[0].operator)">
+                 <div class="section-label">
+                   Value (Right) <span class="required">*</span>
+                   <el-tooltip content="支持引用变量" placement="top">
+                     <span class="variable-hint" v-pre>{{x}}</span>
+                   </el-tooltip>
+                 </div>
+                 <VariableInput 
+                   v-model="branch.conditions[0].rightValue" 
+                   :variables="availableVariables"
+                   class="condition-variable-input"
+                 />
               </div>
               
-              <!-- Right Type -->
-               <div class="param-item">
+              <!-- Right Type (仅当操作符需要右值时显示) -->
+               <div class="param-item" v-if="!isUnaryOperator(branch.conditions[0].operator)">
                  <div class="section-label">Value Type</div>
                  <el-select v-model="branch.conditions[0].rightType" style="width: 100%">
                    <el-option label="String" value="STRING" />
@@ -90,7 +107,7 @@
         <el-alert
           title="Default Branch (ELSE)"
           type="info"
-          description="If none of the above conditions are met, the flow will proceed to the ELSE branch."
+          description="如果以上条件都不满足，将执行该默认分支。"
           show-icon
           :closable="false"
         />
@@ -101,15 +118,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { 
   EditPen, Plus, Delete
 } from '@element-plus/icons-vue'
+import VariableInput from '@/components/common/VariableInput.vue'
+import { useGraphVariables } from '@/composables/useGraphVariables'
 
 const props = defineProps<{
   modelValue: boolean
   node: any
 }>()
+
+// 获取当前节点可用的变量
+const currentNodeId = computed(() => props.node?.id || '')
+const { availableVariables } = useGraphVariables(currentNodeId)
 
 const emit = defineEmits(['update:modelValue', 'save'])
 
@@ -124,11 +147,23 @@ const formData = ref({
       label: 'IF', 
       conditionLogic: 'AND',
       conditions: [
-        { leftValue: '', leftType: 'REF', operator: 'EQ', rightValue: '', rightType: 'STRING' }
+        { leftValue: '', leftType: 'REF', operator: 'EQUALS', rightValue: '', rightType: 'STRING' }
       ]
     } 
   ]
 })
+
+// 判断是否为一元操作符（不需要右值）
+const isUnaryOperator = (operator: string) => {
+  return operator === 'IS_EMPTY' || operator === 'NOT_EMPTY'
+}
+
+// 操作符变更时清空右值（如果是一元操作符）
+const onOperatorChange = (condition: any) => {
+  if (isUnaryOperator(condition.operator)) {
+    condition.rightValue = ''
+  }
+}
 
 // 监听 branches 变化，实时更新节点 outputs 和 data.branches
 watch(() => formData.value.branches, (newBranches) => {
@@ -168,7 +203,7 @@ const initFormData = () => {
                   label: 'IF', 
                   conditionLogic: 'AND',
                   conditions: [
-                    { leftValue: '', leftType: 'REF', operator: 'EQ', rightValue: '', rightType: 'STRING' }
+                    { leftValue: '', leftType: 'REF', operator: 'EQUALS', rightValue: '', rightType: 'STRING' }
                   ]
                 } 
             ]
@@ -205,7 +240,7 @@ const addBranch = () => {
     label: 'ELSE IF', 
     conditionLogic: 'AND',
     conditions: [
-        { leftValue: '', leftType: 'REF', operator: 'EQ', rightValue: '', rightType: 'STRING' }
+        { leftValue: '', leftType: 'REF', operator: 'EQUALS', rightValue: '', rightType: 'STRING' }
     ]
   })
 }
@@ -282,5 +317,19 @@ const removeBranch = (index: number) => {
 }
 :deep(.el-input__wrapper:hover) {
   box-shadow: 0 0 0 1px #374151 inset;
+}
+
+/* Variable Input 样式调整 */
+.condition-variable-input :deep(.variable-editor) {
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+/* 变量引用标识 */
+.variable-hint {
+  color: #409eff;
+  font-size: 12px;
+  margin-left: 8px;
+  cursor: help;
 }
 </style>

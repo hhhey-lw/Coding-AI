@@ -2,6 +2,7 @@ package com.coding.core.repository;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.coding.core.model.entity.KnowledgeVectorDO;
+import com.coding.core.model.model.KnowledgeVectorModel;
 import com.coding.core.model.request.KnowledgeVectorPageRequest;
 
 import java.util.List;
@@ -75,6 +76,6 @@ public interface KnowledgeVectorRepository {
      * @param topK 返回数量
      * @return 相似向量列表
      */
-    List<KnowledgeVectorDO> similaritySearch(Long knowledgeBaseId, String embedding, Integer topK);
+    List<KnowledgeVectorModel> similaritySearch(Long knowledgeBaseId, String embedding, Integer topK);
 }
 
