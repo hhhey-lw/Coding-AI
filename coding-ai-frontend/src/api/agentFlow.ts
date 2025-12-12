@@ -1,4 +1,4 @@
-import { post, get } from '@/utils/request'
+import { post, get, del } from '@/utils/request'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -9,6 +9,26 @@ export interface AgentFlowConfigRequest {
   status?: number
   nodes: any[]
   edges: any[]
+}
+
+export interface AgentFlowConfigResponse {
+  id: number
+  name: string
+  description?: string
+  nodes: any[]
+  edges: any[]
+  status: number
+  creatorId: number
+  createTime: string
+  updateTime: string
+}
+
+export interface AgentFlowPageResponse {
+  records: AgentFlowConfigResponse[]
+  total: number
+  size: number
+  current: number
+  pages: number
 }
 
 export interface ToolInfo {
@@ -26,6 +46,13 @@ export class AgentFlowAPI {
   }
 
   /**
+   * 分页查询 AgentFlow 列表
+   */
+  static async page(params: { current?: number; size?: number; name?: string }) {
+    return get<AgentFlowPageResponse>('/agent-flow/page', params)
+  }
+
+  /**
    * 保存或更新 AgentFlow
    */
   static async saveAgentFlow(data: AgentFlowConfigRequest) {
@@ -36,7 +63,14 @@ export class AgentFlowAPI {
    * 根据ID查询 AgentFlow
    */
   static async getAgentFlow(id: number | string) {
-    return get<AgentFlowConfigRequest>(`/agent-flow/${id}`)
+    return get<AgentFlowConfigResponse>(`/agent-flow/${id}`)
+  }
+
+  /**
+   * 删除 AgentFlow
+   */
+  static async deleteAgentFlow(id: number | string) {
+    return del<boolean>(`/agent-flow/${id}`)
   }
 
   /**

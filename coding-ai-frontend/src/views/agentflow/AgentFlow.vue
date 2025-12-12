@@ -3,24 +3,37 @@
     <!-- 顶部导航栏 -->
     <header class="flow-header">
       <div class="header-left">
-        <div class="back-btn">
+        <div class="back-btn" @click="handleBack">
           <el-icon><ArrowLeft /></el-icon>
         </div>
         <div class="flow-title">
-          <span>测试</span>
-          <el-icon class="edit-icon"><EditPen /></el-icon>
+          <span v-if="!isEditingName" @click="startEditName">{{ flowName }}</span>
+          <el-input
+            v-else
+            v-model="flowName"
+            size="small"
+            style="width: 200px"
+            @blur="finishEditName"
+            @keyup.enter="finishEditName"
+            ref="nameInputRef"
+          />
+          <el-icon v-if="!isEditingName" class="edit-icon" @click="startEditName"><EditPen /></el-icon>
         </div>
       </div>
       <div class="header-right">
-        <el-button class="icon-btn" text circle @click="clearCanvas" title="Clear Canvas">
-          <el-icon><Delete /></el-icon>
-        </el-button>
-        <el-button class="icon-btn" text circle @click="saveGraph" title="Save">
-          <el-icon><FolderChecked /></el-icon>
-        </el-button>
-        <el-button class="icon-btn" text circle>
+        <el-tooltip content="清除画布内容" placement="bottom" effect="light">
+          <el-button class="icon-btn clear-btn" text circle @click="clearCanvas">
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </el-tooltip>
+        <el-tooltip content="保存" placement="bottom" effect="light">
+          <el-button class="icon-btn save-btn" text circle @click="saveGraph">
+            <el-icon><FolderChecked /></el-icon>
+          </el-button>
+        </el-tooltip>
+        <!-- <el-button class="icon-btn" text circle>
           <el-icon><Setting /></el-icon>
-        </el-button>
+        </el-button> -->
       </div>
     </header>
 
@@ -40,7 +53,7 @@
 
       <!-- 右上角操作区 -->
       <div class="floating-actions">
-        <el-button circle class="action-btn" color="#6200ee" style="color: white" @click="toggleChat">
+        <el-button circle class="action-btn chat-btn" @click="toggleChat" title="聊天">
           <el-icon><ChatDotRound /></el-icon>
         </el-button>
       </div>
@@ -345,8 +358,47 @@ const route = useRoute()
 const router = useRouter()
 
 // 状态变量
-const flowId = ref<number | string | null>(route.params.id ? String(route.params.id) : null)
+const flowId = ref<number | string | null>(route.query.id ? String(route.query.id) : null)
 const flowName = ref('Agent Flow Configuration')
+const isLoading = ref(false)
+const isEditingName = ref(false)
+const nameInputRef = ref<HTMLInputElement | null>(null)
+
+// 返回首页智能体页面
+const handleBack = () => {
+  router.push({ path: '/', query: { tab: 'agent' } })
+}
+
+// 开始编辑名称
+const startEditName = () => {
+  isEditingName.value = true
+  nextTick(() => {
+    nameInputRef.value?.focus()
+  })
+}
+
+// 完成编辑名称
+const finishEditName = async () => {
+  isEditingName.value = false
+  if (!flowName.value.trim()) {
+    flowName.value = 'Agent Flow Configuration'
+  }
+  
+  // 如果有 flowId，调用接口保存名称
+  if (flowId.value) {
+    try {
+      const flowData = exportWorkflowData()
+      flowData.id = flowId.value
+      const res = await AgentFlowAPI.saveAgentFlow(flowData as any)
+      if (res && res.data) {
+        ElMessage.success('名称已保存')
+      }
+    } catch (error) {
+      console.error('保存名称失败:', error)
+      ElMessage.error('保存名称失败')
+    }
+  }
+}
 
 // 工具执行状态
 interface ToolExecution {
@@ -456,7 +508,7 @@ const exportWorkflowData = () => {
   
   // 转换为后端需要的格式
   const backendRequest = {
-    name: 'Agent Flow Configuration',
+    name: flowName.value,
     description: 'Created from Frontend',
     status: 1, // 启用
     nodes: flowData.nodes.map((node: Node) => {
@@ -1011,8 +1063,148 @@ const getHandlePosition = (index: number, total: number) => {
   return step * (index + 1)
 }
 
-// 初始节点数据 (模拟截图)
+// 初始节点数据
 const elements = ref<(Node | Edge)[]>([])
+
+// 节点类型到前端配置的映射
+const nodeTypeConfig: Record<string, any> = {
+  START: { icon: 'VideoPlay', color: '#67c23a', theme: 'green', type: 'start' },
+  END: { icon: 'CircleCheckFilled', color: '#909399', theme: 'gray', type: 'reply' },
+  AGENT: { icon: 'Cpu', color: '#409eff', theme: 'blue', type: 'agent' },
+  LLM: { icon: 'ChatDotRound', color: '#409eff', theme: 'blue', type: 'llm' },
+  CONDITION: { icon: 'Share', color: '#e6a23c', theme: 'orange', type: 'condition-basic' },
+  CONDITION_AGENT: { icon: 'MagicStick', color: '#e6a23c', theme: 'orange', type: 'condition-agent' },
+  HUMAN_INPUT: { icon: 'User', color: '#f56c6c', theme: 'red', type: 'human' },
+  RETRIEVER: { icon: 'Files', color: '#67c23a', theme: 'green', type: 'retriever' },
+  TOOL: { icon: 'Tools', color: '#909399', theme: 'gray', type: 'tool' }
+}
+
+// 从后端数据转换为前端节点
+const convertBackendNodeToFrontend = (backendNode: any): Node => {
+  const config = nodeTypeConfig[backendNode.type] || { icon: 'Cpu', color: '#409eff', theme: 'blue', type: 'custom' }
+  const configParams = backendNode.configParams || {}
+  
+  // 构建前端 data 对象
+  const data: any = {
+    label: backendNode.label,
+    type: config.type,
+    icon: config.icon,
+    color: config.color,
+    theme: config.theme,
+    inputs: backendNode.type !== 'START',
+    outputs: [{ id: 'output', label: 'output' }]
+  }
+  
+  // 根据节点类型映射配置参数
+  if (config.type === 'agent') {
+    data.modelName = configParams.model || configParams.chatModel
+    data.temperature = configParams.temperature
+    data.streaming = configParams.stream
+    data.messages = configParams.messages
+    data.tools = configParams.tools?.map((t: string) => ({ name: t })) || []
+    data.enableMemory = configParams.enableMemory
+    data.knowledgeBaseIds = configParams.knowledgeBaseIds
+    data.topK = configParams.topK
+    data.embeddingModel = configParams.embeddingModel
+    data.hasKnowledge = configParams.hasKnowledge
+  } else if (config.type === 'llm') {
+    data.modelName = configParams.model
+    data.temperature = configParams.temperature
+    data.streaming = configParams.stream
+    data.messages = configParams.messages
+    data.enableMemory = configParams.enableMemory
+    data.embeddingModel = configParams.embeddingModel
+  } else if (config.type === 'condition-agent') {
+    data.modelName = configParams.modelName
+    data.input = configParams.input
+    data.scenarios = configParams.scenarios || []
+    data.sceneDescriptions = configParams.sceneDescriptions || []
+    // 多输出桩
+    data.outputs = (configParams.scenarios || []).map((s: string, i: number) => ({
+      id: String(i),
+      label: s
+    }))
+  } else if (config.type === 'human') {
+    data.inputPrompt = configParams.inputPrompt
+    data.enableFeedback = configParams.enableFeedback
+  } else if (config.type === 'condition-basic') {
+    // 过滤掉 ELSE 分支（前端会自动添加）
+    data.branches = (configParams.branches || []).filter((b: any) => b.label !== 'ELSE')
+    // 多输出桩
+    const outputs = data.branches.map((b: any) => ({
+      id: b.id,
+      label: b.label
+    }))
+    outputs.push({ id: 'else', label: 'ELSE' })
+    data.outputs = outputs
+  } else if (config.type === 'retriever') {
+    data.query = configParams.query
+    data.topK = configParams.topK
+    data.knowledgeBaseIds = configParams.knowledgeBaseId
+    data.embeddingModel = configParams.embeddingModel
+  } else if (config.type === 'tool') {
+    data.tool = configParams.toolName
+    data.params = configParams.toolParams
+  } else if (config.type === 'reply') {
+    data.message = configParams.finalResult
+  } else if (config.type === 'start') {
+    // 将 configParams 转换为 flowState 数组
+    data.flowState = Object.entries(configParams)
+      .filter(([key]) => key !== 'persistState')
+      .map(([key, value]) => ({ key, value }))
+    data.persistState = configParams.persistState
+    data.inputs = false
+  }
+  
+  return {
+    id: backendNode.id,
+    type: 'custom',
+    label: backendNode.label,
+    position: backendNode.position || { x: 0, y: 0 },
+    data
+  }
+}
+
+// 从后端加载流程数据
+const loadFlowData = async () => {
+  if (!flowId.value) return
+  
+  isLoading.value = true
+  try {
+    const response = await AgentFlowAPI.getAgentFlow(flowId.value)
+    if (response.code === 1 && response.data) {
+      const flowData = response.data
+      flowName.value = flowData.name || 'Agent Flow'
+      
+      // 转换节点
+      const nodes: Node[] = (flowData.nodes || []).map(convertBackendNodeToFrontend)
+      
+      // 转换边
+      const edges: Edge[] = (flowData.edges || []).map((e: any) => ({
+        id: e.id,
+        source: e.source,
+        sourceHandle: e.sourceHandle,
+        target: e.target,
+        targetHandle: e.targetHandle
+      }))
+      
+      elements.value = [...nodes, ...edges]
+      console.log('加载流程数据成功:', elements.value)
+    }
+  } catch (error) {
+    console.error('加载流程数据失败:', error)
+    ElMessage.error('加载流程数据失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 组件挂载时加载数据
+onMounted(() => {
+  if (flowId.value) {
+    loadFlowData()
+  }
+})
 </script>
 
 <style scoped>
@@ -1037,17 +1229,64 @@ const elements = ref<(Node | Edge)[]>([])
 }
 
 .header-right .el-button {
-  color: black; /* Make header icons white */
-  background-color: #ffffff;
+  color: white;
+  background-color: rgb(94, 53, 177);
 }
 .header-right .el-button:hover {
   transform: scale(1.1);
+  background-color: rgb(120, 80, 200);
+}
+
+.header-right .clear-btn {
+  color: white !important;
+  background-color: #f44336 !important;
+  border-color: #f44336 !important;
+}
+.header-right .clear-btn:hover {
+  transform: scale(1.1);
+  background-color: white !important;
+  border-color: white !important;
+  color: #333 !important;
+}
+
+.header-right .save-btn {
+  color: #333 !important;
+  background-color: rgb(237, 231, 246) !important;
+  border-color: rgb(237, 231, 246) !important;
+}
+.header-right .save-btn:hover {
+  transform: scale(1.1);
+  background-color: white !important;
+  border-color: white !important;
+  color: #333 !important;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.back-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: #e8e8e0;
+  transform: scale(1.05);
+}
+
+.back-btn .el-icon {
+  font-size: 18px;
+  color: #333;
 }
 
 .flow-title {
@@ -1105,6 +1344,17 @@ const elements = ref<(Node | Edge)[]>([])
   z-index: 10;
   display: flex;
   gap: 12px;
+}
+
+.chat-btn {
+  background: #f5f5e8 !important;
+  border-color: #e8e8d8 !important;
+  color: #333 !important;
+}
+
+.chat-btn:hover {
+  background: #e8e8d8 !important;
+  transform: scale(1.05);
 }
 
 /* Custom Node Card Styles */
@@ -1363,7 +1613,7 @@ const elements = ref<(Node | Edge)[]>([])
 
 .chat-header {
   height: 50px;
-  background: #6200ee;
+  background: #7c4dff;
   color: white;
   display: flex;
   align-items: center;
@@ -1375,13 +1625,21 @@ const elements = ref<(Node | Edge)[]>([])
 .header-icon,
 .close-icon {
   cursor: pointer;
-  padding: 4px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
   border-radius: 50%;
   margin-left: 8px;
+  background: white;
+  color: #000;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .header-icon:hover,
 .close-icon:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: #f0f0f0;
 }
 
 .chat-messages {

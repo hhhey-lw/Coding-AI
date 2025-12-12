@@ -1,9 +1,9 @@
 package com.coding.agentflow.service.node;
 
-import cn.hutool.json.JSONUtil;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
 import com.coding.graph.core.state.OverAllState;
+import com.coding.workflow.utils.AssertUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -34,6 +34,9 @@ public class ConditionAgentNode extends AbstractNode {
     protected Map<String, Object> doExecute(Node node, OverAllState state) {
         // 获取配置参数
         String modelName = getConfigParamAsString(node, "modelName");
+        String userPrompt = getConfigParamAsString(node, "input");
+        userPrompt = replaceTemplateWithVariable(userPrompt, state);
+
         // 需要一致的顺序
         List<String> scenarios = getConfigParamAsList(node, "scenarios");
         List<String> sceneDescriptions = getConfigParamAsList(node, "sceneDescriptions");
@@ -41,7 +44,7 @@ public class ConditionAgentNode extends AbstractNode {
         log.info("执行条件Agent节点，模型: {}, 场景数量: {}", modelName, scenarios.size());
 
         // 使用Agent进行智能条件判断
-        String selectedScene = evaluateConditionWithAgent(modelName, scenarios, sceneDescriptions);
+        String selectedScene = evaluateConditionWithAgent(userPrompt, modelName, scenarios, sceneDescriptions);
 
         log.info("条件Agent节点选择的场景: {}", selectedScene);
 
@@ -54,12 +57,13 @@ public class ConditionAgentNode extends AbstractNode {
      * 2. 调用LLM让Agent分析并选择最合适的场景
      * 3. 验证返回的场景是否在候选列表中，否则抛异常
      *
+     * @param userPrompt        用户输入
      * @param modelName         模型名称
      * @param scenarios         场景列表
      * @param sceneDescriptions 场景描述
      * @return 选中的场景
      */
-    private String evaluateConditionWithAgent(String modelName, List<String> scenarios, List<String> sceneDescriptions) {
+    private String evaluateConditionWithAgent(String userPrompt, String modelName, List<String> scenarios, List<String> sceneDescriptions) {
         if (scenarios == null || scenarios.isEmpty()) {
             throw new IllegalArgumentException("场景列表不能为空");
         }
@@ -81,12 +85,11 @@ public class ConditionAgentNode extends AbstractNode {
         }
         String scenarioList = scenarioListBuilder.toString();
 
-        String userPrompt = "从以下场景列表中选择最合适的一个场景。\n\n" +
+        // 构建系统提示词
+        String finalSystemPrompt = "你是一个智能路由助手，擅长根据上下文信息选择最合适的场景。你必须从给定的场景列表中选择一个，并且只返回场景名称，不要有任何其他内容。" +
+                "根据用户的输入，从以下场景列表中选择最合适的一个场景。\n\n" +
                 "可选场景列表：\n" + scenarioList + "\n" +
                 "请仔细分析场景描述，选择最匹配的场景。你的回答必须是场景名称（不包括描述），不要添加任何解释或其他内容，只返回场景名称。";
-
-        // 构建系统提示词
-        String finalSystemPrompt = "你是一个智能路由助手，擅长根据上下文信息选择最合适的场景。你必须从给定的场景列表中选择一个，并且只返回场景名称，不要有任何其他内容。";
 
         // 调用LLM进行场景选择
         ChatClient chatClient = ChatClient.builder(chatModel).build();
@@ -147,11 +150,27 @@ public class ConditionAgentNode extends AbstractNode {
 
     /**
      * 获取选择的场景标签
+     * 支持命名空间格式：nodeId.selectedScene
      *
-     * @param context
-     * @return
+     * @param nodeId  节点ID，用于精确查找命名空间 key
+     * @param context 节点执行返回的上下文（已包装为命名空间格式）
+     * @return 选择的场景标签
      */
-    public String getSelectedLabel(Map<String, Object> context) {
-        return context.get(SELECTED_SCENE).toString();
+    public String getSelectedLabel(String nodeId, Map<String, Object> context) {
+        AssertUtil.isNotNull(context, "Condition Agent节点上下文不能为空");
+        AssertUtil.isNotBlank(nodeId, "节点ID不能为空");
+        
+        // 精确查找命名空间格式的 key：nodeId.selectedScene
+        String namespacedKey = nodeId + "." + SELECTED_SCENE;
+        if (context.containsKey(namespacedKey)) {
+            return context.get(namespacedKey).toString();
+        }
+        
+        // 向后兼容：直接获取
+        if (context.containsKey(SELECTED_SCENE)) {
+            return context.get(SELECTED_SCENE).toString();
+        }
+        
+        throw new IllegalStateException("未找到 selectedScene，nodeId: " + nodeId + ", context keys: " + context.keySet());
     }
 }

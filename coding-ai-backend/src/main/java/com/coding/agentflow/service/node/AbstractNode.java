@@ -46,7 +46,35 @@ public abstract class AbstractNode implements NodeExecutor {
         long executionTime = System.currentTimeMillis() - startTime;
         log.info("节点执行完成: {} (耗时: {}ms)", node.getId(), executionTime);
 
-        return result;
+        // 将结果转换为命名空间格式，避免 key 冲突
+        return wrapResultWithNamespace(node.getId(), result);
+    }
+
+    /**
+     * 将节点返回的结果包装为命名空间格式
+     * 例如：{"output": "xxx"} -> {"nodeId.output": "xxx"}
+     * 
+     * @param nodeId 节点ID
+     * @param result 原始结果
+     * @return 带命名空间的结果
+     */
+    private Map<String, Object> wrapResultWithNamespace(String nodeId, Map<String, Object> result) {
+        if (result == null || result.isEmpty()) {
+            return result;
+        }
+
+        Map<String, Object> namespacedResult = new HashMap<>();
+        for (Map.Entry<String, Object> entry : result.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            
+            // 添加 nodeId 前缀，格式：nodeId.key
+            String namespacedKey = nodeId + "." + key;
+            namespacedResult.put(namespacedKey, value);
+        }
+        
+        log.debug("节点 {} 结果已转换为命名空间格式，keys: {}", nodeId, namespacedResult.keySet());
+        return namespacedResult;
     }
 
     /**
@@ -347,20 +375,42 @@ public abstract class AbstractNode implements NodeExecutor {
 
     /**
      * 解析变量值
+     * 支持两种格式：
+     * 1. {{nodeId.key}} - 命名空间格式，从特定节点获取值
+     * 2. {{key}} - 全局格式，直接从 state 获取（向后兼容）
      */
     private String resolveVariableValue(String variableName, OverAllState state) {
-        if (!state.data().containsKey(variableName)) {
-            log.warn("未找到变量值: {}", variableName);
+        // 直接查找（支持命名空间格式 nodeId.key）
+        if (state.data().containsKey(variableName)) {
+            Object value = state.data().get(variableName);
+            if (value == null) {
+                log.debug("变量值为null: {}", variableName);
+                return "";
+            }
+            return value.toString();
+        }
+
+        // 如果是命名空间格式但未找到，记录警告
+        if (variableName.contains(".")) {
+            log.warn("未找到命名空间变量: {}", variableName);
             return "{{" + variableName + "}}";
         }
 
-        Object value = state.data().get(variableName);
-        if (value == null) {
-            log.debug("变量值为null: {}", variableName);
-            return "";
+        // 向后兼容：尝试在所有命名空间中查找该 key
+        // 例如：{{output}} 可能匹配 llm-1.output
+        for (Map.Entry<String, Object> entry : state.data().entrySet()) {
+            String stateKey = entry.getKey();
+            if (stateKey.endsWith("." + variableName)) {
+                Object value = entry.getValue();
+                if (value != null) {
+                    log.debug("变量 {} 匹配到命名空间 key: {}", variableName, stateKey);
+                    return value.toString();
+                }
+            }
         }
 
-        return value.toString();
+        log.warn("未找到变量值: {}", variableName);
+        return "{{" + variableName + "}}";
     }
 
 }

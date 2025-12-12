@@ -12,11 +12,18 @@
           探索
         </el-button>
         <el-button
+          :class="{ active: currentTab === 'agent' }"
+          @click="currentTab = 'agent'"
+          text
+        >
+          智能体
+        </el-button>
+        <el-button
           :class="{ active: currentTab === 'workbench' }"
           @click="currentTab = 'workbench'"
           text
         >
-          工作台
+          工作流
         </el-button>
         <el-button
           :class="{ active: currentTab === 'knowledge' }"
@@ -100,6 +107,79 @@
                 <span class="feature-tag">进度追踪</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        </div>
+
+      <!-- 智能体 -->
+      <div v-show="currentTab === 'agent'" class="tab-content">
+        <div class="agent-header">
+          <h2>Agent Flow 设计</h2>
+          <el-button type="primary" @click="handleCreateAgentFlow">
+            <el-icon><Plus /></el-icon>
+            新建
+          </el-button>
+        </div>
+        <p class="agent-subtitle">可视化设计智能工作流，连接多个节点构建复杂的 AI 应用</p>
+
+        <div v-loading="agentFlowLoading" class="agentflow-list">
+          <div v-if="agentFlowList.length === 0" class="agentflow-empty">
+            <el-icon :size="60" color="#c0c4cc"><Share /></el-icon>
+            <p>暂无 Agent Flow，点击"新建"开始创建</p>
+          </div>
+
+          <div v-else class="agentflow-grid">
+            <div
+              v-for="flow in agentFlowList"
+              :key="flow.id"
+              class="agentflow-card"
+              @click="handleOpenAgentFlow(flow)"
+            >
+              <div class="agentflow-card-header">
+                <div class="agentflow-icon">
+                  <el-icon :size="20" color="#e6a23c"><Share /></el-icon>
+                </div>
+                <h4>{{ flow.name }}</h4>
+                <el-dropdown trigger="click" @command="(cmd: string) => cmd === 'delete' && handleDeleteAgentFlow(flow)">
+                  <el-icon class="card-action-icon" @click.stop><MoreFilled /></el-icon>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="delete">
+                        <el-icon><Delete /></el-icon>
+                        删除
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+              <p class="agentflow-desc">{{ flow.description || '暂无描述' }}</p>
+              <div class="agentflow-meta">
+                <span class="meta-item">
+                  <el-icon><Clock /></el-icon>
+                  {{ formatTime(flow.updateTime) }}
+                </span>
+                <el-tag :type="flow.status === 1 ? 'success' : 'info'" size="small" effect="plain">
+                  {{ flow.status === 1 ? '启用' : '草稿' }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分页 -->
+          <div v-if="agentFlowList.length > 0" class="pagination-wrapper">
+            <div class="pagination-info">
+              <span>共 {{ agentFlowTotal }} 个智能体</span>
+            </div>
+            <el-pagination
+              v-model:current-page="agentFlowCurrentPage"
+              :page-size="agentFlowPageSize"
+              :total="agentFlowTotal"
+              :pager-count="5"
+              layout="prev, pager, next, jumper"
+              background
+              @current-change="loadAgentFlowList"
+            />
           </div>
         </div>
       </div>
@@ -372,19 +452,28 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive, type FormInstance } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { AuthAPI } from '@/api/auth'
 import WorkflowAPI, { type WorkflowConfigVO } from '@/api/workflow'
 import { KnowledgeBaseAPI } from '@/api/knowledge'
+import { AgentFlowAPI, type AgentFlowConfigResponse } from '@/api/agentFlow'
 import type { KnowledgeBase, KnowledgeBaseAddRequest, KnowledgeBaseUpdateRequest } from '@/types/knowledge'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
-// 响应式数据
-const currentTab = ref('explore')
+// 响应式数据 - 根据 URL query 参数设置初始标签
+const getInitialTab = () => {
+  const tab = route.query.tab as string
+  if (tab && ['explore', 'agent', 'workbench', 'knowledge'].includes(tab)) {
+    return tab
+  }
+  return 'explore'
+}
+const currentTab = ref(getInitialTab())
 const showAccountDialog = ref(false)
 const loading = ref(false)
 const searchKeyword = ref('')
@@ -402,6 +491,13 @@ const knowledgeTotal = ref(0)
 const knowledgeSearchForm = reactive({
   name: ''
 })
+
+// Agent Flow 相关
+const agentFlowLoading = ref(false)
+const agentFlowList = ref<AgentFlowConfigResponse[]>([])
+const agentFlowCurrentPage = ref(1)
+const agentFlowPageSize = ref(15)
+const agentFlowTotal = ref(0)
 
 // 知识库对话框
 const knowledgeBaseDialogVisible = ref(false)
@@ -540,6 +636,69 @@ const handleOpenAgent = (type: string) => {
     path: '/chat',
     query: { model: type }
   })
+}
+
+// ========== Agent Flow 管理 ==========
+
+// 加载 Agent Flow 列表
+const loadAgentFlowList = async () => {
+  agentFlowLoading.value = true
+  try {
+    const response = await AgentFlowAPI.page({ 
+      current: agentFlowCurrentPage.value, 
+      size: agentFlowPageSize.value 
+    })
+    if (response.code === 1 && response.data) {
+      agentFlowList.value = response.data.records || []
+      agentFlowTotal.value = Number(response.data.total) || 0
+    }
+  } catch (error) {
+    console.error('加载 Agent Flow 列表失败:', error)
+  } finally {
+    agentFlowLoading.value = false
+  }
+}
+
+// 新建 Agent Flow
+const handleCreateAgentFlow = () => {
+  router.push('/agentflow')
+}
+
+// 打开 Agent Flow
+const handleOpenAgentFlow = (flow: AgentFlowConfigResponse) => {
+  router.push({
+    path: '/agentflow',
+    query: { id: flow.id }
+  })
+}
+
+// 删除 Agent Flow
+const handleDeleteAgentFlow = async (flow: AgentFlowConfigResponse) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除 "${flow.name}" 吗？删除后将无法恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const response = await AgentFlowAPI.deleteAgentFlow(flow.id)
+    if (response.code === 1 || response.data === true) {
+      ElMessage.success('删除成功')
+      // 重新加载列表
+      await loadAgentFlowList()
+    } else {
+      ElMessage.error(response.message || '删除失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('删除 Agent Flow 失败:', error)
+      ElMessage.error('删除失败')
+    }
+  }
 }
 
 // 处理卡片操作
@@ -695,15 +854,25 @@ watch(currentTab, (newTab) => {
   if (newTab === 'workbench' && workflowList.value.length === 0) {
     loadWorkflowList()
   }
-  if (newTab === 'knowledge' && knowledgeBaseList.value.length === 0) {
+  if (newTab === 'knowledge') {
+    // 每次切换到知识库都重新加载数据
     loadKnowledgeBaseList()
+  }
+  if (newTab === 'agent' && agentFlowList.value.length === 0) {
+    loadAgentFlowList()
   }
 })
 
-// 组件挂载时，如果默认是工作台则加载数据
+// 组件挂载时加载数据
 onMounted(() => {
   if (currentTab.value === 'workbench') {
     loadWorkflowList()
+  }
+  if (currentTab.value === 'agent') {
+    loadAgentFlowList()
+  }
+  if (currentTab.value === 'knowledge') {
+    loadKnowledgeBaseList()
   }
 })
 </script>
@@ -906,6 +1075,136 @@ onMounted(() => {
   border-color: #409eff;
 }
 
+/* 智能体标签页 */
+.agent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.agent-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.agent-subtitle {
+  margin: 0 0 24px 0;
+  font-size: 14px;
+  color: #909399;
+}
+
+.agentflow-list {
+  min-height: 400px;
+}
+
+.agentflow-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #909399;
+}
+
+.agentflow-empty p {
+  margin: 12px 0 0 0;
+  font-size: 14px;
+}
+
+.agentflow-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.agentflow-card {
+  background: white;
+  border: 1px solid #e4e7ed;
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.agentflow-card:hover {
+  border-color: #e6a23c;
+  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.15);
+  transform: translateY(-2px);
+}
+
+.agentflow-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.agentflow-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fdf6ec 0%, #faecd8 100%);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.agentflow-card-header h4 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentflow-card:hover .agentflow-card-header h4 {
+  color: #e6a23c;
+}
+
+.card-action-icon {
+  font-size: 18px;
+  color: #909399;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.card-action-icon:hover {
+  color: #303133;
+  background: #f5f7fa;
+}
+
+.agentflow-desc {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-height: 39px;
+}
+
+.agentflow-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #909399;
+}
+
 /* 工作台 */
 .workbench-header {
   display: flex;
@@ -1034,7 +1333,6 @@ onMounted(() => {
   justify-content: center;
   gap: 20px;
   padding: 12px 24px;
-  max-width: 600px;
   background: white;
   border: 1px solid #e4e7ed;
   border-radius: 12px;

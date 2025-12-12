@@ -55,11 +55,12 @@ export function useGraphVariables(currentNodeId: string | Ref<string>) {
     const vars: VariableOption[] = []
 
     predecessors.value.forEach(node => {
-      const type = node.type
+      // AgentFlow 中所有节点的 node.type 都是 'custom'，实际类型存储在 node.data.type
+      const type = node.data?.type || node.type
       const id = node.id
       const label = node.label || node.data?.label || id
 
-      // 1. Start Node
+      // 1. Start Node - 使用命名空间格式 {{nodeId.key}}
       if (type === 'start' || id.startsWith('start')) {
          const flowState = node.data?.flowState || []
          const hasMessages = flowState.some((s: any) => s.key === 'messages')
@@ -68,7 +69,7 @@ export function useGraphVariables(currentNodeId: string | Ref<string>) {
              if (state.key) {
                  vars.push({
                      label: `Start: ${state.key}`,
-                     value: `{{${state.key}}}`,
+                     value: `{{${id}.${state.key}}}`,
                      type: 'state',
                      nodeId: id,
                      nodeType: type
@@ -79,28 +80,28 @@ export function useGraphVariables(currentNodeId: string | Ref<string>) {
          if (!hasMessages) {
              vars.push({
                  label: `Start: messages`,
-                 value: `{{messages}}`,
+                 value: `{{${id}.messages}}`,
                  type: 'state',
                  nodeId: id,
                  nodeType: type
              })
          }
       }
-      // 2. LLM / Agent Node
+      // 2. LLM / Agent Node - 使用命名空间格式 {{nodeId.output}}
       else if (type === 'llm' || type === 'agent' || id.startsWith('llm') || id.startsWith('agent')) {
           vars.push({
               label: `${label} (Output)`,
-              value: `{{${id}}}`,
+              value: `{{${id}.output}}`,
               type: 'string',
               nodeId: id,
               nodeType: type
           })
       }
-      // 3. Direct Reply (Usually doesn't have output to reference, but logic says predecessor)
+      // 3. Direct Reply / End Node
       else if (type === 'reply' || type === 'end') {
            vars.push({
               label: `${label} (Output)`,
-              value: `{{${id}}}`,
+              value: `{{${id}.finalResult}}`,
               type: 'string',
               nodeId: id,
               nodeType: type
@@ -109,8 +110,8 @@ export function useGraphVariables(currentNodeId: string | Ref<string>) {
       // 4. Human Input
       else if (type === 'human') {
            vars.push({
-              label: `${label} (Output)`,
-              value: `{{${id}}}`,
+              label: `${label} (Input)`,
+              value: `{{${id}.humanInput}}`,
               type: 'string',
               nodeId: id,
               nodeType: type
@@ -119,8 +120,8 @@ export function useGraphVariables(currentNodeId: string | Ref<string>) {
       // 5. Retriever
       else if (type === 'retriever') {
            vars.push({
-              label: `${label} (List<String>)`,
-              value: `{{${id}}}`,
+              label: `${label} (Documents)`,
+              value: `{{${id}.documents}}`,
               type: 'list',
               nodeId: id,
               nodeType: type
@@ -129,8 +130,8 @@ export function useGraphVariables(currentNodeId: string | Ref<string>) {
       // 6. Tool
       else if (type === 'tool') {
            vars.push({
-              label: `${label} (Output)`,
-              value: `{{${id}}}`,
+              label: `${label} (Result)`,
+              value: `{{${id}.toolResult}}`,
               type: 'string',
               nodeId: id,
               nodeType: type

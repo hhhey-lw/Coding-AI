@@ -170,9 +170,9 @@ public class LlmNode extends AbstractNode {
                     Map<String, Object> usage = extractUsage(response.getMetadata());
                     
                     Map<String, Object> finalResult = new HashMap<>();
-                    finalResult.put("model", model);
-                    finalResult.put("output", output);
-                    finalResult.put("usage", usage);
+                    finalResult.put(node.getId() + ".model", model);
+                    finalResult.put(node.getId() + ".output", output);
+                    finalResult.put(node.getId() + ".usage", usage);
                     return finalResult;
                 })
                 .build(chatResponseFlux);

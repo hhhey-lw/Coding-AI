@@ -849,14 +849,9 @@ const handleParamImageUpload = async (file: any, paramKey: string) => {
   }
 }
 
-// 返回上一层
+// 返回工作台页面
 const handleBack = () => {
-  console.log('点击返回按钮')
-  router.push('/').then(() => {
-    console.log('路由跳转完成')
-  }).catch(err => {
-    console.error('路由跳转失败:', err)
-  })
+  router.push({ path: '/', query: { tab: 'workbench' } })
 }
 
 // 根据ID加载工作流

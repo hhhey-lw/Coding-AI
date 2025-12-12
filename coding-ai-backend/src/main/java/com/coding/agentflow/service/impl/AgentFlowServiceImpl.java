@@ -113,7 +113,9 @@ public class AgentFlowServiceImpl implements AgentFlowService {
 
                                 if (NodeTypeEnum.CONDITION_AGENT.equals(sourceNode.getType())) {
                                     // 利用条件Agent节点进行智能评估
-                                    return conditionAgentNode.getSelectedLabel(conditionAgentNode.execute(nodeMap.get(sourceId), state));
+                                    String selectedLabel = conditionAgentNode.getSelectedLabel(sourceId, conditionAgentNode.execute(nodeMap.get(sourceId), state));
+                                    log.info("Condition Agent Node selected label: {}", selectedLabel);
+                                    return selectedLabel;
                                 }
 
                                 // 解析分支配置

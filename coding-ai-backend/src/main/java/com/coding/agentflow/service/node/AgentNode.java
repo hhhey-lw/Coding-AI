@@ -205,10 +205,12 @@ public class AgentNode extends AbstractNode {
                             }
                         }
 
+                        // 注意：由于是嵌套的，因此这个不会追加命名空间
+                        // 这里手动补充
                         Map<String, Object> finalResult = new HashMap<>();
-                        finalResult.put("model", chatModelName);
-                        finalResult.put("output", output);
-                        finalResult.put("usage", usage);
+                        finalResult.put(node.getId() + ".model", chatModelName);
+                        finalResult.put(node.getId() + ".output", output);
+                        finalResult.put(node.getId() + ".usage", usage);
                         return finalResult;
                     })
                     .build(chatResponseFlux);

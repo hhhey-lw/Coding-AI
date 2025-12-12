@@ -4,6 +4,7 @@ import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
 import com.coding.graph.core.state.OverAllState;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -28,8 +29,8 @@ public class EndNode extends AbstractNode {
         resultData.put("status", "completed");
 
         // 从上下文中提取最终结果
-        String finalResult = state.value("finalResult").orElse("").toString();
-        if (finalResult != null) {
+        String finalResult = getConfigParamAsString(node, "finalResult");
+        if (StringUtils.isNotBlank(finalResult)) {
             String templateWithVariable = replaceTemplateWithVariable(finalResult, state);
             resultData.put("finalResult", templateWithVariable);
         }

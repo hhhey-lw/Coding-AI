@@ -108,13 +108,45 @@ public class ConditionEvaluator {
         }
     }
 
+    /**
+     * 解析变量值
+     * 支持两种格式：
+     * 1. {{nodeId.key}} - 命名空间格式，从特定节点获取值
+     * 2. {{key}} - 全局格式（向后兼容）
+     * 3. 普通字符串 - 直接返回字面量
+     */
     private static Object resolveValue(String value, Map<String, Object> state) {
-        if (value != null && !value.startsWith("{{") && !value.endsWith("}}")) {
-            return value;
+        if (value == null) {
+            return null;
         }
-        // REF 类型，从 state 中取
-        if (value == null) return null;
-        return state.get(value);
+        
+        // 检查是否是模板变量格式 {{xxx}}
+        if (value.startsWith("{{") && value.endsWith("}}")) {
+            String variableName = value.substring(2, value.length() - 2).trim();
+            
+            // 直接查找（支持命名空间格式 nodeId.key）
+            if (state.containsKey(variableName)) {
+                return state.get(variableName);
+            }
+            
+            // 如果是命名空间格式但未找到，返回 null
+            if (variableName.contains(".")) {
+                return null;
+            }
+            
+            // 向后兼容：尝试在所有命名空间中查找该 key
+            for (Map.Entry<String, Object> entry : state.entrySet()) {
+                String stateKey = entry.getKey();
+                if (stateKey.endsWith("." + variableName)) {
+                    return entry.getValue();
+                }
+            }
+            
+            return null;
+        }
+        
+        // 普通字符串，直接返回字面量
+        return value;
     }
 
     private static boolean compareEquals(Object left, Object right) {

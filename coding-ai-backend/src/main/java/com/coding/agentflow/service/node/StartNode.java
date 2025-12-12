@@ -31,6 +31,9 @@ public class StartNode extends AbstractNode {
             resultData.putAll(node.getConfigParams());
         }
 
+        // 特殊处理：
+        resultData.put("messages", state.data().get("messages"));
+
         return resultData;
     }
 

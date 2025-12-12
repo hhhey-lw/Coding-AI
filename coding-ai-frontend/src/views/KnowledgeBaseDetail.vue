@@ -424,9 +424,9 @@ const loadVectorList = async () => {
   }
 }
 
-// 返回
+// 返回知识库页面
 const goBack = () => {
-  router.back()
+  router.push({ path: '/', query: { tab: 'knowledge' } })
 }
 
 // 搜索
