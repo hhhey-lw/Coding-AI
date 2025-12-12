@@ -86,8 +86,8 @@ export function useGraphVariables(currentNodeId: string | Ref<string>) {
              })
          }
       }
-      // 2. LLM Node
-      else if (type === 'llm' || id.startsWith('llm')) {
+      // 2. LLM / Agent Node
+      else if (type === 'llm' || type === 'agent' || id.startsWith('llm') || id.startsWith('agent')) {
           vars.push({
               label: `${label} (Output)`,
               value: `{{${id}}}`,

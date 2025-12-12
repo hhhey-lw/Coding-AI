@@ -2,7 +2,7 @@ package com.coding.agentflow.model.model;
 
 import com.coding.agentflow.model.enums.ConditionLogicEnum;
 import com.coding.agentflow.model.enums.OperatorTypeEnum;
-import com.coding.agentflow.model.enums.ValueTypeEnum;
+import com.coding.agentflow.model.enums.ParamTypeEnum;
 import lombok.Data;
 
 import java.util.List;
@@ -43,10 +43,9 @@ public class Branch {
         private String leftValue;
 
         /**
-         * 左值类型
-         * 默认通常是 REF
+         * 参数类型: 强类型，避免比较错误
          */
-        private ValueTypeEnum leftType;
+        private ParamTypeEnum paramType;
 
 
         // --- 比较操作符 ---
@@ -62,9 +61,5 @@ public class Branch {
          */
         private String rightValue;
 
-        /**
-         * 右值类型
-         */
-        private ValueTypeEnum rightType;
     }
 }

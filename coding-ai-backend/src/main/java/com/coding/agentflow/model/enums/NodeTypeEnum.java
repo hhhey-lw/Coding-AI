@@ -6,5 +6,6 @@ public enum NodeTypeEnum {
     START, END,
     TOOL, RETRIEVER,
     HUMAN_INPUT,
+    // 暂时不实现HTTP节点
     HTTP
 }

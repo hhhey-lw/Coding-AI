@@ -57,6 +57,16 @@
                  />
               </div>
 
+              <!-- Param Type -->
+              <div class="param-item">
+                 <div class="section-label">Type</div>
+                 <el-select v-model="branch.conditions[0].paramType" style="width: 100%">
+                   <el-option label="String" value="STRING" />
+                   <el-option label="Number" value="NUMBER" />
+                   <el-option label="Boolean" value="BOOLEAN" />
+                 </el-select>
+              </div>
+
               <!-- Operator -->
               <div class="param-item">
                  <div class="section-label">Operator <span class="required">*</span></div>
@@ -65,6 +75,12 @@
                    <el-option label="不为空" value="NOT_EMPTY" />
                    <el-option label="等于" value="EQUALS" />
                    <el-option label="不等于" value="NOT_EQUALS" />
+                   <el-option label="包含" value="CONTAINS" />
+                   <el-option label="不包含" value="NOT_CONTAINS" />
+                   <el-option label="大于" value="GT" />
+                   <el-option label="大于等于" value="GTE" />
+                   <el-option label="小于" value="LT" />
+                   <el-option label="小于等于" value="LTE" />
                  </el-select>
               </div>
 
@@ -81,17 +97,6 @@
                    :variables="availableVariables"
                    class="condition-variable-input"
                  />
-              </div>
-              
-              <!-- Right Type (仅当操作符需要右值时显示) -->
-               <div class="param-item" v-if="!isUnaryOperator(branch.conditions[0].operator)">
-                 <div class="section-label">Value Type</div>
-                 <el-select v-model="branch.conditions[0].rightType" style="width: 100%">
-                   <el-option label="String" value="STRING" />
-                   <el-option label="Number" value="NUMBER" />
-                   <el-option label="Boolean" value="BOOLEAN" />
-                   <el-option label="Reference" value="REF" />
-                 </el-select>
               </div>
           </div>
         </div>
@@ -147,7 +152,7 @@ const formData = ref({
       label: 'IF', 
       conditionLogic: 'AND',
       conditions: [
-        { leftValue: '', leftType: 'REF', operator: 'EQUALS', rightValue: '', rightType: 'STRING' }
+        { leftValue: '', paramType: 'STRING', operator: 'EQUALS', rightValue: '' }
       ]
     } 
   ]
@@ -203,7 +208,7 @@ const initFormData = () => {
                   label: 'IF', 
                   conditionLogic: 'AND',
                   conditions: [
-                    { leftValue: '', leftType: 'REF', operator: 'EQUALS', rightValue: '', rightType: 'STRING' }
+                    { leftValue: '', paramType: 'STRING', operator: 'EQUALS', rightValue: '' }
                   ]
                 } 
             ]
@@ -240,7 +245,7 @@ const addBranch = () => {
     label: 'ELSE IF', 
     conditionLogic: 'AND',
     conditions: [
-        { leftValue: '', leftType: 'REF', operator: 'EQUALS', rightValue: '', rightType: 'STRING' }
+        { leftValue: '', paramType: 'STRING', operator: 'EQUALS', rightValue: '' }
     ]
   })
 }

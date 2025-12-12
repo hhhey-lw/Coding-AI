@@ -3,7 +3,6 @@ package com.coding.agentflow.utils;
 import com.coding.agentflow.model.enums.OperatorTypeEnum;
 import com.coding.agentflow.model.model.Branch;
 import com.coding.agentflow.model.enums.ConditionLogicEnum;
-import com.coding.agentflow.model.enums.ValueTypeEnum;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -60,12 +59,14 @@ public class ConditionEvaluator {
 
     public static boolean evaluate(Branch.Condition condition, Map<String, Object> state) {
         // 1. 解析左右值
-        Object leftVal = resolveValue(condition.getLeftValue(), condition.getLeftType(), state);
-        Object rightVal = resolveValue(condition.getRightValue(), condition.getRightType(), state);
+        Object leftVal = resolveValue(condition.getLeftValue(), state);
+        Object rightVal = resolveValue(condition.getRightValue(), state);
 
         if (leftVal == null || rightVal == null) {
             // 简单的空值处理策略
-            if (condition.getOperator() == null) return false;
+            if (condition.getOperator() == null) {
+                return false;
+            }
             
             switch (condition.getOperator()) {
                 case IS_EMPTY:
@@ -107,8 +108,8 @@ public class ConditionEvaluator {
         }
     }
 
-    private static Object resolveValue(String value, ValueTypeEnum type, Map<String, Object> state) {
-        if (type == ValueTypeEnum.LITERAL) {
+    private static Object resolveValue(String value, Map<String, Object> state) {
+        if (value != null && !value.startsWith("{{") && !value.endsWith("}}")) {
             return value;
         }
         // REF 类型，从 state 中取
