@@ -1326,6 +1326,11 @@ onMounted(() => {
   height: 100%;
 }
 
+/* Edge styles */
+.agent-flow :deep(.vue-flow__edge-path) {
+  stroke-width: 2;
+}
+
 
 /* Toolbar */
 .floating-toolbar {
@@ -1552,6 +1557,7 @@ onMounted(() => {
   font-size: 10px;
   white-space: nowrap;
   pointer-events: none;
+  color: white;
 }
 
 .text-blue { color: #3b82f6; }
