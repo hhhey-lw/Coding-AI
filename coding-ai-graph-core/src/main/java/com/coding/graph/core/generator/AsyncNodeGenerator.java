@@ -110,6 +110,7 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                     try {
                         Optional<Data<Output>> embed = getEmbedGenerator(updateState);
                         if (embed.isPresent()) {
+                            // 嵌套迭代器：NODE_AFTER 在内层迭代器完成时触发，不在这里触发
                             return embed.get();
                         }
 
@@ -120,13 +121,12 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
                         var nextNodeCommand = compiledGraph.nextNodeId(context.currentNodeId(), currentState, config);
                         context.setNextNodeId(nextNodeCommand.gotoNode());
                         currentState = nextNodeCommand.update();
+                        // 非嵌套迭代器：在这里触发 NODE_AFTER
+                        doListeners(NODE_AFTER, null);
                         return Data.of(buildNodeOutput(context.currentNodeId()));
                     } catch (Exception e) {
                         throw new CompletionException(e);
                     }
-                })
-                .whenComplete((outputData, throwable) -> {
-                    doListeners(NODE_AFTER, null);
                 });
     }
 
@@ -160,6 +160,9 @@ public class AsyncNodeGenerator<Output> implements AsyncGenerator<Output> {
 
                                 // 在流结束时立即更新状态
                                 updateEmbedState(partialState, generatorEntry, innerResult);
+
+                                // 嵌套迭代器完成时触发 NODE_AFTER
+                                doListeners(NODE_AFTER, null);
 
                                 // 发射完成标识 (NodeOutput)
                                 return Data.of(buildNodeOutput(currentNodeId));

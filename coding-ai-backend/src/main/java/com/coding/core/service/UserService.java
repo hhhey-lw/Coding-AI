@@ -41,4 +41,9 @@ public interface UserService {
      * 根据Token获取用户ID
      */
     Long getUserIdByToken(String token);
+
+    /**
+     * 更新用户头像
+     */
+    void updateAvatar(Long userId, String avatarUrl);
 }

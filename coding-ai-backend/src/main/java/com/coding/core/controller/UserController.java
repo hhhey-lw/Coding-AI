@@ -60,4 +60,11 @@ public class UserController {
         userService.logout(request.getRefreshToken());
         return Result.success();
     }
+
+    @Operation(summary = "更新用户头像")
+    @PostMapping("/update-avatar")
+    public Result<Void> updateAvatar(@RequestParam Long userId, @RequestParam String avatarUrl) {
+        userService.updateAvatar(userId, avatarUrl);
+        return Result.success();
+    }
 }

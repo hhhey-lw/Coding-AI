@@ -6,9 +6,13 @@
       </div>
       <span class="tool-label">工具调用</span>
       <el-tag size="small" type="info" effect="plain">{{ toolCall.name }}</el-tag>
-      <span v-if="isCollapsed && toolResponse" class="tool-status">
+      <span v-if="isCollapsed && toolResponse" class="tool-status tool-status-success">
         <el-icon color="#67c23a" style="margin-right: 4px; vertical-align: middle;"><Select /></el-icon>
         已执行完毕
+      </span>
+      <span v-else-if="!toolResponse" class="tool-status tool-status-loading">
+        <el-icon class="is-loading" color="#409eff" style="margin-right: 4px; vertical-align: middle;"><Loading /></el-icon>
+        执行中...
       </span>
       <el-icon class="collapse-icon" :class="{ 'is-collapsed': isCollapsed }">
         <ArrowRight />
@@ -116,7 +120,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Tools, DocumentCopy, Picture, ArrowRight, Select } from '@element-plus/icons-vue'
+import { Tools, DocumentCopy, Picture, ArrowRight, Select, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 interface ToolCall {
@@ -289,10 +293,30 @@ const copyContent = async (text: string) => {
 
 .tool-status {
   font-size: 13px;
-  color: #67c23a;
   display: flex;
   align-items: center;
   margin-left: 8px;
+}
+
+.tool-status-success {
+  color: #67c23a;
+}
+
+.tool-status-loading {
+  color: #409eff;
+}
+
+.is-loading {
+  animation: rotating 1.5s linear infinite;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 

@@ -129,6 +129,17 @@ export const useAuthStore = defineStore('auth', () => {
     return refreshToken.value
   }
 
+  /**
+   * 更新用户头像
+   */
+  function updateUserAvatar(avatarUrl: string) {
+    if (userInfo.value) {
+      userInfo.value.userAvatar = avatarUrl
+      localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
+      console.log('用户头像已更新')
+    }
+  }
+
   return {
     // State
     accessToken,
@@ -144,6 +155,7 @@ export const useAuthStore = defineStore('auth', () => {
     setLoginInfo,
     updateAccessToken,
     updateRefreshToken,
+    updateUserAvatar,
     clearAuth,
     getAccessToken,
     getRefreshToken

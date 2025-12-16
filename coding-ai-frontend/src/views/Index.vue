@@ -385,9 +385,20 @@
     <el-dialog v-model="showAccountDialog" title="账户信息" width="400px" center>
       <div class="account-info">
         <div class="account-avatar">
-          <el-avatar :size="80" :src="userInfo?.userAvatar || undefined">
-            <el-icon :size="40"><User /></el-icon>
-          </el-avatar>
+          <el-upload
+            class="avatar-uploader"
+            :show-file-list="false"
+            :before-upload="beforeAvatarUpload"
+            :http-request="handleAvatarUpload"
+          >
+            <el-avatar :size="80" :src="userInfo?.userAvatar || undefined" class="avatar-clickable">
+              <el-icon :size="40"><User /></el-icon>
+            </el-avatar>
+            <div class="avatar-overlay">
+              <el-icon :size="20"><Camera /></el-icon>
+              <span>更换头像</span>
+            </div>
+          </el-upload>
         </div>
         <div class="account-details">
           <el-descriptions :column="1" border>
@@ -875,6 +886,59 @@ onMounted(() => {
     loadKnowledgeBaseList()
   }
 })
+
+// ========== 头像上传 ==========
+
+// 头像上传前校验
+const beforeAvatarUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt2M = file.size / 1024 / 1024 < 2
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt2M) {
+    ElMessage.error('图片大小不能超过 2MB!')
+    return false
+  }
+  return true
+}
+
+// 处理头像上传
+const handleAvatarUpload = async (options: { file: File }) => {
+  try {
+    // 1. 上传图片
+    const uploadRes = await AuthAPI.uploadImage(options.file)
+    if (uploadRes.code !== 1 || !uploadRes.data?.fileUrl) {
+      ElMessage.error(uploadRes.message || '上传图片失败')
+      return
+    }
+
+    const avatarUrl = uploadRes.data.fileUrl
+
+    // 2. 更新用户头像
+    const userId = userInfo.value?.userId
+    if (!userId) {
+      ElMessage.error('用户信息不存在')
+      return
+    }
+
+    const updateRes = await AuthAPI.updateAvatar(userId, avatarUrl)
+    if (updateRes.code !== 1) {
+      ElMessage.error(updateRes.message || '更新头像失败')
+      return
+    }
+
+    // 3. 更新本地存储的用户信息
+    authStore.updateUserAvatar(avatarUrl)
+
+    ElMessage.success('头像更新成功')
+  } catch (error) {
+    console.error('头像上传失败:', error)
+    ElMessage.error('头像上传失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -1562,5 +1626,42 @@ onMounted(() => {
 
 .knowledge-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* 头像上传样式 */
+.avatar-uploader {
+  position: relative;
+  cursor: pointer;
+}
+
+.avatar-clickable {
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+
+.avatar-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+  color: white;
+  font-size: 12px;
+}
+
+.avatar-uploader:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.avatar-uploader:hover .avatar-clickable {
+  opacity: 0.8;
 }
 </style>

@@ -1,10 +1,16 @@
 package com.coding.agentflow.service.impl;
 
+import cn.hutool.json.JSONUtil;
+import com.coding.agentflow.model.entity.AgentFlowInstance;
+import com.coding.agentflow.model.entity.AgentFlowNodeInstance;
 import com.coding.agentflow.model.model.Branch;
 import com.coding.agentflow.model.model.Edge;
 import com.coding.agentflow.model.model.Node;
 import com.coding.agentflow.model.model.AgentFlowConfig;
+import com.coding.agentflow.model.enums.FlowStatusEnum;
+import com.coding.agentflow.model.enums.NodeStatusEnum;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
+import com.coding.agentflow.repository.AgentFlowInstanceRepository;
 import com.coding.agentflow.service.AgentFlowNodeService;
 import com.coding.agentflow.service.AgentFlowService;
 import com.coding.agentflow.service.node.ConditionAgentNode;
@@ -25,14 +31,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -43,13 +51,14 @@ public class AgentFlowServiceImpl implements AgentFlowService {
     private final AgentFlowNodeService agentFlowNodeService;
     private final ConditionAgentNode conditionAgentNode;
     private final ObjectMapper objectMapper;
+    private final AgentFlowInstanceRepository agentFlowInstanceRepository;
 
     @Override
     public CompiledGraph convertToCompiledGraph(AgentFlowConfig agentFlowConfig) throws GraphStateException {
         // 1. 转换为StateGraph
         StateGraph stateGraph = convertToStateGraph(agentFlowConfig);
         // 2. 编译StateGraph为CompiledGraph
-        return compiledGraph(stateGraph);
+        return compiledGraph(stateGraph, agentFlowConfig);
     }
 
     /**
@@ -170,45 +179,131 @@ public class AgentFlowServiceImpl implements AgentFlowService {
     /**
      * 编译StateGraph为CompiledGraph
      *
-     * @param stateGraph 状态图
+     * @param stateGraph      状态图
+     * @param agentFlowConfig
      * @return 编译图
      * @throws GraphStateException 图状态异常
      */
-    private CompiledGraph compiledGraph(StateGraph stateGraph) throws GraphStateException {
+    private CompiledGraph compiledGraph(StateGraph stateGraph, AgentFlowConfig agentFlowConfig) throws GraphStateException {
+        Map<String, Node> nodeMap = agentFlowConfig.getNodes().stream()
+                .collect(Collectors.toMap(Node::getId, Function.identity()));
         return stateGraph.compile(CompileConfig.builder()
                 .withLifecycleListener(new GraphLifecycleListener() {
                     /** 工作流生命周期 **/
                     @Override
                     public void onStart(String nodeId, Map<String, Object> state, RunnableConfig config) {
-                        log.info("AgentFlow Start ... => nodeId: {}, config: {}", nodeId, config);
+                        log.info("AgentFlow Lifecycle => status: {}, nodeId: {}, config: {}", FlowStatusEnum.STARTED, nodeId, config);
+                        if (config != null && config.getMetadata() != null) {
+                            Long instanceId = (Long) config.getMetadata().get("instanceId");
+                            Long configId = (Long) config.getMetadata().get("configId");
+                            String prompt = (String) config.getMetadata().get("prompt");
+                            if (instanceId != null && configId != null) {
+                                // 持久化：创建工作流实例
+                                agentFlowInstanceRepository.saveFlowInstance(AgentFlowInstance.builder()
+                                        .id(instanceId)
+                                        .agentConfigId(configId)
+                                        .startTime(LocalDateTime.now())
+                                        .inputData(JSONUtil.toJsonStr(Map.of("messages", prompt)))
+                                        .status(FlowStatusEnum.RUNNING.name())
+                                        .build());
+                            }
+                        }
                         GraphLifecycleListener.super.onStart(nodeId, state, config);
                     }
 
                     @Override
                     public void onComplete(String nodeId, Map<String, Object> state, RunnableConfig config) {
-                        log.info("AgentFlow Complete ... => nodeId: {}, config: {}", nodeId, config);
+                        log.info("AgentFlow Lifecycle => status: {}, nodeId: {}, config: {}", FlowStatusEnum.SUCCESS, nodeId, config);
+
+                        // 持久化：更新工作流实例状态为 COMPLETED
+                        if (config != null && config.getMetadata() != null) {
+                            Long instanceId = (Long) config.getMetadata().get("instanceId");
+                            Long configId = (Long) config.getMetadata().get("configId");
+                            if (instanceId != null && configId != null) {
+                                // 持久化：创建工作流实例
+                                agentFlowInstanceRepository.updateFlowInstance(AgentFlowInstance.builder()
+                                        .id(instanceId)
+                                        .endTime(LocalDateTime.now())
+                                        .status(FlowStatusEnum.SUCCESS.name())
+                                        .build());
+                            }
+                        }
+
                         GraphLifecycleListener.super.onComplete(nodeId, state, config);
                     }
 
                     @Override
                     public void onError(String nodeId, Map<String, Object> state, Throwable ex, RunnableConfig config) {
-                        log.error("AgentFlow Error ... => nodeId: {}, config: {}, exception: {}",
-                                nodeId, config, ex.getMessage(), ex);
+                        log.error("AgentFlow Lifecycle => status: {}, nodeId: {}, config: {}, exception: {}",
+                                FlowStatusEnum.FAILED, nodeId, config, ex.getMessage(), ex);
+
+                        // 持久化：更新工作流实例状态为 FAILED
+                        if (config != null && config.getMetadata() != null) {
+                            Long instanceId = (Long) config.getMetadata().get("instanceId");
+                            Long configId = (Long) config.getMetadata().get("configId");
+                            if (instanceId != null && configId != null) {
+                                // 持久化：创建工作流实例
+                                agentFlowInstanceRepository.updateFlowInstance(AgentFlowInstance.builder()
+                                        .id(instanceId)
+                                        .endTime(LocalDateTime.now())
+                                        .status(FlowStatusEnum.FAILED.name())
+                                        .build());
+                            }
+                        }
+
                         GraphLifecycleListener.super.onError(nodeId, state, ex, config);
                     }
 
                     /** 节点生命周期 **/
                     @Override
                     public void before(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
-                        log.info("Node Before ... => nodeId: {}, config: {}, curTime: {}",
-                                nodeId, config, curTime);
+                        log.info("Node Lifecycle => status: {}, nodeId: {}, config: {}, curTime: {}",
+                                NodeStatusEnum.RUNNING, nodeId, config, curTime);
+
+                        // 持久化：创建节点实例
+                        if (config != null && config.getMetadata() != null) {
+                            Long instanceId = (Long) config.getMetadata().get("instanceId");
+
+                            // 创建节点实例记录
+                            Node node = nodeMap.get(nodeId);
+                            AgentFlowNodeInstance nodeInstance = new AgentFlowNodeInstance();
+                            nodeInstance.setAgentInstanceId(instanceId);
+                            nodeInstance.setNodeId(nodeId);
+                            nodeInstance.setNodeType(node.getType().name());
+                            nodeInstance.setStatus(NodeStatusEnum.RUNNING.name());
+                            nodeInstance.setStartTime(LocalDateTime.now());
+                            nodeInstance.setCreateTime(LocalDateTime.now());
+
+                            agentFlowInstanceRepository.saveNodeInstance(nodeInstance);
+                        }
+
                         GraphLifecycleListener.super.before(nodeId, state, config, curTime);
                     }
 
                     @Override
                     public void after(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
-                        log.info("Node After ... => nodeId: {}, config: {}, curTime: {}",
-                                nodeId, config, curTime);
+                        log.info("Node Lifecycle => status: {}, nodeId: {}, config: {}, curTime: {}",
+                                NodeStatusEnum.SUCCESS, nodeId, config, curTime);
+
+                        // 持久化：更新节点实例状态
+                        if (config != null && config.getMetadata() != null) {
+                            Long instanceId = (Long) config.getMetadata().get("instanceId");
+
+                            AgentFlowNodeInstance nodeInstance = agentFlowInstanceRepository.getNodeInstance(instanceId, nodeId);
+                            if (nodeInstance != null) {
+                                nodeInstance.setStatus(NodeStatusEnum.SUCCESS.name());
+                                nodeInstance.setEndTime(LocalDateTime.now());
+
+                                try {
+                                    nodeInstance.setOutputData(objectMapper.writeValueAsString(state));
+                                } catch (Exception e) {
+                                    log.error("序列化节点输出数据失败", e);
+                                }
+
+                                agentFlowInstanceRepository.updateNodeInstance(nodeInstance);
+                            }
+                        }
+
                         GraphLifecycleListener.super.after(nodeId, state, config, curTime);
                     }
                 })

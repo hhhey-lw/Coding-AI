@@ -63,7 +63,9 @@ const API_PATHS = {
   REGISTER: '/user/register',
   LOGIN: '/user/login',
   REFRESH_TOKEN: '/user/refresh-token',
-  LOGOUT: '/user/logout'
+  LOGOUT: '/user/logout',
+  UPDATE_AVATAR: '/user/update-avatar',
+  UPLOAD_IMAGE: '/file/upload/image'
 }
 
 /**
@@ -185,6 +187,58 @@ export class AuthAPI {
 
     const result = await response.json()
     console.log('登出响应:', result)
+    return result
+  }
+
+  /**
+   * 上传图片
+   */
+  static async uploadImage(file: File): Promise<ApiResponse<{ fileUrl: string }>> {
+    console.log('上传图片请求:', file.name)
+    
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const response = await fetch(`${API_BASE_URL}${API_PATHS.UPLOAD_IMAGE}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${TokenManager.getAccessToken()}`
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log('上传图片响应:', result)
+    return result
+  }
+
+  /**
+   * 更新用户头像
+   */
+  static async updateAvatar(userId: number, avatarUrl: string): Promise<ApiResponse<null>> {
+    console.log('更新头像请求:', userId, avatarUrl)
+    
+    const params = new URLSearchParams()
+    params.append('userId', userId.toString())
+    params.append('avatarUrl', avatarUrl)
+    
+    const response = await fetch(`${API_BASE_URL}${API_PATHS.UPDATE_AVATAR}?${params.toString()}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${TokenManager.getAccessToken()}`
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log('更新头像响应:', result)
     return result
   }
 }

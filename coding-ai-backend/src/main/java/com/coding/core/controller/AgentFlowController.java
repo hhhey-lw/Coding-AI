@@ -1,5 +1,6 @@
-package com.coding.agentflow.controller;
+package com.coding.core.controller;
 
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.coding.agentflow.model.model.AgentFlowConfig;
 import com.coding.agentflow.model.request.AgentFlowConfigRequest;
@@ -14,6 +15,7 @@ import com.coding.graph.core.generator.AsyncGenerator;
 import com.coding.graph.core.graph.CompiledGraph;
 import com.coding.graph.core.node.NodeOutput;
 import com.coding.graph.core.node.StreamingOutput;
+import com.coding.graph.core.node.config.RunnableConfig;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,8 +52,8 @@ public class AgentFlowController {
     @GetMapping("/page")
     @Operation(summary = "分页查询")
     public Result<Page<AgentFlowConfigResponse>> page(@RequestParam(defaultValue = "1") Integer current,
-                                                       @RequestParam(defaultValue = "10") Integer size,
-                                                       @RequestParam(required = false) String name) {
+                                                      @RequestParam(defaultValue = "10") Integer size,
+                                                      @RequestParam(required = false) String name) {
         return Result.success(agentFlowConfigService.pageAgentFlows(current, size, name));
     }
 
@@ -97,7 +99,13 @@ public class AgentFlowController {
         SseEmitter emitter = new SseEmitter(300_000L);
 
         // 5. 执行工作流并获取流式输出
-        AsyncGenerator<NodeOutput> generator = compiledGraph.stream(Map.of("messages", prompt));
+        AsyncGenerator<NodeOutput> generator = compiledGraph.stream(Map.of("messages", prompt), RunnableConfig.builder()
+                // 用于在生命周期函数位置进行持久化
+                .metadata(Map.of(
+                        "configId", flowResponse.getId(),
+                        "instanceId", IdWorker.getId(),
+                        "prompt", prompt))
+                .build());
 
         // 6. 处理流式输出
         generator.streamForEach(output -> {
@@ -121,6 +129,7 @@ public class AgentFlowController {
 
                         emitter.send(SseEmitter.event()
                                 .data(objectMapper.writeValueAsString(message)));
+                        log.info("Sent chunk for node {}: {}", output.getNode(), content);
                     }
                 } else {
                     // 处理节点完成输出
@@ -131,6 +140,7 @@ public class AgentFlowController {
 
                     emitter.send(SseEmitter.event()
                             .data(objectMapper.writeValueAsString(message)));
+                    log.info("Sent node {}: {}", output.getNode(), output);
                 }
             } catch (JsonProcessingException e) {
                 log.error("JSON序列化失败", e);

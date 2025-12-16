@@ -104,14 +104,15 @@ const availableNodes = [
   },
   // Execute Flow (Skipping)
   // HTTP (Skipping)
-  {
-    type: 'human',
-    label: 'Human Input',
-    description: '在执行期间请求人工输入、批准或拒绝',
-    icon: 'User',
-    iconColor: '#6E6EFD',
-    data: { theme: 'theme-purple', color: '#818cf8', icon: 'User' }
-  },
+  // Human Input (Hidden)
+  // {
+  //   type: 'human',
+  //   label: 'Human Input',
+  //   description: '在执行期间请求人工输入、批准或拒绝',
+  //   icon: 'User',
+  //   iconColor: '#6E6EFD',
+  //   data: { theme: 'theme-purple', color: '#818cf8', icon: 'User' }
+  // },
   // Iteration (Skipping)
   {
     type: 'llm',

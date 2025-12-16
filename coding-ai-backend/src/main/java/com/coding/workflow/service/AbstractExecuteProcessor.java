@@ -228,7 +228,7 @@ public abstract class AbstractExecuteProcessor implements ExecuteProcessor{
             }
             return value;
         }
-        return null;
+        return expression;
     }
 
 

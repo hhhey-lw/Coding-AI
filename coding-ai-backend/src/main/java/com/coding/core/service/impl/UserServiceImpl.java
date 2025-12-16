@@ -224,6 +224,18 @@ public class UserServiceImpl implements UserService {
         return jwtUtil.getUserIdFromToken(token);
     }
 
+    @Override
+    public void updateAvatar(Long userId, String avatarUrl) {
+        UserDO user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException("用户不存在");
+        }
+        user.setUserAvatar(avatarUrl);
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+        log.info("用户头像更新成功，用户ID：{}，头像URL：{}", userId, avatarUrl);
+    }
+
     /**
      * 加密密码
      */
