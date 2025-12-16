@@ -238,6 +238,17 @@
               <div class="bubble" v-if="msg.content && !msg.loading">
                 <MarkdownRenderer :content="msg.content" />
               </div>
+              
+              <!-- Final Result 折叠区域 (放在最下方) -->
+              <div v-if="msg.finalResult" class="final-result-section">
+                <el-collapse>
+                  <el-collapse-item title="Final Result" name="1">
+                    <div class="final-result-content">
+                      <MarkdownRenderer :content="msg.finalResult" />
+                    </div>
+                  </el-collapse-item>
+                </el-collapse>
+              </div>
             </div>
           </div>
         </div>
@@ -417,6 +428,7 @@ interface ChatMessage {
   steps?: any[]
   loading?: boolean
   toolExecutions?: ToolExecution[]
+  finalResult?: string
 }
 
 // 聊天相关状态
@@ -850,6 +862,14 @@ const handleSendMessage = async () => {
                color: node.data.color,
                status: 'success'
              })
+             
+             // 如果是 reply 节点，提取 finalResult
+             if (nodeId.startsWith('reply') && data.state) {
+               const finalResultKey = `${nodeId}.finalResult`
+               if (data.state[finalResultKey]) {
+                 chatMessages.value[assistantMsgIndex].finalResult = data.state[finalResultKey]
+               }
+             }
              
              scrollToBottom()
            }
@@ -1451,6 +1471,41 @@ onMounted(() => {
 .process-flow :deep(.el-collapse-item__content) {
   padding: 8px 12px;
 }
+
+/* Final Result 折叠区域 */
+.final-result-section {
+  width: 100%;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.final-result-section :deep(.el-collapse) {
+  border: none;
+  background: transparent;
+}
+
+.final-result-section :deep(.el-collapse-item__header) {
+  padding: 0 8px;
+  font-size: 12px;
+  height: 32px;
+  line-height: 32px;
+}
+
+.final-result-section :deep(.el-collapse-item__content) {
+  padding: 8px 12px;
+}
+
+.final-result-content {
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .step-item {
   display: flex;
   align-items: center;
