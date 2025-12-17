@@ -40,7 +40,7 @@
           </el-button>
           <el-button @click="showAddVectorDialog">
             <el-icon><Plus /></el-icon>
-            手动添加向量
+            添加向量
           </el-button>
           <el-button @click="showSearchDialog">
             <el-icon><Search /></el-icon>
@@ -74,8 +74,8 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="向量ID" width="300" show-overflow-tooltip />
-        <el-table-column prop="fileName" label="文件名" min-width="200">
+        <el-table-column prop="id" label="向量ID" width="300" show-overflow-tooltip class-name="ellipsis-cell hide-on-mobile" />
+        <el-table-column prop="fileName" label="文件名" min-width="200" class-name="ellipsis-cell">
           <template #default="{ row }">
             <div class="file-cell">
               <el-icon><Document /></el-icon>
@@ -83,7 +83,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="fileType" label="文件类型" width="120">
+        <el-table-column prop="fileType" label="文件类型" width="120" class-name="ellipsis-cell hide-on-mobile">
           <template #default="{ row }">
             <el-tag v-if="row.fileType" size="small" effect="plain">{{ row.fileType }}</el-tag>
             <span v-else>-</span>
@@ -94,13 +94,12 @@
             <div class="content-preview">{{ row.content }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="createTime" label="创建时间" width="180" class-name="ellipsis-cell" />
+        <el-table-column label="操作" width="260">
           <template #default="{ row }">
             <el-button
               type="primary"
               size="small"
-              link
               @click="handleViewVector(row)"
             >
               <el-icon><View /></el-icon>
@@ -109,7 +108,6 @@
             <el-button
               type="warning"
               size="small"
-              link
               @click="handleEditVector(row)"
             >
               <el-icon><Edit /></el-icon>
@@ -123,7 +121,6 @@
                 <el-button
                   type="danger"
                   size="small"
-                  link
                 >
                   <el-icon><Delete /></el-icon>
                   删除
@@ -324,8 +321,7 @@ import { KnowledgeBaseAPI, KnowledgeVectorAPI } from '@/api/knowledge'
 import type {
   KnowledgeBase,
   KnowledgeVector,
-  KnowledgeVectorAddRequest,
-  KnowledgeVectorUpdateRequest
+  KnowledgeVectorAddRequest
 } from '@/types/knowledge'
 
 const router = useRouter()
@@ -650,7 +646,7 @@ onMounted(() => {
   border: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   padding: 28px 40px;
-  margin: 0 40px;
+  margin: 0 20px;
   margin-top: 6px;
   flex-shrink: 0;
   border-radius: 16px;
@@ -729,7 +725,7 @@ onMounted(() => {
 .action-card {
   background: white;
   padding: 20px 40px;
-  margin: 24px 40px 16px;
+  margin: 24px 20px 16px;
   flex-shrink: 0;
   border-radius: 16px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
@@ -816,7 +812,7 @@ onMounted(() => {
 .vector-list-card {
   flex: 1;
   background: white;
-  margin: 0 40px 40px 40px;
+  margin: 0 20px 20px 20px;
   padding: 24px;
   border-radius: 16px;
   display: flex;
@@ -850,7 +846,8 @@ onMounted(() => {
 
     .el-table__body-wrapper {
       max-height: calc(100vh - 450px);
-      overflow-y: auto;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
 
       tr {
         transition: all 0.3s;
@@ -865,6 +862,12 @@ onMounted(() => {
         border-bottom: 1px solid #f5f7fa;
       }
     }
+  }
+
+  :deep(.el-table .ellipsis-cell .cell) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .file-cell {
@@ -1384,6 +1387,454 @@ onMounted(() => {
 
 .vector-list-card {
   animation-delay: 0.2s;
+}
+
+/* ========== 移动端响应式样式 ========== */
+@media screen and (max-width: 768px) {
+  /* 整体布局 */
+  .knowledge-base-detail {
+    background: #f5f7fa;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 头部卡片 */
+  .header-card {
+    margin: 0 12px;
+    margin-top: 6px;
+    padding: 16px;
+    border-radius: 12px;
+
+    .header {
+      .back-title {
+        :deep(.el-button) {
+          padding: 6px 12px;
+          font-size: 13px;
+        }
+
+        .title {
+          gap: 10px;
+          margin-top: 10px;
+
+          :deep(.el-icon) {
+            font-size: 20px !important;
+          }
+
+          h2 {
+            font-size: 18px;
+          }
+
+          :deep(.el-tag) {
+            font-size: 12px;
+            padding: 2px 8px;
+          }
+        }
+      }
+    }
+
+    .info {
+      margin-top: 14px;
+
+      :deep(.el-descriptions) {
+        .el-descriptions__label,
+        .el-descriptions__content {
+          padding: 8px 10px;
+          font-size: 13px;
+        }
+      }
+    }
+  }
+
+  /* 操作栏 */
+  .action-card {
+    margin: 12px;
+    padding: 14px;
+    border-radius: 12px;
+
+    .actions {
+      flex-direction: column;
+      gap: 12px;
+
+      .left-actions {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+
+        :deep(.el-button + .el-button) {
+          margin-left: 0;
+        }
+
+        :deep(.el-button) {
+          flex: 1;
+          min-width: calc(50% - 4px);
+          padding: 10px 12px;
+          font-size: 13px;
+          justify-content: center;
+
+          .el-icon {
+            margin-right: 4px;
+          }
+        }
+      }
+
+      .right-actions {
+        width: 100%;
+
+        :deep(.el-input) {
+          width: 100% !important;
+        }
+      }
+    }
+  }
+
+  /* 向量列表卡片 */
+  .vector-list-card {
+    margin: 0 12px 12px;
+    padding: 14px;
+    border-radius: 12px;
+    flex: none;
+    overflow: visible;
+
+    :deep(.el-card__body) {
+      overflow: visible;
+    }
+
+    :deep(.el-table) {
+      font-size: 13px;
+
+      .el-table__header-wrapper th {
+        padding: 10px 8px;
+        font-size: 12px;
+      }
+
+      .el-table__body-wrapper {
+        max-height: none;
+        overflow: visible;
+
+        td {
+          padding: 10px 8px;
+        }
+      }
+
+      /* 移动端隐藏部分列 */
+      :deep(.hide-on-mobile) {
+        display: none;
+      }
+    }
+
+    .file-cell {
+      gap: 6px;
+
+      :deep(.el-icon) {
+        font-size: 16px;
+      }
+
+      span {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+    }
+
+    .content-preview {
+      font-size: 12px;
+      max-width: 120px;
+    }
+
+    .pagination {
+      margin-top: 16px;
+      padding-top: 12px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+
+      :deep(.el-pagination) {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        gap: 4px;
+        min-width: max-content;
+
+        .el-pagination__total,
+        .el-pagination__jump {
+          display: none;
+        }
+
+        .el-pagination__sizes {
+          margin: 0;
+        }
+
+        .el-pager li {
+          min-width: 28px;
+          height: 28px;
+          line-height: 28px;
+          margin: 0 2px;
+        }
+
+        .btn-prev,
+        .btn-next {
+          min-width: 28px;
+          height: 28px;
+        }
+      }
+    }
+  }
+
+  /* 对话框移动端优化 */
+  :deep(.el-dialog) {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 10px auto !important;
+    border-radius: 12px;
+
+    .el-dialog__header {
+      padding: 14px 16px;
+
+      .el-dialog__title {
+        font-size: 16px;
+      }
+
+      .el-dialog__headerbtn {
+        top: 14px;
+        right: 16px;
+      }
+    }
+
+    .el-dialog__body {
+      padding: 14px 16px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .el-dialog__footer {
+      padding: 12px 16px;
+
+      .el-button {
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+    }
+  }
+
+  /* 上传组件 */
+  .upload-demo {
+    :deep(.el-upload-dragger) {
+      padding: 30px 20px;
+
+      .el-icon--upload {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+
+      .el-upload__text {
+        font-size: 14px;
+      }
+    }
+  }
+
+  /* 表单样式 */
+  :deep(.el-form) {
+    .el-form-item {
+      margin-bottom: 16px;
+    }
+
+    .el-form-item__label {
+      font-size: 13px;
+      padding-bottom: 6px;
+    }
+
+    .el-textarea__inner {
+      min-height: 100px !important;
+    }
+  }
+
+  /* 向量详情对话框 */
+  .vector-detail-container {
+    max-height: 55vh;
+
+    .detail-info {
+      :deep(.el-descriptions__label),
+      :deep(.el-descriptions__content) {
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+    }
+
+    .section-title {
+      font-size: 13px;
+    }
+  }
+
+  .content-detail-view {
+    min-height: 150px;
+    max-height: 200px;
+    font-size: 12px;
+    padding: 12px;
+  }
+
+  .metadata-view {
+    font-size: 12px;
+    padding: 10px;
+    max-height: 80px;
+  }
+
+  /* 相似性搜索对话框 */
+  .similarity-search-dialog {
+    :deep(.el-form--inline) {
+      .el-form-item {
+        display: block;
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 12px;
+
+        .el-form-item__label {
+          display: block;
+          text-align: left;
+          padding-bottom: 6px;
+        }
+
+        .el-form-item__content {
+          width: 100%;
+
+          .el-input {
+            width: 100% !important;
+          }
+        }
+      }
+    }
+  }
+
+  .search-results {
+    max-height: 45vh;
+    padding-right: 4px;
+
+    h3 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      padding: 8px 0;
+
+      &::before {
+        width: 3px;
+        height: 18px;
+      }
+    }
+
+    .result-card {
+      margin-bottom: 12px;
+      border-radius: 10px;
+
+      :deep(.el-card__body) {
+        padding: 14px;
+      }
+
+      .result-header {
+        gap: 8px;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        flex-wrap: wrap;
+
+        .result-index {
+          font-size: 15px;
+        }
+
+        :deep(.el-tag) {
+          font-size: 11px;
+          padding: 2px 8px;
+        }
+
+        .result-time {
+          font-size: 11px;
+          width: 100%;
+          margin-left: 0;
+          margin-top: 6px;
+        }
+      }
+
+      .result-content {
+        padding: 12px;
+        font-size: 13px;
+        max-height: 150px;
+        line-height: 1.7;
+      }
+    }
+  }
+
+  /* 表格操作按钮 */
+  :deep(.el-table) {
+    .el-button--small {
+      padding: 4px 8px;
+      font-size: 12px;
+
+      .el-icon {
+        margin-right: 2px;
+      }
+
+      /* 移动端只显示图标 */
+      span:not(.el-icon) {
+        display: none;
+      }
+    }
+  }
+
+  /* 动画禁用（性能优化） */
+  .header-card,
+  .action-card,
+  .vector-list-card {
+    animation: none;
+  }
+}
+
+/* 小屏手机额外优化 */
+@media screen and (max-width: 480px) {
+  .header-card {
+    margin: 0 8px;
+    margin-top: 4px;
+    padding: 12px;
+
+    .header .back-title .title {
+      h2 {
+        font-size: 16px;
+      }
+    }
+  }
+
+  .action-card {
+    margin: 8px;
+    padding: 12px;
+
+    .actions .left-actions {
+      :deep(.el-button) {
+        min-width: 100%;
+        font-size: 12px;
+      }
+    }
+  }
+
+  .vector-list-card {
+    margin: 0 8px 8px;
+    padding: 12px;
+
+    :deep(.el-table) {
+      .el-table__body-wrapper {
+        max-height: calc(100vh - 360px);
+      }
+    }
+  }
+
+  :deep(.el-dialog) {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0;
+    height: 100vh;
+
+    .el-dialog__body {
+      max-height: calc(100vh - 120px);
+    }
+  }
 }
 </style>
 

@@ -154,7 +154,7 @@ const createNewConversation = () => {
 }
 
 const goToHome = () => {
-  router.push('/')
+  router.push('/app')
 }
 
 const loadMore = () => {

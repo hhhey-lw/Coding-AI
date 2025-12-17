@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
 // 导入页面组件
+import Landing from '../views/Landing.vue'
 import Index from '../views/Index.vue'
 import WorkflowDesigner from '../components/workflow/WorkflowDesigner.vue'
 import Login from '../views/Login.vue'
@@ -14,6 +15,12 @@ import AgentFlow from '../views/agentflow/AgentFlow.vue'
 
 // 定义路由配置
 const routes: Array<RouteRecordRaw> = [
+  {
+    path: '/',
+    name: 'Landing',
+    component: Landing,
+    meta: { requiresAuth: false, title: 'Coding AI' }
+  },
   {
     path: '/agentflow',
     name: 'AgentFlow',
@@ -33,7 +40,7 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: false, title: '注册' }
   },
   {
-    path: '/',
+    path: '/app',
     name: 'Index',
     component: Index,
     meta: { requiresAuth: true, title: '首页' }
@@ -71,7 +78,7 @@ router.beforeEach((to, _from, next) => {
   
   // 设置页面标题
   if (to.meta.title) {
-    document.title = `${to.meta.title} - Spring AI Workflow`
+    document.title = `${to.meta.title} - Coding AI`
   }
   
   // 需要登录的页面
@@ -87,7 +94,7 @@ router.beforeEach((to, _from, next) => {
   else if (to.path === '/login' || to.path === '/register') {
     if (isLoggedIn) {
       // 已登录则跳转到首页
-      next('/')
+      next('/app')
     } else {
       next()
     }

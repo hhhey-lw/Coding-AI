@@ -17,7 +17,7 @@
     <!-- 主聊天区域 -->
     <McLayout class="chat-container">
       <!-- Header -->
-      <McHeader :title="'AI 智能助手'" :logoImg="'https://matechat.gitcode.com/logo.svg'">
+      <McHeader class="chat-mc-header" :title="'AI 智能助手'" :logoImg="'https://longcoding-ai-service.oss-cn-hangzhou.aliyuncs.com/files/a2507c9c79f749ac8f00c45d51192c23.png'">
         <template #operationArea>
           <div class="operations">
             <!-- 模型选择 -->
@@ -35,7 +35,8 @@
         style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px"
       >
         <McIntroduction
-          :logoImg="'https://matechat.gitcode.com/logo2x.svg'"
+          class="chat-mc-introduction"
+          :logoImg="'https://longcoding-ai-service.oss-cn-hangzhou.aliyuncs.com/files/a2507c9c79f749ac8f00c45d51192c23.png'"
           :title="'AI 智能助手'"
           :subTitle="'Hi，欢迎使用 AI 助手'"
           :description="description"
@@ -61,7 +62,7 @@
           <!-- AI 消息块 -->
           <div v-else-if="block.type === 'assistant' && (block.loading || (block.content && block.content.trim()))" class="ai-message-wrapper">
             <div class="ai-avatar">
-              <img src="https://matechat.gitcode.com/logo.svg" alt="AI" />
+              <img src="https://longcoding-ai-service.oss-cn-hangzhou.aliyuncs.com/files/a2507c9c79f749ac8f00c45d51192c23.png" alt="AI" />
             </div>
             <div class="ai-content-wrapper">
               <!-- 加载状态 -->
@@ -133,8 +134,7 @@ const userAvatar = computed(() => authStore.userInfo?.userAvatar || 'https://mat
 
 // 欢迎描述
 const description = [
-  'AI 智能助手可以帮助您解答问题、生成内容、处理任务等。',
-  '支持 React Agent 和 Plan-Execute 两种模式，满足不同的需求场景。',
+  'AI 智能助手可以帮助您解答问题、联网搜索、生成图片、生成音乐等。',
 ]
 
 // 欢迎提示词
@@ -142,22 +142,9 @@ const introPrompt = {
   direction: 'horizontal' as const,
   list: [
     {
-      value: 'hello',
-      label: '你好，介绍一下自己',
-      iconConfig: { name: 'icon-star', color: '#5e7ce0' },
-      desc: '了解 AI 助手的功能',
-    },
-    {
-      value: 'generate',
-      label: '帮我生成一张落日沙滩图片',
-      iconConfig: { name: 'icon-info-o', color: 'rgb(255, 215, 0)' },
-      desc: '测试图片生成功能',
-    },
-    {
       value: 'music',
-      label: '帮我生成一幅落日沙滩图片，创作100字左右积极向上的歌词，然后生成一首歌曲',
-      iconConfig: { name: 'icon-priority', color: '#3ac295' },
-      desc: '测试 Plan-Execute 模式',
+      label: '帮我生成一幅落日沙滩图片。',
+      iconConfig: { name: 'icon-priority', color: '#3ac295' }
     },
   ],
 }
@@ -948,6 +935,18 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+:deep(.chat-mc-header img) {
+  width: 24px !important;
+  height: 24px !important;
+  object-fit: contain;
+}
+
+:deep(.chat-mc-introduction img) {
+  width: 56px !important;
+  height: 56px !important;
+  object-fit: contain;
 }
 
 .content-container {

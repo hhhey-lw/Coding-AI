@@ -114,7 +114,7 @@ const handleLogin = async () => {
           ElMessage.success('登录成功')
           
           // 跳转到主页
-          router.push('/')
+          router.push('/app')
         } else {
           // code === 0 表示失败，显示后端返回的message
           ElMessage.error(response.message || '登录失败，请检查邮箱和密码')

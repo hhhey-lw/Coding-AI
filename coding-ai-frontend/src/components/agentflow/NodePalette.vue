@@ -26,6 +26,7 @@
               class="node-item"
               draggable="true"
               @dragstart="onDragStart($event, node)"
+              @click="onNodeItemClick($event, node)"
             >
               <div class="node-icon-wrapper">
                 <el-icon :size="24" :color="node.iconColor">
@@ -41,6 +42,33 @@
         </el-collapse-item>
       </el-collapse>
     </el-scrollbar>
+    
+    <!-- 添加节点确认悬浮框 -->
+    <div 
+      v-if="showAddPopup" 
+      class="add-popup"
+    >
+      <div class="popup-content">
+        <div class="popup-header">
+          <span>添加节点</span>
+          <el-icon class="close-icon" @click="showAddPopup = false"><Close /></el-icon>
+        </div>
+        <div class="popup-node-info">
+          <div class="popup-icon" :style="{ backgroundColor: selectedNodeForAdd?.iconColor }">
+            <el-icon :size="24" color="white">
+              <component :is="selectedNodeForAdd?.icon" />
+            </el-icon>
+          </div>
+          <div>
+            <div class="popup-node-name">{{ selectedNodeForAdd?.label }}</div>
+            <div class="popup-node-desc">{{ selectedNodeForAdd?.description }}</div>
+          </div>
+        </div>
+        <el-button type="primary" size="default" @click="confirmAddNode" class="add-btn">
+          添加到画布
+        </el-button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -61,7 +89,8 @@ import {
   Refresh,
   Link,
   Message,
-  Document
+  Document,
+  Close
 } from '@element-plus/icons-vue'
 
 const searchQuery = ref('')
@@ -165,6 +194,37 @@ const onDragStart = (event: DragEvent, node: any) => {
     event.dataTransfer.effectAllowed = 'move'
   }
 }
+
+// 悬浮框状态
+const showAddPopup = ref(false)
+const selectedNodeForAdd = ref<any>(null)
+
+// 点击节点项
+const onNodeItemClick = (event: MouseEvent, node: any) => {
+  // 检测是否是移动端
+  const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  
+  if (isMobile) {
+    event.stopPropagation()
+    selectedNodeForAdd.value = node
+    showAddPopup.value = true
+  }
+}
+
+// 确认添加节点
+const confirmAddNode = () => {
+  if (selectedNodeForAdd.value) {
+    // 触发自定义事件，通知父组件添加节点
+    const event = new CustomEvent('add-node', {
+      detail: selectedNodeForAdd.value,
+      bubbles: true
+    })
+    document.querySelector('.node-palette-container')?.dispatchEvent(event)
+    
+    showAddPopup.value = false
+    selectedNodeForAdd.value = null
+  }
+}
 </script>
 
 <style scoped>
@@ -259,5 +319,111 @@ const onDragStart = (event: DragEvent, node: any) => {
 
 :deep(.el-collapse-item__content) {
   padding-bottom: 0;
+}
+
+/* 添加节点悬浮框 */
+.add-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 250px;
+  border: 2px solid #6200ee;
+  animation: popupZoomIn 0.25s ease-out;
+}
+
+@keyframes popupZoomIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.popup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.popup-header .close-icon {
+  font-size: 20px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.popup-header .close-icon:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.popup-node-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 12px;
+}
+
+.popup-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.popup-node-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.popup-node-desc {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.add-btn {
+  width: 100%;
+  height: 44px;
+  background: #6200ee;
+  border-color: #6200ee;
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 10px;
+}
+
+.add-btn:hover {
+  background: #5b00dc;
+  border-color: #5b00dc;
 }
 </style>

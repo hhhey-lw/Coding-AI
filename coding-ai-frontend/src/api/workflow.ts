@@ -217,7 +217,7 @@ export class WorkflowAPI {
    */
   static async getWorkflowResult(workflowInstanceId: string) {
     const url = API_PATHS.WORKFLOW.RESULT.replace('{workflowInstanceId}', workflowInstanceId)
-    return get<{ data: any }>(url)
+    return get<ApiResponse<any>>(url)
   }
 
   /**

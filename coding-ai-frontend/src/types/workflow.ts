@@ -146,8 +146,10 @@ export enum HandlePosition {
 }
 
 // 前端工作流配置 (包含Vue Flow需要的额外字段)
-export interface WorkflowConfig extends WorkflowConfigAddRequest {
+export interface WorkflowConfig extends Omit<WorkflowConfigAddRequest, 'nodes' | 'edges'> {
   id?: string                    // 前端临时ID
+  nodes: WorkflowNode[]
+  edges: WorkflowEdge[]
   viewport?: {
     x: number
     y: number

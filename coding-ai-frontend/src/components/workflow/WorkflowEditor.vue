@@ -1,5 +1,5 @@
 <template>
-  <div class="workflow-editor" @contextmenu.prevent>
+  <div ref="flowWrapperRef" class="workflow-editor" @contextmenu.prevent>
     <VueFlow
       :nodes="nodes"
       :edges="edges"
@@ -32,7 +32,7 @@
 
       <!-- ✅ 使用 Vue Flow 的标准背景组件 -->
       <Background 
-        v-if="workflowConfig.settings.showGrid"
+        v-if="workflowConfig.settings?.showGrid"
         :size="2" 
         :gap="20" 
         pattern-color="#BDBDBD" 
@@ -80,7 +80,6 @@ import type {
   WorkflowNode, 
   WorkflowEdge,
   WorkflowConfigAddRequest,
-  NodeType
 } from '@/types/workflow'
 import { WorkflowTransform } from '@/utils/workflowTransform'
 import NodeCreator from '@/utils/nodeCreator'
@@ -95,6 +94,40 @@ import '@vue-flow/controls/dist/style.css'
 interface Props {
   modelValue?: WorkflowConfig
   readonly?: boolean
+}
+
+const getVueFlowBounds = (): DOMRect | null => {
+  if (!flowWrapperRef.value) return null
+  const el = flowWrapperRef.value.querySelector('.vue-flow') as HTMLElement | null
+  return (el || flowWrapperRef.value).getBoundingClientRect()
+}
+
+const addNodeFromPaletteAtClientPoint = (
+  type: string,
+  clientPoint: { x: number; y: number },
+  nodeData?: any
+) => {
+  const bounds = getVueFlowBounds()
+  if (!bounds) return null
+
+  const position = project({
+    x: clientPoint.x - bounds.left,
+    y: clientPoint.y - bounds.top
+  })
+
+  return createNodeFromPalette(type, position, nodeData)
+}
+
+const addNodeFromPaletteAtCenter = (type: string, nodeData?: any) => {
+  const bounds = getVueFlowBounds()
+  if (!bounds) return null
+
+  const position = project({
+    x: bounds.width / 2,
+    y: bounds.height / 2
+  })
+
+  return createNodeFromPalette(type, position, nodeData)
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -112,7 +145,9 @@ const emit = defineEmits<{
 }>()
 
 // Vue Flow实例
-const { onConnect, addEdges, removeNodes, updateNode, project, fitView, onNodeDragStop, onNodesChange, onEdgesChange } = useVueFlow()
+const { onConnect, addEdges, project, fitView, onNodeDragStop, onNodesChange, onEdgesChange } = useVueFlow()
+
+const flowWrapperRef = ref<HTMLElement | null>(null)
 
 // 响应式数据
 const dark = ref(false)
@@ -587,8 +622,8 @@ const createNodeFromPalette = (type: string, position: { x: number; y: number },
         node = NodeCreator.createVideoGenNode({
           name: nodeData?.name || '视频生成',
           provider: 'BaiLian',
-          model: 'wan2.2-kf2v-flash',
-          prompt: '',
+          model_id: 'wan2.2-kf2v-flash',
+          input_prompt: '',
           first_frame_image: '',
           tail_frame_image: '',
           resolution: '1080P',
@@ -790,6 +825,7 @@ const getWorkflowData = () => {
 // 暴露方法给父组件
 defineExpose({
   addNode,
+  createNodeFromPalette,
   deleteNode,
   addEdge,
   deleteEdge,
@@ -797,7 +833,9 @@ defineExpose({
   loadWorkflow,
   clearWorkflow,
   validateWorkflow,
-  getWorkflowData
+  getWorkflowData,
+  addNodeFromPaletteAtClientPoint,
+  addNodeFromPaletteAtCenter
 })
 </script>
 

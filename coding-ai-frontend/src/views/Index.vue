@@ -84,9 +84,8 @@
                 基于ReAct架构的智能对话助手，能够理解上下文并通过工具调用完成复杂任务
               </p>
               <div class="agent-features">
-                <span class="feature-tag">对话理解</span>
                 <span class="feature-tag">工具调用</span>
-                <span class="feature-tag">上下文记忆</span>
+                <span class="feature-tag">记忆功能</span>
               </div>
             </div>
           </div>
@@ -121,7 +120,7 @@
             新建
           </el-button>
         </div>
-        <p class="agent-subtitle">可视化设计智能工作流，连接多个节点构建复杂的 AI 应用</p>
+        <p class="agent-subtitle">可视化设计智能工作流</p>
 
         <div v-loading="agentFlowLoading" class="agentflow-list">
           <div v-if="agentFlowList.length === 0" class="agentflow-empty">
@@ -169,14 +168,14 @@
           <!-- 分页 -->
           <div v-if="agentFlowList.length > 0" class="pagination-wrapper">
             <div class="pagination-info">
-              <span>共 {{ agentFlowTotal }} 个智能体</span>
+              <span>共 {{ agentFlowTotal }} 个</span>
             </div>
             <el-pagination
               v-model:current-page="agentFlowCurrentPage"
               :page-size="agentFlowPageSize"
               :total="agentFlowTotal"
               :pager-count="5"
-              layout="prev, pager, next, jumper"
+              layout="prev, pager, next"
               background
               @current-change="loadAgentFlowList"
             />
@@ -261,7 +260,7 @@
         <!-- 分页 -->
         <div v-if="workflowList.length > 0" class="pagination-wrapper">
           <div class="pagination-info">
-            <span>共 {{ total }} 个工作流</span>
+            <span>共 {{ total }} 个</span>
           </div>
           <el-pagination
             v-model:current-page="currentPage"
@@ -835,7 +834,7 @@ const handleKnowledgeCardAction = async (command: string, kb: KnowledgeBase) => 
 const handleKnowledgeBaseSubmit = async () => {
   if (!knowledgeBaseFormRef.value) return
 
-  await knowledgeBaseFormRef.value.validate(async (valid) => {
+  await knowledgeBaseFormRef.value.validate(async (valid: boolean) => {
     if (valid) {
       knowledgeBaseSubmitLoading.value = true
       try {
@@ -861,7 +860,7 @@ const handleKnowledgeBaseSubmit = async () => {
 }
 
 // 监听tab切换
-watch(currentTab, (newTab) => {
+watch(currentTab, (newTab: string) => {
   if (newTab === 'workbench' && workflowList.value.length === 0) {
     loadWorkflowList()
   }
@@ -943,11 +942,12 @@ const handleAvatarUpload = async (options: { file: File }) => {
 
 <style scoped>
 .index-container {
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   display: flex;
   flex-direction: column;
   background: #f5f7fa;
+  overflow-x: hidden;
 }
 
 /* 顶部导航栏 */
@@ -1003,17 +1003,163 @@ const handleAvatarUpload = async (options: { file: File }) => {
   transform: scale(1.05);
 }
 
+@media (max-width: 768px) {
+  .top-navbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .user-info {
+    flex: 0 0 auto;
+  }
+
+  .nav-buttons {
+    position: static;
+    left: auto;
+    transform: none;
+    flex: 1;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    max-width: calc(100% - 56px);
+  }
+
+  .nav-buttons::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-buttons .el-button {
+    font-size: 14px;
+    padding: 6px 12px;
+    flex: 0 0 auto;
+  }
+
+  .tab-content {
+    padding: 16px;
+    padding-bottom: 64px;
+  }
+
+  .agent-grid {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .agent-card {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .agent-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+
+  .agent-card-icon :deep(i.el-icon) {
+    font-size: 28px !important;
+  }
+
+  .agent-card-content h3 {
+    font-size: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  .agent-features {
+    gap: 6px;
+  }
+
+  .agentflow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .agentflow-card {
+    background: white;
+    border: 1px solid #e4e7ed;
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s;
+  }
+
+  .agentflow-card:hover {
+    border-color: #409eff;
+    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .agentflow-card-header {
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .agentflow-icon {
+    width: 36px;
+    height: 36px;
+    background: #f5f7fa;
+    border-radius: 8px;
+  }
+
+  .agentflow-card-header h4 {
+    font-size: 18px;
+    color: #303133;
+  }
+
+  .agentflow-card:hover .agentflow-card-header h4 {
+    color: #409eff;
+  }
+
+  .agentflow-desc {
+    font-size: 14px;
+    margin: 0 0 16px 0;
+  }
+
+  .pagination-wrapper {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    width: auto;
+    bottom: 12px;
+    gap: 10px;
+    padding: 8px 10px;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+  }
+
+  .pagination-info {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .pagination-info span {
+    padding: 2px 4px;
+  }
+
+  :deep(.el-pagination) {
+    flex: 1;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+}
+
 /* 主内容区域 */
 .main-content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab-content {
   height: 100%;
+  min-height: 0;
   padding: 24px;
   padding-bottom: 80px; /* 为固定在底部的分页组件留出空间 */
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 空状态 */
@@ -1094,6 +1240,7 @@ const handleAvatarUpload = async (options: { file: File }) => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .agent-card-content h3 {
@@ -1110,7 +1257,7 @@ const handleAvatarUpload = async (options: { file: File }) => {
 
 .agent-description {
   margin: 0 0 16px 0;
-  font-size: 14px;
+  font-size: 12px;
   color: #606266;
   line-height: 1.6;
   flex: 1;
@@ -1292,6 +1439,7 @@ const handleAvatarUpload = async (options: { file: File }) => {
 
 .search-margin {
   margin-left: 24px;
+  margin-right: 24px;
 }
 
 .workflow-list {
@@ -1390,6 +1538,7 @@ const handleAvatarUpload = async (options: { file: File }) => {
 .pagination-wrapper {
   position: fixed;
   bottom: 20px;
+  min-width: 250px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1664,4 +1813,67 @@ const handleAvatarUpload = async (options: { file: File }) => {
 .avatar-uploader:hover .avatar-clickable {
   opacity: 0.8;
 }
+
+@media (max-width: 768px) {
+  .agent-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 16px !important;
+  }
+
+  .agent-card {
+    width: 90% !important;
+    box-sizing: border-box !important;
+  }
+
+  .agentflow-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .agentflow-card {
+    background: white !important;
+    border: 1px solid #e4e7ed !important;
+    border-radius: 12px !important;
+    padding: 20px !important;
+    transition: all 0.3s !important;
+  }
+
+  .agentflow-card:hover {
+    border-color: #409eff !important;
+    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15) !important;
+    transform: translateY(-2px) !important;
+  }
+
+  .agentflow-card-header {
+    justify-content: space-between !important;
+    margin-bottom: 12px !important;
+  }
+
+  .agentflow-icon {
+    display: none !important;
+    background: #f5f7fa !important;
+  }
+
+  .agentflow-card-header h4 {
+    font-size: 18px !important;
+    color: #303133 !important;
+  }
+
+  .agentflow-card:hover .agentflow-card-header h4 {
+    color: #409eff !important;
+  }
+
+  .agentflow-desc {
+    font-size: 14px !important;
+    margin: 0 0 16px 0 !important;
+  }
+
+  .agentflow-meta {
+    justify-content: flex-start !important;
+    gap: 16px !important;
+    font-size: 13px !important;
+    color: #909399 !important;
+  }
+ }
 </style>

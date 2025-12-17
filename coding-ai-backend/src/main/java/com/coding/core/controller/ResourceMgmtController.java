@@ -25,6 +25,26 @@ public class ResourceMgmtController {
     private final ResourceRecordService resourceRecordService;
 
     /**
+     * 上传文件
+     *
+     * @param file 文件
+     * @return 上传结果
+     */
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "上传文件", description = "支持任意文件类型，最大10MB")
+    public Result<ResourceUploadResponseModel> uploadFile(
+            @Parameter(description = "文件", required = true)
+            @RequestParam("file") MultipartFile file) {
+        log.info("接收到文件上传请求，文件名: {}, 大小: {} bytes",
+                file.getOriginalFilename(), file.getSize());
+
+        ResourceUploadResponseModel response = resourceRecordService.uploadFile(file);
+
+        log.info("文件上传成功，URL: {}", response.getFileUrl());
+        return Result.success(response);
+    }
+
+    /**
      * 上传图片
      *
      * @param file 图片文件

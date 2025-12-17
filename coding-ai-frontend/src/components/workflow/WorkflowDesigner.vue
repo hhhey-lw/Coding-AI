@@ -8,18 +8,17 @@
           返回
         </el-button>
         <h2 class="workflow-title">
-          <el-icon><Guide /></el-icon>
           {{ workflowName }}
         </h2>
       </div>
       
       <div class="header-center">
-        <el-button-group>
+        <!-- 桌面端：显示按钮组 -->
+        <el-button-group class="desktop-buttons">
           <el-button size="small" @click="handleSave">
             <el-icon><DocumentCopy /></el-icon>
             保存
           </el-button>
-          <!-- 导出数据按钮已隐藏 -->
           <el-button size="small" @click="handleRun">
             <el-icon><VideoPlay /></el-icon>
             运行
@@ -36,6 +35,33 @@
       </div>
       
       <div class="header-right">
+        <!-- 移动端：下拉菜单 -->
+        <el-dropdown class="mobile-dropdown" trigger="click" @command="handleMobileCommand">
+          <el-button size="small" circle>
+            <el-icon><MoreFilled /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="save">
+                <el-icon><DocumentCopy /></el-icon>
+                保存
+              </el-dropdown-item>
+              <el-dropdown-item command="run">
+                <el-icon><VideoPlay /></el-icon>
+                运行
+              </el-dropdown-item>
+              <el-dropdown-item command="clear" divided>
+                <el-icon><Delete /></el-icon>
+                清空
+              </el-dropdown-item>
+              <el-dropdown-item command="history">
+                <el-icon><Document /></el-icon>
+                运行记录
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
         <!-- 白天/夜晚切换按钮已隐藏 -->
         <el-button size="small" @click="showSettings = true" circle>
           <el-icon><Setting /></el-icon>
@@ -46,10 +72,20 @@
     <!-- 主要内容区域 -->
     <div class="designer-content">
       <!-- 左侧节点面板 -->
-      <NodePalette 
-        @node-select="handleNodeSelect"
-        @node-drag="handleNodeDrag"
-      />
+      <div v-show="showNodePalette" class="node-palette-wrapper">
+        <NodePalette 
+          @node-select="handleNodeSelect"
+          @node-drag="handleNodeDrag"
+          @collapse="handleCollapseNodePalette"
+        />
+      </div>
+      
+      <!-- 移动端：添加节点按钮 -->
+      <div v-if="!showNodePalette" class="mobile-add-node-btn">
+        <el-button type="primary" circle @click="toggleNodePalette">
+          <el-icon><DArrowRight /></el-icon>
+        </el-button>
+      </div>
       
       <!-- 中间工作流画布 -->
       <div class="canvas-container">
@@ -76,7 +112,7 @@
     </div>
 
     <!-- 设置对话框 -->
-    <el-dialog v-model="showSettings" title="工作流设置" width="500px">
+    <el-dialog v-model="showSettings" title="工作流设置" width="90%" class="settings-dialog">
       <el-form :model="settingsForm" label-width="100px">
         <el-form-item label="工作流名称">
           <el-input v-model="settingsForm.name" />
@@ -158,7 +194,7 @@
                     action="#"
                     :auto-upload="false"
                     :show-file-list="false"
-                    :on-change="(file) => handleParamImageUpload(file, param.key)"
+                    :on-change="(file: any) => handleParamImageUpload(file, param.key)"
                     accept="image/*"
                   >
                     <el-button size="small" :loading="isUploadingParam">
@@ -202,10 +238,10 @@
     </el-dialog>
 
     <!-- 运行结果对话框 -->
-    <el-dialog v-model="showRunDialog" title="工作流运行" width="600px">
+    <el-dialog v-model="showRunDialog" title="工作流运行" width="90%" class="run-result-dialog">
       <div class="run-dialog-content">
         <div v-if="runStatus === 'running'" class="running-status">
-          <el-icon class="rotating"><Loading /></el-icon>
+          <el-icon class="rotating"><LoadingIcon /></el-icon>
           <span>工作流正在运行中...</span>
         </div>
         
@@ -225,7 +261,7 @@
             <!-- 结束节点输出结果 -->
             <div v-if="endNodeOutput" class="end-node-output">
               <h4>输出结果：</h4>
-              <div class="output-content">
+              <div class="output-content scroll-x">
                 {{ endNodeOutput }}
               </div>
             </div>
@@ -275,7 +311,7 @@
           
           <div class="error-details">
             <h4>错误信息：</h4>
-            <pre>{{ runError }}</pre>
+            <pre class="scroll-x">{{ runError }}</pre>
           </div>
         </div>
       </div>
@@ -289,34 +325,36 @@
     </el-dialog>
 
     <!-- 运行记录对话框 -->
-    <el-dialog v-model="showRunHistoryDialog" title="工作流运行记录" width="900px">
+    <el-dialog v-model="showRunHistoryDialog" title="工作流运行记录" width="90%" class="run-history-dialog">
       <div class="run-history-content">
-        <el-table :data="runHistoryList" style="width: 100%" v-loading="isLoadingHistory">
-          <el-table-column prop="id" label="实例ID" min-width="100" />
-          <el-table-column prop="status" label="状态" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag 
-                :type="getStatusTagType(row.status)"
-                size="small"
-              >
-                {{ getStatusText(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="startTime" label="开始时间" min-width="160" />
-          <el-table-column prop="endTime" label="结束时间" min-width="160" />
-          <el-table-column label="操作" width="100" align="center">
-            <template #default="{ row }">
-              <el-button 
-                type="primary" 
-                size="small" 
-                @click="handleViewRunResult(row.id)"
-              >
-                查看结果
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="run-history-table-scroll">
+          <el-table :data="runHistoryList" style="width: 100%; min-width: 860px;" v-loading="isLoadingHistory">
+            <el-table-column prop="id" label="实例ID" min-width="100" />
+            <el-table-column prop="status" label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag 
+                  :type="getStatusTagType(row.status)"
+                  size="small"
+                >
+                  {{ getStatusText(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="startTime" label="开始时间" min-width="160" />
+            <el-table-column prop="endTime" label="结束时间" min-width="160" />
+            <el-table-column label="操作" width="100" align="center">
+              <template #default="{ row }">
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  @click="handleViewRunResult(row.id)"
+                >
+                  查看结果
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
         
         <!-- 分页 -->
         <div class="pagination-container">
@@ -341,9 +379,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { 
+  ArrowLeft, 
+  DocumentCopy, 
+  VideoPlay, 
+  Delete, 
+  Document, 
+  Setting,
+  MoreFilled,
+  Upload,
+  Picture,
+  SuccessFilled,
+  CircleCloseFilled,
+  Loading as LoadingIcon,
+  ArrowRight
+} from '@element-plus/icons-vue'
 import type { WorkflowConfig, WorkflowNode, WorkflowEdge, WorkflowConfigAddRequest } from '@/types/workflow'
 import type { WorkflowInstanceVO } from '@/api/workflow'
 import { WorkflowTransform } from '@/utils/workflowTransform'
@@ -361,6 +414,7 @@ const showSidebar = ref(false)
 const showSettings = ref(false)
 const showRunDialog = ref(false)
 const showInputParamsDialog = ref(false)
+const showNodePalette = ref(true)
 const selectedNode = ref<WorkflowNode | null>(null)
 const runStatus = ref<'idle' | 'running' | 'completed' | 'error'>('idle')
 const runResults = ref<any>(null)
@@ -377,6 +431,7 @@ const isLoadingHistory = ref(false)
 const historyPageNum = ref(1)
 const historyPageSize = ref(10)
 const historyTotal = ref(0)
+const lastCanvasClick = ref<{ x: number; y: number } | null>(null)
 
 // 工作流配置
 const workflowConfig = ref<WorkflowConfig>({
@@ -406,6 +461,33 @@ const settingsForm = ref({
 
 // 计算属性
 const workflowName = computed(() => workflowConfig.value.name)
+
+// 切换节点面板显示
+const toggleNodePalette = () => {
+  showNodePalette.value = !showNodePalette.value
+}
+
+const handleCollapseNodePalette = () => {
+  showNodePalette.value = false
+}
+
+// 移动端下拉菜单命令处理
+const handleMobileCommand = (command: string) => {
+  switch (command) {
+    case 'save':
+      handleSave()
+      break
+    case 'run':
+      handleRun()
+      break
+    case 'clear':
+      handleClear()
+      break
+    case 'history':
+      handleShowRunHistory()
+      break
+  }
+}
 
 // 获取开始节点的输入参数
 const startNodeParams = computed(() => {
@@ -459,7 +541,34 @@ onMounted(() => {
   } else {
     console.log('新建工作流模式')
   }
+
+  if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+    showNodePalette.value = false
+  }
+  
+  // 监听移动端添加节点事件
+  document.addEventListener('node-add-mobile', handleMobileNodeAdd as EventListener)
 })
+
+// 组件卸载时清理事件监听
+onUnmounted(() => {
+  document.removeEventListener('node-add-mobile', handleMobileNodeAdd as EventListener)
+})
+
+// 移动端添加节点处理
+const handleMobileNodeAdd = (event: CustomEvent) => {
+  const nodeType = event.detail
+  const editor = workflowEditorRef.value
+  if (editor?.addNodeFromPaletteAtClientPoint && lastCanvasClick.value) {
+    editor.addNodeFromPaletteAtClientPoint(nodeType.type, lastCanvasClick.value, nodeType)
+  } else if (editor?.addNodeFromPaletteAtCenter) {
+    editor.addNodeFromPaletteAtCenter(nodeType.type, nodeType)
+  } else {
+    handleNodeSelect(nodeType)
+  }
+  // 添加完后关闭节点面板
+  showNodePalette.value = false
+}
 
 // 事件处理
 const handleNodeSelect = (nodeType: any) => {
@@ -484,7 +593,10 @@ const handleEdgeClick = (edge: WorkflowEdge) => {
   console.log('Edge clicked:', edge)
 }
 
-const handleCanvasClick = () => {
+const handleCanvasClick = (event?: MouseEvent) => {
+  if (event) {
+    lastCanvasClick.value = { x: event.clientX, y: event.clientY }
+  }
   selectedNode.value = null
   showSidebar.value = false
 }
@@ -657,7 +769,7 @@ const handleRun = async () => {
     // 初始化输入参数对象和模式
     inputParams.value = {}
     inputParamModes.value = {}
-    startNodeParams.value.forEach(param => {
+    startNodeParams.value.forEach((param: any) => {
       inputParams.value[param.key] = param.default_value || ''
       // Image 类型默认使用上传模式
       if (param.type === 'Image') {
@@ -719,8 +831,9 @@ const handleRunWithParams = async () => {
           console.log('运行结果响应:', resultResponse)
           
           if (resultResponse.code === 1 && resultResponse.data) {
-            const workflowInstance = resultResponse.data.workflowInstanceVO
-            const nodeInstances = resultResponse.data.workflowNodeInstanceVOList || []
+            const resultData: any = resultResponse.data
+            const workflowInstance = resultData.workflowInstanceVO
+            const nodeInstances = resultData.workflowNodeInstanceVOList || []
             
             console.log('工作流实例状态:', workflowInstance.status)
             console.log('节点实例列表:', nodeInstances)
@@ -730,7 +843,7 @@ const handleRunWithParams = async () => {
               case 'SUCCESS':
                 console.log('工作流执行成功')
                 runStatus.value = 'completed'
-                runResults.value = resultResponse.data
+                runResults.value = resultData
                 break
               case 'FAIL':
                 console.log('工作流执行失败')
@@ -1057,6 +1170,7 @@ const getStatusText = (status: string) => {
   flex-direction: column;
   background: #f9fafb;
   overflow: hidden;
+  position: relative;
 }
 
 .designer-header {
@@ -1170,6 +1284,98 @@ const getStatusText = (status: string) => {
   flex: 1;
   display: flex;
   overflow: hidden;
+}
+
+.node-palette-wrapper {
+  flex-shrink: 0;
+}
+
+:deep(.el-dialog.settings-dialog) {
+  max-width: 560px;
+}
+
+:deep(.el-dialog.settings-dialog .el-dialog__body) {
+  overflow-x: auto;
+}
+
+:deep(.el-dialog.run-history-dialog) {
+  max-width: 900px;
+}
+
+:deep(.el-dialog.run-result-dialog) {
+  max-width: 720px;
+}
+
+.run-history-table-scroll {
+  overflow-x: auto;
+}
+
+.scroll-x {
+  overflow-x: auto;
+}
+
+/* 展开节点库按钮（节点库收起时显示） */
+.mobile-add-node-btn {
+  display: block;
+  position: absolute;
+  left: 12px;
+  top: 68px;
+  z-index: 100;
+}
+
+.mobile-add-node-btn .el-button {
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 桌面端显示按钮组，移动端隐藏 */
+.desktop-buttons {
+  display: flex;
+}
+
+/* 移动端下拉菜单（默认隐藏） */
+.mobile-dropdown {
+  display: none;
+}
+
+/* 手机端样式 */
+@media (max-width: 768px) {
+  .designer-header {
+    padding: 0 12px;
+  }
+  
+  .workflow-title {
+    font-size: 14px;
+  }
+  
+  /* 隐藏桌面端按钮组 */
+  .desktop-buttons {
+    display: none !important;
+  }
+  
+  /* 显示移动端下拉菜单 */
+  .mobile-dropdown {
+    display: block;
+  }
+  
+  /* 移动端仍保持 Header 下方左侧 */
+  .mobile-add-node-btn {
+    left: 12px;
+    top: 68px;
+  }
+  
+  /* 节点面板样式 */
+  .node-palette-wrapper {
+    position: absolute;
+    left: 0;
+    top: 56px;
+    bottom: 0;
+    width: 280px;
+    background: white;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    z-index: 99;
+  }
 }
 
 .canvas-container {

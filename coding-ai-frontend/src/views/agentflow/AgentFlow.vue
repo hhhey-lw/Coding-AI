@@ -7,7 +7,7 @@
           <el-icon><ArrowLeft /></el-icon>
         </div>
         <div class="flow-title">
-          <span v-if="!isEditingName" @click="startEditName">{{ flowName }}</span>
+          <span v-if="!isEditingName" @click="startEditName" class="flow-name-display">{{ truncatedFlowName }}</span>
           <el-input
             v-else
             v-model="flowName"
@@ -71,6 +71,7 @@
         @edge-context-menu="onEdgeContextMenu"
         @node-context-menu="onNodeContextMenu"
         style="background-color: rgb(25, 27, 31)"
+        ref="vueFlowRef"
       >
         <Background :variant="BackgroundVariant.Dots" :gap="20" :size="2" pattern-color="#666666" />
         <Controls />
@@ -81,6 +82,9 @@
           <div 
             :class="['custom-node-card', props.data.theme]"
             :style="{ minHeight: (props.data.outputs?.length || 0) * 40 + 'px' }"
+            @touchstart="onNodeTouchStart($event, props)"
+            @touchend="onNodeTouchEnd"
+            @touchmove="onNodeTouchMove"
           >
             <!-- 输入桩 -->
             <Handle
@@ -160,6 +164,28 @@
         </div>
       </div>
 
+      <!-- 手机端删除节点确认框 -->
+      <div 
+        v-if="deleteNodeDialog.visible" 
+        class="delete-node-dialog"
+      >
+        <div class="dialog-content">
+          <div class="dialog-header">
+            <el-icon class="warning-icon" color="#f56c6c" :size="32"><WarningFilled /></el-icon>
+          </div>
+          <div class="dialog-body">
+            <div class="dialog-title">删除节点</div>
+            <div class="dialog-message">
+              确定要删除节点 <strong>{{ deleteNodeDialog.nodeName }}</strong> 吗？
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <el-button @click="cancelDeleteNode" size="large">取消</el-button>
+            <el-button type="danger" @click="confirmDeleteNode" size="large">删除</el-button>
+          </div>
+        </div>
+      </div>
+
       <!-- 聊天窗口 -->
       <div 
         v-show="chatVisible" 
@@ -173,8 +199,14 @@
           transform: 'none'
         }"
       >
-        <div class="chat-header" @mousedown="onChatDragStart">
-          <span style="cursor: move; flex: 1;">Agent Chat</span>
+        <div class="chat-header">
+          <span 
+            class="chat-title" 
+            @mousedown="onChatDragStart" 
+            @touchstart="onChatDragStart"
+          >
+            Agent Chat
+          </span>
           <el-icon class="header-icon" @click="clearChatHistory" title="清除对话"><Delete /></el-icon>
           <el-icon class="close-icon" @click="chatVisible = false"><Close /></el-icon>
         </div>
@@ -315,7 +347,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, nextTick } from 'vue'
+import { ref, shallowRef, onMounted, nextTick, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { VueFlow, Position, Handle, useVueFlow } from '@vue-flow/core'
 import type { NodeMouseEvent, EdgeMouseEvent, Connection, Node, Edge } from '@vue-flow/core'
@@ -353,7 +385,8 @@ import {
   Promotion,
   Loading,
   CircleCheckFilled,
-  CircleCloseFilled
+  CircleCloseFilled,
+  WarningFilled
 } from '@element-plus/icons-vue'
 
 // 引入样式
@@ -367,6 +400,7 @@ import NodePalette from '@/components/agentflow/NodePalette.vue'
 const { onConnect, addEdges, removeEdges, removeNodes, project, toObject } = useVueFlow()
 const route = useRoute()
 const router = useRouter()
+const vueFlowRef = ref(null)
 
 // 状态变量
 const flowId = ref<number | string | null>(route.query.id ? String(route.query.id) : null)
@@ -374,6 +408,14 @@ const flowName = ref('Agent Flow Configuration')
 const isLoading = ref(false)
 const isEditingName = ref(false)
 const nameInputRef = ref<HTMLInputElement | null>(null)
+
+// 截断名称显示（手机端最多10个字）
+const truncatedFlowName = computed(() => {
+  if (flowName.value.length > 10) {
+    return flowName.value.substring(0, 10) + '...'
+  }
+  return flowName.value
+})
 
 // 返回首页智能体页面
 const handleBack = () => {
@@ -461,6 +503,18 @@ const contextMenu = ref({
   element: null as any,
   type: '' // 'node' or 'edge'
 })
+
+// 删除节点对话框状态
+const deleteNodeDialog = ref({
+  visible: false,
+  node: null as any,
+  nodeName: ''
+})
+
+// 节点长按状态
+let nodeLongPressTimer: number | null = null
+let isNodeLongPressed = false
+let longPressedNode: any = null
 
 // Context Menu Handlers
 const onNodeContextMenu = (event: NodeMouseEvent) => {
@@ -705,20 +759,65 @@ const initChatPosition = () => {
   }
 }
 
-const onChatDragStart = (e: MouseEvent) => {
-  isChatDragging.value = true
-  chatStartPos.value = { x: e.clientX, y: e.clientY }
-  chatOffset.value = { ...chatPosition.value }
+// 聊天窗口拖拽（支持鼠标和触摸）
+let chatTouchTimer: number | null = null
+
+const onChatDragStart = (e: MouseEvent | TouchEvent) => {
+  // 不阻止默认行为，这样可以让按钮的点击事件正常触发
   
-  document.addEventListener('mousemove', onChatDragMove)
-  document.addEventListener('mouseup', onChatDragEnd)
+  let clientX: number, clientY: number
+  
+  if (e instanceof MouseEvent) {
+    clientX = e.clientX
+    clientY = e.clientY
+    isChatDragging.value = true
+    document.addEventListener('mousemove', onChatDragMove)
+    document.addEventListener('mouseup', onChatDragEnd)
+  } else {
+    // 触摸事件 - 长按开始拖拽
+    const touch = e.touches[0]
+    clientX = touch.clientX
+    clientY = touch.clientY
+    
+    chatTouchTimer = window.setTimeout(() => {
+      isChatDragging.value = true
+      document.addEventListener('touchmove', onChatDragMove as any, { passive: false })
+      document.addEventListener('touchend', onChatDragEnd as any)
+    }, 300) // 长按 300ms
+  }
+  
+  chatStartPos.value = { x: clientX, y: clientY }
+  chatOffset.value = { ...chatPosition.value }
 }
 
-const onChatDragMove = (e: MouseEvent) => {
-  if (!isChatDragging.value) return
+const onChatDragMove = (e: MouseEvent | TouchEvent) => {
+  if (!isChatDragging.value) {
+    // 如果还没开始拖拽，取消长按计时器
+    if (chatTouchTimer && e instanceof TouchEvent) {
+      clearTimeout(chatTouchTimer)
+      chatTouchTimer = null
+    }
+    return
+  }
   
-  const dx = e.clientX - chatStartPos.value.x
-  const dy = e.clientY - chatStartPos.value.y
+  // 阻止滚动
+  if (e instanceof TouchEvent) {
+    e.preventDefault()
+  }
+  
+  let clientX: number, clientY: number
+  
+  if (e instanceof MouseEvent) {
+    clientX = e.clientX
+    clientY = e.clientY
+  } else {
+    const touch = e.touches[0]
+    clientX = touch.clientX
+    clientY = touch.clientY
+  }
+  
+  const dx = clientX - chatStartPos.value.x
+  const dy = clientY - chatStartPos.value.y
   
   chatPosition.value = {
     x: chatOffset.value.x + dx,
@@ -727,9 +826,15 @@ const onChatDragMove = (e: MouseEvent) => {
 }
 
 const onChatDragEnd = () => {
+  if (chatTouchTimer) {
+    clearTimeout(chatTouchTimer)
+    chatTouchTimer = null
+  }
   isChatDragging.value = false
   document.removeEventListener('mousemove', onChatDragMove)
   document.removeEventListener('mouseup', onChatDragEnd)
+  document.removeEventListener('touchmove', onChatDragMove as any)
+  document.removeEventListener('touchend', onChatDragEnd as any)
 }
 
 // 切换聊天窗口
@@ -930,7 +1035,11 @@ const handleSendMessage = async () => {
   }
 }
 
-// 拖拽相关
+// 拖拽相关（支持触摸长按）
+let touchTimer: number | null = null
+let isDraggingNode = false
+let draggedNodeData: any = null
+
 const onDragOver = (event: DragEvent) => {
   event.preventDefault()
   if (event.dataTransfer) {
@@ -938,22 +1047,39 @@ const onDragOver = (event: DragEvent) => {
   }
 }
 
-const onDrop = (event: DragEvent) => {
+const onDrop = (event: DragEvent | TouchEvent) => {
   event.preventDefault()
   
-  if (event.dataTransfer) {
-    const nodeData = JSON.parse(event.dataTransfer.getData('application/json'))
-    
+  let nodeData: any = null
+  let clientX = 0
+  let clientY = 0
+  
+  // 处理触摸事件
+  if (event instanceof TouchEvent) {
+    if (!draggedNodeData) return
+    nodeData = draggedNodeData
+    const touch = event.changedTouches[0]
+    clientX = touch.clientX
+    clientY = touch.clientY
+    isDraggingNode = false
+    draggedNodeData = null
+  } else {
+    // 处理鼠标拖拽事件
+    if (!event.dataTransfer) return
+    nodeData = JSON.parse(event.dataTransfer.getData('application/json'))
+    clientX = event.clientX
+    clientY = event.clientY
+  }
+  
+  if (nodeData) {
     // 获取放置位置
     const flowWrapper = document.querySelector('.flow-wrapper')
     const { left, top } = flowWrapper?.getBoundingClientRect() || { left: 0, top: 0 }
     
     // 使用 project 函数转换坐标
-    // 注意：project 已经处理了 zoom 和 pan
-    // 我们需要传递相对于 vue-flow 容器的坐标
     const position = project({
-      x: event.clientX - left,
-      y: event.clientY - top,
+      x: clientX - left,
+      y: clientY - top,
     })
 
     // Prepare additional data based on node type
@@ -1003,6 +1129,102 @@ const onDrop = (event: DragEvent) => {
   }
 }
 
+// 触摸长按开始拖拽节点（从 NodePalette 触发）
+const handleNodeTouchStart = (event: TouchEvent, nodeData: any) => {
+  touchTimer = window.setTimeout(() => {
+    isDraggingNode = true
+    draggedNodeData = nodeData
+    // 可选：添加视觉反馈
+    if (event.target instanceof HTMLElement) {
+      event.target.style.opacity = '0.5'
+    }
+  }, 500) // 长按 500ms
+}
+
+const handleNodeTouchEnd = (event: TouchEvent) => {
+  if (touchTimer) {
+    clearTimeout(touchTimer)
+    touchTimer = null
+  }
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = '1'
+  }
+  if (isDraggingNode && draggedNodeData) {
+    onDrop(event)
+  }
+}
+
+const handleNodeTouchMove = (event: TouchEvent) => {
+  if (touchTimer) {
+    clearTimeout(touchTimer)
+    touchTimer = null
+  }
+}
+
+// 节点长按删除相关
+const onNodeTouchStart = (event: TouchEvent, nodeProps: any) => {
+  // 检测是否是移动端
+  const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  
+  if (!isMobile) return
+  
+  isNodeLongPressed = false
+  longPressedNode = nodeProps
+  
+  // 设置长按计时器（500ms）
+  nodeLongPressTimer = window.setTimeout(() => {
+    isNodeLongPressed = true
+    // 触发长按事件
+    showDeleteNodeDialog(nodeProps)
+    
+    // 触觉反馈
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50)
+    }
+  }, 500)
+}
+
+const onNodeTouchEnd = () => {
+  if (nodeLongPressTimer) {
+    clearTimeout(nodeLongPressTimer)
+    nodeLongPressTimer = null
+  }
+}
+
+const onNodeTouchMove = () => {
+  // 手指移动取消长按
+  if (nodeLongPressTimer) {
+    clearTimeout(nodeLongPressTimer)
+    nodeLongPressTimer = null
+  }
+}
+
+// 显示删除节点对话框
+const showDeleteNodeDialog = (nodeProps: any) => {
+  deleteNodeDialog.value = {
+    visible: true,
+    node: nodeProps,
+    nodeName: nodeProps.label || nodeProps.data?.label || 'Unknown Node'
+  }
+}
+
+// 取消删除
+const cancelDeleteNode = () => {
+  deleteNodeDialog.value.visible = false
+  deleteNodeDialog.value.node = null
+}
+
+// 确认删除
+const confirmDeleteNode = () => {
+  if (deleteNodeDialog.value.node) {
+    const nodeId = deleteNodeDialog.value.node.id
+    removeNodes([nodeId])
+    ElMessage.success('节点已删除')
+  }
+  deleteNodeDialog.value.visible = false
+  deleteNodeDialog.value.node = null
+}
+
 // 节点点击处理
 const onPaneClick = () => {
   showNodePalette.value = false
@@ -1010,6 +1232,12 @@ const onPaneClick = () => {
 }
 
 const onNodeClick = (event: NodeMouseEvent) => {
+  // 如果是长按触发的，不执行点击逻辑
+  if (isNodeLongPressed) {
+    isNodeLongPressed = false
+    return
+  }
+  
   contextMenu.value.visible = false
   const { node } = event
   
@@ -1224,7 +1452,81 @@ onMounted(() => {
   if (flowId.value) {
     loadFlowData()
   }
+  
+  // 监听来自 NodePalette 的添加节点事件
+  const nodePalette = document.querySelector('.node-palette-container')
+  if (nodePalette) {
+    nodePalette.addEventListener('add-node', handleAddNodeFromPalette as any)
+  }
 })
+
+// 处理来自 NodePalette 的添加节点事件
+const handleAddNodeFromPalette = (event: CustomEvent) => {
+  const nodeType = event.detail
+  
+  // 在画布中心位置创建节点
+  const flowWrapper = document.querySelector('.agent-flow')
+  const rect = flowWrapper?.getBoundingClientRect()
+  
+  if (!rect) return
+  
+  // 使用画布中心位置
+  const centerX = rect.width / 2
+  const centerY = rect.height / 2
+  
+  const position = project({
+    x: centerX,
+    y: centerY
+  })
+  
+  // 准备节点数据
+  const additionalData: any = { inputs: true, outputs: [{ id: 'out' }] }
+  
+  if (nodeType.type === 'condition-agent') {
+    additionalData.outputs = [{ id: '0', label: '', labelClass: '' }, { id: '1', label: '', labelClass: '' }]
+    additionalData.modelName = 'qwen3-max'
+    additionalData.provider = 'BaiLian'
+  } else if (nodeType.type === 'human') {
+    additionalData.outputs = [
+      { id: 'proceed', label: 'proceed', labelClass: 'text-blue' },
+      { id: 'reject', label: 'reject', labelClass: 'text-red' }
+    ]
+    additionalData.inputPrompt = '请输入你的二次问题？'
+  } else if (nodeType.type === 'condition-basic') {
+    additionalData.outputs = [
+      { id: 'if', label: 'IF', labelClass: 'text-blue' },
+      { id: 'else', label: 'ELSE', labelClass: 'text-orange' }
+    ]
+  } else if (nodeType.type === 'agent' || nodeType.type === 'llm') {
+     additionalData.modelName = 'qwen3-max'
+     additionalData.provider = 'BaiLian'
+     additionalData.embeddingModel = 'text-embedding-v4'
+  } else if (nodeType.type === 'retriever') {
+     additionalData.embeddingModel = 'text-embedding-v4'
+  } else if (nodeType.type === 'start') {
+    additionalData.inputs = false
+  } else if (nodeType.type === 'reply') {
+    additionalData.outputs = []
+  }
+  
+  const newNode = {
+    id: `${nodeType.type}-${Date.now()}`,
+    type: 'custom',
+    label: nodeType.label,
+    position,
+    data: { 
+      label: nodeType.label,
+      type: nodeType.type,
+      icon: nodeType.icon,
+      color: nodeType.iconColor,
+      theme: nodeType.data?.theme || 'theme-blue',
+      ...additionalData
+    }
+  }
+  
+  elements.value.push(newNode)
+  ElMessage.success('节点已添加到画布中心')
+}
 </script>
 
 <style scoped>
@@ -1340,6 +1642,61 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 20;
   overflow: hidden;
+}
+
+/* 手机端样式优化 */
+@media (max-width: 768px) {
+  .node-palette-sidebar {
+    width: 280px; /* 手机端窄一些 */
+    left: 10px;
+  }
+  
+  .flow-name-display {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .chat-window {
+    width: calc(100vw - 40px);
+    max-width: 360px;
+  }
+  
+  .floating-toolbar {
+    left: 10px;
+  }
+  
+  .floating-actions {
+    right: 10px;
+  }
+  
+  /* 配置抽屉响应式：80%宽度和高度，居中显示 */
+  :deep(.el-drawer) {
+    width: 80% !important;
+    max-width: 500px !important;
+    height: 80% !important;
+    max-height: 80vh !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    border-radius: 16px !important;
+  }
+  
+  :deep(.el-drawer.rtl) {
+    left: 50% !important;
+    right: auto !important;
+    transform: translate(-50%, -50%) !important;
+  }
+  
+  :deep(.el-drawer.ltr) {
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+  }
+  
+  /* 抽屉内容区域可滚动 */
+  :deep(.el-drawer__body) {
+    overflow-y: auto !important;
+  }
 }
 
 .agent-flow {
@@ -1655,6 +2012,98 @@ onMounted(() => {
   background-color: #fee2e2;
 }
 
+/* 删除节点确认对话框 */
+.delete-node-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dialog-content {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 360px;
+  padding: 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.25s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.warning-icon {
+  animation: pulse 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.dialog-body {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.dialog-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 12px;
+}
+
+.dialog-message {
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.dialog-message strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.dialog-footer {
+  display: flex;
+  gap: 12px;
+}
+
+.dialog-footer .el-button {
+  flex: 1;
+  height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
 /* Chat Window */
 .chat-window {
   position: absolute;
@@ -1681,6 +2130,15 @@ onMounted(() => {
   justify-content: space-between;
   padding: 0 16px;
   font-weight: 600;
+}
+
+.chat-title {
+  cursor: move;
+  flex: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .header-icon,

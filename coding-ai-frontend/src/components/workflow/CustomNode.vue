@@ -635,4 +635,30 @@ const handleDelete = () => {
   background: #67c23a;
   transform: translateY(-50%);
 }
+
+/* 手机端样式 */
+@media (max-width: 768px) {
+  /* 手机端始终显示删除按钮 */
+  .node-actions {
+    opacity: 1 !important;
+  }
+  
+  .delete-btn {
+    font-size: 18px;
+    padding: 4px;
+  }
+  
+  .custom-node {
+    min-width: 180px;
+    max-width: 240px;
+  }
+  
+  .node-header {
+    padding: 10px 12px;
+  }
+  
+  .node-title {
+    font-size: 13px;
+  }
+}
 </style>

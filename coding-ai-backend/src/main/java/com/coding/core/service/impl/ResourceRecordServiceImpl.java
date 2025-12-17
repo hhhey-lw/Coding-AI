@@ -37,6 +37,19 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
 
     /**
+     * 上传文件到OSS
+     *
+     * @param file 上传的文件
+     * @return 文件上传响应
+     */
+    @Override
+    public ResourceUploadResponseModel uploadFile(MultipartFile file) {
+        // 验证文件
+        validateFile(file);
+        return doUpload(file, "files/");
+    }
+
+    /**
      * 上传图片到OSS
      *
      * @param file 上传的文件
@@ -44,8 +57,19 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
      */
     @Override
     public ResourceUploadResponseModel uploadImage(MultipartFile file) {
-        // 验证文件
+        // 验证图片文件
         validateImageFile(file);
+        return doUpload(file, "images/");
+    }
+
+    /**
+     * 执行文件上传
+     *
+     * @param file 上传的文件
+     * @param pathPrefix OSS路径前缀
+     * @return 文件上传响应
+     */
+    private ResourceUploadResponseModel doUpload(MultipartFile file, String pathPrefix) {
 
         // 计算文件MD5
         String fileMd5 = Md5Utils.calculateMd5(file);
@@ -63,7 +87,7 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
             String fileName = generateFileName(file.getOriginalFilename());
 
             // 上传到OSS
-            String objectKey = "images/" + fileName;
+            String objectKey = pathPrefix + fileName;
             PutObjectRequest putObjectRequest = new PutObjectRequest(
                     ossProperties.getOss().getBucketName(),
                     objectKey,
@@ -148,11 +172,11 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
     }
 
     /**
-     * 验证图片文件
+     * 验证文件
      *
      * @param file 上传的文件
      */
-    private void validateImageFile(MultipartFile file) {
+    private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("文件不能为空");
         }
@@ -162,6 +186,22 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
             throw new IllegalArgumentException("文件大小不能超过10MB");
         }
 
+        // 检查文件名
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || originalFilename.trim().isEmpty()) {
+            throw new IllegalArgumentException("文件名不能为空");
+        }
+    }
+
+    /**
+     * 验证图片文件
+     *
+     * @param file 上传的文件
+     */
+    private void validateImageFile(MultipartFile file) {
+        // 先进行通用文件校验
+        validateFile(file);
+
         // 检查文件类型
         String contentType = file.getContentType();
         if (!ImageFormatEnum.isSupportedMimeType(contentType)) {
@@ -169,12 +209,7 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
         }
 
         // 检查文件扩展名
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || originalFilename.trim().isEmpty()) {
-            throw new IllegalArgumentException("文件名不能为空");
-        }
-
-        String extension = getFileExtension(originalFilename);
+        String extension = getFileExtension(file.getOriginalFilename());
         if (!ImageFormatEnum.isSupportedExtension(extension)) {
             throw new IllegalArgumentException("不支持的文件扩展名，仅支持: " + ImageFormatEnum.getAllExtensions());
         }
@@ -188,7 +223,11 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
      */
     private String generateFileName(String originalFilename) {
         String extension = getFileExtension(originalFilename);
-        return UUID.randomUUID().toString().replace("-", "") + "." + extension;
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        if (extension == null || extension.isEmpty()) {
+            return uuid;
+        }
+        return uuid + "." + extension;
     }
 
     /**
@@ -199,8 +238,8 @@ public class ResourceRecordServiceImpl implements ResourceRecordService {
      */
     private String getFileExtension(String filename) {
         int lastDotIndex = filename.lastIndexOf('.');
-        if (lastDotIndex == -1) {
-            throw new IllegalArgumentException("文件必须有扩展名");
+        if (lastDotIndex == -1 || lastDotIndex == filename.length() - 1) {
+            return "";
         }
         return filename.substring(lastDotIndex + 1);
     }
