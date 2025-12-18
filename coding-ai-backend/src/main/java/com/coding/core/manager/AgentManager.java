@@ -61,7 +61,7 @@ public class AgentManager {
     /**
      * 模型常量
      **/
-    private static final String MODEL_QWEN_PLUS = "qwen-plus";
+    private static final String MODEL_QWEN_PLUS = "qwen-plus-latest";
 
     /**
      * 配置常量

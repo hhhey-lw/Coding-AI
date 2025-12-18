@@ -59,7 +59,7 @@ ai-service:
     - provider-code: BaiLian
       provider-name: 百炼平台
       model-type: TextGen
-      model-id: qwen3-max
+      model-id: qwen-plus-latest
       status: true
 
     - provider-code: MiniMax

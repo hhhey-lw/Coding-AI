@@ -5,6 +5,7 @@ import com.coding.core.service.AiProviderConfigService;
 import com.coding.workflow.model.request.MusicGenerationRequest;
 import com.coding.workflow.model.response.MusicGenerationResponse;
 import com.coding.workflow.service.ai.MusicGenerationService;
+import com.coding.workflow.utils.AssertUtil;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -54,6 +55,10 @@ public class MinimaxMusicGenerationService implements MusicGenerationService {
     public MusicGenerationResponse generateMusic(MusicGenerationRequest request) {
         try {
             log.info("开始使用Minimax生成音乐, model: {}, prompt: {}", request.getModel(), request.getPrompt());
+            // 提示词长度：10 - 2000
+            if (StringUtils.isNotBlank(request.getPrompt()) && (1000 < request.getPrompt().length() || request.getPrompt().length() < 10)) {
+                throw new IllegalAccessException("提示词长度不合法");
+            }
 
             // 调用Minimax API
             MinimaxMusicGenResponse response = callMinimaxMusicGen(request);

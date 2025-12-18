@@ -249,7 +249,7 @@ public class AgentNode extends AbstractNode {
     @Override
     protected boolean doValidate(Node node) {
         // 验证必需的配置参数
-        String chatModel = getConfigParamAsString(node, "model", "qwen-plus");
+        String chatModel = getConfigParamAsString(node, "model", "qwen-plus-latest");
         if (chatModel == null || chatModel.isEmpty()) {
             log.error("Agent节点缺少必需的chatModel配置");
             return false;

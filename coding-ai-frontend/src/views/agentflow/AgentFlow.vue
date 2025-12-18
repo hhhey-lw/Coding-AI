@@ -1344,7 +1344,7 @@ const onDrop = (event: DragEvent | TouchEvent) => {
     
     if (nodeData.type === 'condition-agent') {
       additionalData.outputs = [{ id: '0', label: '', labelClass: '' }, { id: '1', label: '', labelClass: '' }]
-      additionalData.modelName = 'qwen3-max'
+      additionalData.modelName = 'qwen-plus-latest'
       additionalData.provider = 'BaiLian'
     } else if (nodeData.type === 'human') {
       additionalData.outputs = [
@@ -1358,7 +1358,7 @@ const onDrop = (event: DragEvent | TouchEvent) => {
         { id: 'else', label: 'ELSE', labelClass: 'text-orange' }
       ]
     } else if (nodeData.type === 'agent' || nodeData.type === 'llm') {
-       additionalData.modelName = 'qwen3-max'
+       additionalData.modelName = 'qwen-plus-latest'
        additionalData.provider = 'BaiLian'
        additionalData.embeddingModel = 'text-embedding-v4'
     } else if (nodeData.type === 'retriever') {
@@ -1742,7 +1742,7 @@ const handleAddNodeFromPalette = (event: CustomEvent) => {
   
   if (nodeType.type === 'condition-agent') {
     additionalData.outputs = [{ id: '0', label: '', labelClass: '' }, { id: '1', label: '', labelClass: '' }]
-    additionalData.modelName = 'qwen3-max'
+    additionalData.modelName = 'qwen-plus-latest'
     additionalData.provider = 'BaiLian'
   } else if (nodeType.type === 'human') {
     additionalData.outputs = [
@@ -1756,7 +1756,7 @@ const handleAddNodeFromPalette = (event: CustomEvent) => {
       { id: 'else', label: 'ELSE', labelClass: 'text-orange' }
     ]
   } else if (nodeType.type === 'agent' || nodeType.type === 'llm') {
-     additionalData.modelName = 'qwen3-max'
+     additionalData.modelName = 'qwen-plus-latest'
      additionalData.provider = 'BaiLian'
      additionalData.embeddingModel = 'text-embedding-v4'
   } else if (nodeType.type === 'retriever') {
