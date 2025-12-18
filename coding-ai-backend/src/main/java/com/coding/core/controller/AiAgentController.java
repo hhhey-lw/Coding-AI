@@ -221,6 +221,8 @@ public class AiAgentController {
             // 异常处理
             log.error("React Agent 流处理异常", error);
             emitter.completeWithError(error);
+            // 移除未完成的工具调用请求 - 因为没有配套的工具响应
+            chatMessageService.removeIncompleteToolCalls(conversationId);
             return null;
         }).thenRun(() -> {
             // 流式处理完毕，保存最后累积的文本
@@ -494,6 +496,8 @@ public class AiAgentController {
             // 异常处理
             log.error("❌ Plan-Execute 流处理异常", error);
             emitter.completeWithError(error);
+            // 移除未完成的工具调用请求 - 因为没有配套的工具响应
+            chatMessageService.removeIncompleteToolCalls(conversationId);
             return null;
         }).thenRun(() -> {
             // 流式处理完毕，保存最后累积的文本（如果有）

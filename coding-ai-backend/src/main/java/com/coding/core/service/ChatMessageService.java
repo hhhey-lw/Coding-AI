@@ -27,5 +27,11 @@ public interface ChatMessageService {
      * @param messages
      */
     void saveMessages(String conversationId, List<Message> messages);
+
+    /**
+     * 移除未完成的工具调用请求
+     * @param conversationId
+     */
+    void removeIncompleteToolCalls(String conversationId);
 }
 

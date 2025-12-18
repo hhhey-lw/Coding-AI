@@ -370,80 +370,80 @@ public class AgentManager {
      * 构建 OpenAiApi，添加响应过滤器处理 SSE 流(将思考内容使用<think></think>标签对包裹放入回复内容中)
      */
     private OpenAiApi buildOpenAiApi(String baseUrl, String apiKey) {
-        ExchangeFilterFunction responseFilter = ExchangeFilterFunction.ofResponseProcessor(clientResponse -> {
-            // 处理SSE事件流，将reasoning_content提取并放入metadata中
-            Flux<DataBuffer> modifiedBody = clientResponse.bodyToFlux(DataBuffer.class)
-                    .map(buf -> {
-                        byte[] bytes = new byte[buf.readableByteCount()];
-                        buf.read(bytes);
-                        DataBufferUtils.release(buf);
-                        return new String(bytes, StandardCharsets.UTF_8);
-                    })
-                    .flatMap(eventString -> {
-                        String[] list = eventString.split("\\n", -1);
-                        List<String> lines = new ArrayList<>();
-                        for (String line : list) {
-                            if (line.startsWith("data: ")) {
-                                String jsonPart = line.substring(6).trim();
-                                if (JSONUtil.isTypeJSON(jsonPart) && !"data: [DONE]".equals(line)) {
-                                    JSONObject retJson;
-                                    try {
-                                        retJson = JSONUtil.parseObj(jsonPart);
-                                    } catch (Exception e) {
-                                        lines.add(line);
-                                        break;
-                                    }
-                                    // 提取思考内容并放置到回复内容中，使用<think></think>包装
-                                    JSONArray choices = retJson.getJSONArray("choices");
-                                    for (int i = 0; i < choices.size(); i++) {
-                                        JSONObject choice = choices.getJSONObject(i);
-                                        if (choice == null) {
-                                            break;
-                                        }
-                                        JSONObject delta = choice.getJSONObject("delta");
-                                        if (delta == null) {
-                                            break;
-                                        }
-                                        String reasoningContent = delta.getStr("reasoning_content");
-                                        if (StringUtils.isNotBlank(reasoningContent)) {
-                                            // 思考内容和正文内容是互斥的，将思考内容设置到delta的content字段
-                                            delta.set("content", "<think>" + reasoningContent + "</think>");
-                                            // 移除reasoning_content字段，避免重复
-                                            delta.remove("reasoning_content");
-                                        }
-                                    }
-                                    String modifiedJson = retJson.toString();
-                                    lines.add("data: " + modifiedJson);
-                                } else {
-                                    lines.add(line);
-                                }
-                            } else {
-                                lines.add(line);
-                            }
-                        }
-
-                        String finalLine = StringUtils.join(lines, "\n");
-                        return Mono.just(finalLine);
-                    })
-                    .map(str -> {
-                        byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
-                        return new DefaultDataBufferFactory().wrap(bytes);
-                    });
-
-            // 创建新的ClientResponse，移除CONTENT_LENGTH头
-            ClientResponse modifiedResponse = ClientResponse.from(clientResponse)
-                    .headers(headers -> headers.remove(HttpHeaders.CONTENT_LENGTH))
-                    .body(modifiedBody)
-                    .build();
-
-            return Mono.just(modifiedResponse);
-        });
+//        ExchangeFilterFunction responseFilter = ExchangeFilterFunction.ofResponseProcessor(clientResponse -> {
+//            // 处理SSE事件流，将reasoning_content提取并放入metadata中
+//            Flux<DataBuffer> modifiedBody = clientResponse.bodyToFlux(DataBuffer.class)
+//                    .map(buf -> {
+//                        byte[] bytes = new byte[buf.readableByteCount()];
+//                        buf.read(bytes);
+//                        DataBufferUtils.release(buf);
+//                        return new String(bytes, StandardCharsets.UTF_8);
+//                    })
+//                    .flatMap(eventString -> {
+//                        String[] list = eventString.split("\\n", -1);
+//                        List<String> lines = new ArrayList<>();
+//                        for (String line : list) {
+//                            if (line.startsWith("data: ")) {
+//                                String jsonPart = line.substring(6).trim();
+//                                if (JSONUtil.isTypeJSON(jsonPart) && !"data: [DONE]".equals(line)) {
+//                                    JSONObject retJson;
+//                                    try {
+//                                        retJson = JSONUtil.parseObj(jsonPart);
+//                                    } catch (Exception e) {
+//                                        lines.add(line);
+//                                        break;
+//                                    }
+//                                    // 提取思考内容并放置到回复内容中，使用<think></think>包装
+//                                    JSONArray choices = retJson.getJSONArray("choices");
+//                                    for (int i = 0; i < choices.size(); i++) {
+//                                        JSONObject choice = choices.getJSONObject(i);
+//                                        if (choice == null) {
+//                                            break;
+//                                        }
+//                                        JSONObject delta = choice.getJSONObject("delta");
+//                                        if (delta == null) {
+//                                            break;
+//                                        }
+//                                        String reasoningContent = delta.getStr("reasoning_content");
+//                                        if (StringUtils.isNotBlank(reasoningContent)) {
+//                                            // 思考内容和正文内容是互斥的，将思考内容设置到delta的content字段
+//                                            delta.set("content", "<think>" + reasoningContent + "</think>");
+//                                            // 移除reasoning_content字段，避免重复
+//                                            delta.remove("reasoning_content");
+//                                        }
+//                                    }
+//                                    String modifiedJson = retJson.toString();
+//                                    lines.add("data: " + modifiedJson);
+//                                } else {
+//                                    lines.add(line);
+//                                }
+//                            } else {
+//                                lines.add(line);
+//                            }
+//                        }
+//
+//                        String finalLine = StringUtils.join(lines, "\n");
+//                        return Mono.just(finalLine);
+//                    })
+//                    .map(str -> {
+//                        byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
+//                        return new DefaultDataBufferFactory().wrap(bytes);
+//                    });
+//
+//            // 创建新的ClientResponse，移除CONTENT_LENGTH头
+//            ClientResponse modifiedResponse = ClientResponse.from(clientResponse)
+//                    .headers(headers -> headers.remove(HttpHeaders.CONTENT_LENGTH))
+//                    .body(modifiedBody)
+//                    .build();
+//
+//            return Mono.just(modifiedResponse);
+//        });
 
         return OpenAiApi.builder()
                 .apiKey(apiKey)
                 .baseUrl(baseUrl)
                 .headers(ApiUtils.getBaseHeaders())
-                .webClientBuilder(WebClient.builder().filter(responseFilter))
+//                .webClientBuilder(WebClient.builder().filter(responseFilter))
                 .build();
     }
 

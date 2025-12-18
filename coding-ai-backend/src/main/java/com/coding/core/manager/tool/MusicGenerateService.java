@@ -26,7 +26,12 @@ public class MusicGenerateService implements Function<MusicGenerateService.Reque
         MusicGenerationRequest musicGenerationRequest = MusicGenerationRequest.builder()
                 .prompt(request.prompt)
                 .lyrics(request.lyrics)
-                .model("music-1.5")
+                .model("music-2.0")
+                .audioSetting(MusicGenerationRequest.AudioSetting.builder()
+                        .outputFormat("url")
+                        .sampleRate(24000)
+                        .format("mp3")
+                        .build())
                 .build();
 
         MusicGenerationResponse musicGenerationResponse = musicGenerationService.generateMusic(musicGenerationRequest);

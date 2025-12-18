@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -88,6 +89,11 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepository {
         LambdaQueryWrapper<ChatMessageDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ChatMessageDO::getConversationId, conversationId);
         return chatMessageMapper.delete(wrapper);
+    }
+
+    @Override
+    public int deleteAll(Set<Long> messageIdsToDelete) {
+        return chatMessageMapper.deleteByIds(messageIdsToDelete);
     }
 }
 

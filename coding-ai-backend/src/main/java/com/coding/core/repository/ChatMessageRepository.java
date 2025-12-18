@@ -4,6 +4,7 @@ import com.coding.core.model.model.ChatMessageModel;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 聊天消息Repository接口
@@ -46,5 +47,10 @@ public interface ChatMessageRepository {
      * 根据会话ID删除消息
      */
     int deleteByConversationId(String conversationId);
+
+    /**
+     * 批量删除消息
+     */
+    int deleteAll(Set<Long> messageIdsToDelete);
 }
 
