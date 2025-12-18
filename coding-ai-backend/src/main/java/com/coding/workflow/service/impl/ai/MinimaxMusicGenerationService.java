@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -26,6 +27,7 @@ import java.util.Map;
 /**
  * Minimax 音乐生成服务实现
  */
+@Primary
 @Slf4j
 @Service
 public class MinimaxMusicGenerationService implements MusicGenerationService {

@@ -461,11 +461,11 @@ function streamPlanExecuteChat(message: string, callbacks: PlanExecuteCallbacks,
               // 解析 JSON
               const event: PlanExecuteEvent = JSON.parse(jsonData)
               
-              console.log(`📬 [事件 #${eventCount}] type: ${event.type}, node: ${event.node}`)
+              // console.log(`📬 [事件 #${eventCount}] type: ${event.type}, node: ${event.node}`)
 
               // 检查是否是结束信号
               if (event.type === 'STREAM_END') {
-                console.log(`✅ 收到结束信号，共 ${eventCount} 个事件`)
+                // console.log(`✅ 收到结束信号，共 ${eventCount} 个事件`)
                 shouldStop = true
                 break
               }

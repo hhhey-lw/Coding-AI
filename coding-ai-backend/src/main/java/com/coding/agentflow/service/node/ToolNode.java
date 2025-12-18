@@ -128,7 +128,7 @@ public class ToolNode extends AbstractNode {
         }
 
         log.info("调用图片生成服务，prompt: {}, referenceImage: {}", prompt, referenceImage);
-        ImageGenerateService.Request request = new ImageGenerateService.Request(prompt, referenceImage);
+        ImageGenerateService.Request request = new ImageGenerateService.Request(prompt, referenceImage, "2028x2048");
         ImageGenerateService.Response response = imageGenerateService.apply(request);
 
         return Map.of(

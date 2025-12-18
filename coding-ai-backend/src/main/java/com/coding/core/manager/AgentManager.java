@@ -2,6 +2,7 @@ package com.coding.core.manager;
 
 import com.coding.core.manager.tool.ImageGenerateService;
 import com.coding.core.manager.tool.MusicGenerateService;
+import com.coding.core.manager.tool.WebSearchService;
 import com.coding.graph.core.agent.ReactAgent;
 import com.coding.graph.core.agent.flow.node.RoutingEdgeAction;
 import com.coding.graph.core.agent.plan.PlanningTool;
@@ -87,19 +88,23 @@ public class AgentManager {
      **/
     private static final String TOOL_GENERATE_MUSIC = "generateMusic";
     private static final String TOOL_GENERATE_IMAGE = "generateImage";
+    private static final String TOOL_WEB_SEARCH = "webSearch";
 
     private final ChatModel chatModel;
     private final ChatClient chatClient;
     private final ToolCallbackResolver resolver;
     private final MusicGenerateService musicGenerateService;
     private final ImageGenerateService imageGenerateService;
+    private final WebSearchService webSearchService;
 
     public AgentManager(
             @Value("${spring.ai.openai.api-key}") String apiKey,
             @Value("${spring.ai.openai.base-url}") String baseUrl,
             ToolCallbackResolver resolver,
             MusicGenerateService musicGenerateService,
-            ImageGenerateService imageGenerateService) {
+            ImageGenerateService imageGenerateService,
+            WebSearchService webSearchService) {
+        this.webSearchService = webSearchService;
         this.chatModel = OpenAiChatModel.builder()
                 .openAiApi(buildOpenAiApi(baseUrl, apiKey))
                 .defaultOptions(OpenAiChatOptions.builder()
@@ -475,6 +480,10 @@ public class AgentManager {
                 FunctionToolCallback.builder(TOOL_GENERATE_IMAGE, imageGenerateService)
                         .description("根据图片提示词和参考图生成对应的图片，并返回图片的URL地址")
                         .inputType(ImageGenerateService.Request.class)
+                        .build(),
+                FunctionToolCallback.builder(TOOL_WEB_SEARCH, webSearchService)
+                        .description("根据用户的搜索关键词，联网搜索相关的实时信息")
+                        .inputType(WebSearchService.Request.class)
                         .build()
         );
     }

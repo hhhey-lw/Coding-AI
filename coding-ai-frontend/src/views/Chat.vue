@@ -591,7 +591,7 @@ const fetchPlanExecuteData = async (userMessage: string) => {
       userMessage,
       {
       onEvent: (event: PlanExecuteEvent) => {
-        console.log('📬 收到事件:', event)
+        // console.log('📬 收到事件:', event)
         
         // 关闭加载状态
         if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
@@ -706,7 +706,15 @@ const fetchPlanExecuteData = async (userMessage: string) => {
              // 如果有内容，也作为文本显示（兼容 Step Execution 结果）
              if (event.content) {
                 if (currentTextBlockIndex >= 0 && messageBlocks.value[currentTextBlockIndex]) {
-                  messageBlocks.value[currentTextBlockIndex].content += `\n\n${event.content}\n\n`
+                  const incoming = String(event.content).trim()
+                  if (incoming) {
+                    const existing = String(messageBlocks.value[currentTextBlockIndex].content || '').trim()
+                    if (!existing) {
+                      messageBlocks.value[currentTextBlockIndex].content = incoming
+                    } else if (!existing.includes(incoming)) {
+                      messageBlocks.value[currentTextBlockIndex].content += `\n\n${incoming}\n\n`
+                    }
+                  }
                 }
              }
              break

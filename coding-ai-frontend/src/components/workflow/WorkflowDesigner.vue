@@ -133,13 +133,16 @@
     </el-dialog>
 
     <!-- 输入参数对话框 -->
-    <el-dialog v-model="showInputParamsDialog" title="输入运行参数" width="600px">
-      <el-form label-width="120px">
-        <el-form-item 
-          v-for="param in startNodeParams" 
-          :key="param.key"
-          :label="param.key"
-        >
+    <el-dialog v-model="showInputParamsDialog" title="输入运行参数" width="90%" class="input-params-dialog">
+      <div class="input-params-content">
+        <div class="input-params-scroll">
+          <div class="input-params-box">
+            <el-form label-width="120px">
+              <el-form-item 
+                v-for="param in startNodeParams" 
+                :key="param.key"
+                :label="param.key"
+              >
           <!-- Image 类型参数 -->
           <template v-if="param.type === 'Image'">
             <div class="image-param-row">
@@ -226,10 +229,13 @@
           />
           
           <div v-if="param.desc" class="param-desc">{{ param.desc }}</div>
-        </el-form-item>
-        
-        <el-empty v-if="startNodeParams.length === 0" description="无需输入参数" />
-      </el-form>
+              </el-form-item>
+              
+              <el-empty v-if="startNodeParams.length === 0" description="无需输入参数" />
+            </el-form>
+          </div>
+        </div>
+      </div>
       
       <template #footer>
         <el-button @click="showInputParamsDialog = false">取消</el-button>
@@ -239,79 +245,83 @@
 
     <!-- 运行结果对话框 -->
     <el-dialog v-model="showRunDialog" title="工作流运行" width="90%" class="run-result-dialog">
-      <div class="run-dialog-content">
-        <div v-if="runStatus === 'running'" class="running-status">
-          <el-icon class="rotating"><LoadingIcon /></el-icon>
-          <span>工作流正在运行中...</span>
-        </div>
-        
-        <div v-else-if="runStatus === 'completed'" class="completed-status">
-          <el-icon class="success-icon"><SuccessFilled /></el-icon>
-          <span>工作流运行完成</span>
-          
-          <div class="run-results">
-            <h4>工作流执行信息：</h4>
-            <div v-if="runResults?.workflowInstanceVO" class="workflow-info">
-              <p><strong>执行ID:</strong> {{ runResults.workflowInstanceVO.id }}</p>
-              <p><strong>状态:</strong> {{ runResults.workflowInstanceVO.status }}</p>
-              <p><strong>开始时间:</strong> {{ runResults.workflowInstanceVO.startTime }}</p>
-              <p><strong>结束时间:</strong> {{ runResults.workflowInstanceVO.endTime }}</p>
+      <div class="run-result-content">
+        <div class="run-result-scroll">
+          <div class="run-dialog-content">
+            <div v-if="runStatus === 'running'" class="running-status">
+              <el-icon class="rotating"><LoadingIcon /></el-icon>
+              <span>工作流正在运行中...</span>
             </div>
             
-            <!-- 结束节点输出结果 -->
-            <div v-if="endNodeOutput" class="end-node-output">
-              <h4>输出结果：</h4>
-              <div class="output-content scroll-x">
-                {{ endNodeOutput }}
-              </div>
-            </div>
-            
-            <!-- 节点执行详情（可折叠） -->
-            <div class="node-details-section">
-              <div class="details-header" @click="showNodeDetails = !showNodeDetails">
-                <h4>节点执行详情</h4>
-                <el-icon class="toggle-icon" :class="{ 'expanded': showNodeDetails }">
-                  <ArrowRight />
-                </el-icon>
-              </div>
+            <div v-else-if="runStatus === 'completed'" class="completed-status">
+              <el-icon class="success-icon"><SuccessFilled /></el-icon>
+              <span>工作流运行完成</span>
               
-              <el-collapse-transition>
-                <div v-show="showNodeDetails" v-if="runResults?.workflowNodeInstanceVOList" class="node-results">
-                  <div 
-                    v-for="node in runResults.workflowNodeInstanceVOList" 
-                    :key="node.id"
-                    class="node-result-item"
-                    :class="{
-                      'node-success': node.status === 'success',
-                      'node-executing': node.status === 'executing',
-                      'node-failed': node.status === 'failed'
-                    }"
-                  >
-                    <div class="node-header">
-                      <span class="node-name">{{ node.nodeName }} ({{ node.nodeId }})</span>
-                      <span class="node-status">{{ node.status }}</span>
-                      <span v-if="node.executeTime" class="node-time">{{ node.executeTime }}</span>
-                    </div>
-                    <div v-if="node.output" class="node-output">
-                      <strong>输出:</strong> {{ node.output }}
-                    </div>
-                    <div v-if="node.errorInfo" class="node-error">
-                      <strong>错误:</strong> {{ node.errorInfo }}
-                    </div>
+              <div class="run-results">
+                <h4>工作流执行信息：</h4>
+                <div v-if="runResults?.workflowInstanceVO" class="workflow-info">
+                  <p><strong>执行ID:</strong> {{ runResults.workflowInstanceVO.id }}</p>
+                  <p><strong>状态:</strong> {{ runResults.workflowInstanceVO.status }}</p>
+                  <p><strong>开始时间:</strong> {{ runResults.workflowInstanceVO.startTime }}</p>
+                  <p><strong>结束时间:</strong> {{ runResults.workflowInstanceVO.endTime }}</p>
+                </div>
+                
+                <!-- 结束节点输出结果 -->
+                <div v-if="endNodeOutput" class="end-node-output">
+                  <h4>输出结果：</h4>
+                  <div class="output-content scroll-x">
+                    {{ endNodeOutput }}
                   </div>
                 </div>
-              </el-collapse-transition>
+                
+                <!-- 节点执行详情（可折叠） -->
+                <div class="node-details-section">
+                  <div class="details-header" @click="showNodeDetails = !showNodeDetails">
+                    <h4>节点执行详情</h4>
+                    <el-icon class="toggle-icon" :class="{ 'expanded': showNodeDetails }">
+                      <ArrowRight />
+                    </el-icon>
+                  </div>
+                  
+                  <el-collapse-transition>
+                    <div v-show="showNodeDetails" v-if="runResults?.workflowNodeInstanceVOList" class="node-results">
+                      <div 
+                        v-for="node in runResults.workflowNodeInstanceVOList" 
+                        :key="node.id"
+                        class="node-result-item"
+                        :class="{
+                          'node-success': node.status === 'success',
+                          'node-executing': node.status === 'executing',
+                          'node-failed': node.status === 'failed'
+                        }"
+                      >
+                        <div class="node-header">
+                          <span class="node-name">{{ node.nodeName }} ({{ node.nodeId }})</span>
+                          <span class="node-status">{{ node.status }}</span>
+                          <span v-if="node.executeTime" class="node-time">{{ node.executeTime }}</span>
+                        </div>
+                        <div v-if="node.output" class="node-output">
+                          <strong>输出:</strong> {{ node.output }}
+                        </div>
+                        <div v-if="node.errorInfo" class="node-error">
+                          <strong>错误:</strong> {{ node.errorInfo }}
+                        </div>
+                      </div>
+                    </div>
+                  </el-collapse-transition>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        
-        <div v-else-if="runStatus === 'error'" class="error-status">
-          <el-icon class="error-icon"><CircleCloseFilled /></el-icon>
-          <span>工作流运行失败</span>
-          
-          <div class="error-details">
-            <h4>错误信息：</h4>
-            <pre class="scroll-x">{{ runError }}</pre>
+            
+            <div v-else-if="runStatus === 'error'" class="error-status">
+              <el-icon class="error-icon"><CircleCloseFilled /></el-icon>
+              <span>工作流运行失败</span>
+              
+              <div class="error-details">
+                <h4>错误信息：</h4>
+                <pre class="scroll-x">{{ runError }}</pre>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1306,12 +1316,26 @@ const getStatusText = (status: string) => {
   max-width: 720px;
 }
 
+:deep(.el-dialog.run-result-dialog .el-dialog__body) {
+  padding: 0;
+}
+
+:deep(.el-dialog.input-params-dialog) {
+  max-width: 600px;
+}
+
+:deep(.el-dialog.input-params-dialog .el-dialog__body) {
+  padding: 0;
+}
+
 .run-history-table-scroll {
   overflow-x: auto;
 }
 
 .scroll-x {
   overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 展开节点库按钮（节点库收起时显示） */
@@ -1387,9 +1411,45 @@ const getStatusText = (status: string) => {
 }
 
 /* 运行对话框样式 */
+.run-result-content {
+  padding: 0;
+}
+
+.run-result-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+}
+
 .run-dialog-content {
-  padding: 20px;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px;
   text-align: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.input-params-content {
+  padding: 0;
+}
+
+.input-params-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+}
+
+.input-params-box {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-sizing: border-box;
 }
 
 .running-status,
@@ -1425,6 +1485,8 @@ const getStatusText = (status: string) => {
   margin-top: 20px;
   text-align: left;
   width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .run-results h4,
@@ -1451,6 +1513,14 @@ const getStatusText = (status: string) => {
   border-radius: 6px;
   border: 1px solid #bae6fd;
   margin-bottom: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.node-output,
+.node-error {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .workflow-info p {

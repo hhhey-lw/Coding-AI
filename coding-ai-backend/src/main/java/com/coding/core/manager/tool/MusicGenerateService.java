@@ -1,9 +1,13 @@
 package com.coding.core.manager.tool;
 
+import com.coding.workflow.model.request.MusicGenerationRequest;
+import com.coding.workflow.model.response.MusicGenerationResponse;
+import com.coding.workflow.service.ai.MusicGenerationService;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.function.Function;
@@ -12,18 +16,22 @@ import java.util.function.Function;
  * 调整为音乐生成服务
  */
 @Component
+@AllArgsConstructor
 public class MusicGenerateService implements Function<MusicGenerateService.Request, MusicGenerateService.Response> {
+
+    private final MusicGenerationService musicGenerationService;
 
     @Override
     public Response apply(Request request) {
-        try {
-            Thread.sleep(4000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        return "http://example.com/music.mp3".equals(request.prompt) ?
-                new Response("https://cdn.hailuoai.com/prod/2025-09-25-22/moss-audio/user_music/1758812347339664609-316425092063413.mp3") :
-                new Response("https://cdn.hailuoai.com/prod/2025-09-25-22/moss-audio/user_music/1758812347339664609-316425092063413.mp3");
+        MusicGenerationRequest musicGenerationRequest = MusicGenerationRequest.builder()
+                .prompt(request.prompt)
+                .lyrics(request.lyrics)
+                .model("music-1.5")
+                .build();
+
+        MusicGenerationResponse musicGenerationResponse = musicGenerationService.generateMusic(musicGenerationRequest);
+
+        return new Response(musicGenerationResponse.getAudioUrl());
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

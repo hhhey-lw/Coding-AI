@@ -8,11 +8,11 @@
       <el-tag size="small" type="info" effect="plain">{{ toolCall.name }}</el-tag>
       <span v-if="isCollapsed && toolResponse" class="tool-status tool-status-success">
         <el-icon color="#67c23a" style="margin-right: 4px; vertical-align: middle;"><Select /></el-icon>
-        已执行完毕
+        已执行
       </span>
       <span v-else-if="!toolResponse" class="tool-status tool-status-loading">
         <el-icon class="is-loading" color="#409eff" style="margin-right: 4px; vertical-align: middle;"><Loading /></el-icon>
-        执行中...
+        执行中
       </span>
       <el-icon class="collapse-icon" :class="{ 'is-collapsed': isCollapsed }">
         <ArrowRight />

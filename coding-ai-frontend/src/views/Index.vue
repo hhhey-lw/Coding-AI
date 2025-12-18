@@ -417,6 +417,7 @@
       v-model="knowledgeBaseDialogVisible"
       :title="knowledgeBaseDialogTitle"
       width="600px"
+      class="knowledge-base-dialog"
       @close="() => knowledgeBaseFormRef?.resetFields()"
     >
       <el-form
@@ -1038,6 +1039,17 @@ const handleAvatarUpload = async (options: { file: File }) => {
   .tab-content {
     padding: 16px;
     padding-bottom: 64px;
+  }
+
+  :deep(.el-dialog.knowledge-base-dialog) {
+    width: 92% !important;
+    max-width: 92% !important;
+    margin: 12px auto !important;
+  }
+
+  :deep(.el-dialog.knowledge-base-dialog .el-dialog__body) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .agent-grid {
