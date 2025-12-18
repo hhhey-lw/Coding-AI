@@ -292,7 +292,7 @@
                         :class="{
                           'node-success': node.status === 'success',
                           'node-executing': node.status === 'executing',
-                          'node-failed': node.status === 'failed'
+                          'node-failed': node.status === 'fail' || node.status === 'failed'
                         }"
                       >
                         <div class="node-header">
@@ -320,6 +320,26 @@
               <div class="error-details">
                 <h4>错误信息：</h4>
                 <pre class="scroll-x">{{ runError }}</pre>
+              </div>
+
+              <div v-if="failedNodeErrors.length > 0" class="error-details">
+                <h4>节点错误详情：</h4>
+                <div class="node-results">
+                  <div
+                    v-for="item in failedNodeErrors"
+                    :key="item.id"
+                    class="node-result-item node-failed"
+                  >
+                    <div class="node-header">
+                      <span class="node-name">{{ item.nodeName }} ({{ item.nodeId }})</span>
+                      <span class="node-status">{{ item.status }}</span>
+                      <span v-if="item.executeTime" class="node-time">{{ item.executeTime }}</span>
+                    </div>
+                    <div v-if="item.errorInfo" class="node-error">
+                      <strong>错误:</strong> {{ item.errorInfo }}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -519,6 +539,40 @@ const endNodeOutput = computed(() => {
   
   return endNode?.output || null
 })
+
+const failedNodeErrors = computed(() => {
+  const list = runResults.value?.workflowNodeInstanceVOList
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((node: any) => {
+      const status = String(node?.status || '').toLowerCase()
+      return (status === 'fail' || status === 'failed') && String(node?.errorInfo || '').trim().length > 0
+    })
+    .map((node: any) => ({
+      id: node.id,
+      nodeId: node.nodeId,
+      nodeName: node.nodeName,
+      status: node.status,
+      executeTime: node.executeTime,
+      errorInfo: node.errorInfo
+    }))
+})
+
+const buildRunErrorMessage = (resultData: any) => {
+  const workflowInstance = resultData?.workflowInstanceVO
+  const status = workflowInstance?.status
+  const errors = (resultData?.workflowNodeInstanceVOList || [])
+    .filter((node: any) => {
+      const s = String(node?.status || '').toLowerCase()
+      return (s === 'fail' || s === 'failed') && String(node?.errorInfo || '').trim().length > 0
+    })
+    .map((node: any) => `${node.nodeName || node.nodeId || node.id}: ${node.errorInfo}`)
+
+  if (errors.length > 0) {
+    return `工作流执行失败 (status=${status})\n` + errors.join('\n')
+  }
+  return `工作流执行失败 (status=${status})`
+}
 
 // 监听工作流配置变化，同步到设置表单
 watch(() => [
@@ -858,7 +912,8 @@ const handleRunWithParams = async () => {
               case 'FAIL':
                 console.log('工作流执行失败')
                 runStatus.value = 'error'
-                runError.value = '工作流执行失败'
+                runResults.value = resultData
+                runError.value = buildRunErrorMessage(resultData)
                 break
               case 'STOP':
                 console.log('工作流被停止')
