@@ -95,7 +95,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" class-name="ellipsis-cell" />
-        <el-table-column label="操作" width="260">
+        <el-table-column label="操作" width="260" class-name="operation-column">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -422,7 +422,7 @@ const loadVectorList = async () => {
 
 // 返回知识库页面
 const goBack = () => {
-  router.push({ path: '/', query: { tab: 'knowledge' } })
+  router.push({ path: '/app', query: { tab: 'knowledge' } })
 }
 
 // 搜索
@@ -1771,11 +1771,13 @@ onMounted(() => {
       .el-icon {
         margin-right: 2px;
       }
+    }
 
-      /* 移动端只显示图标 */
-      span:not(.el-icon) {
-        display: none;
-      }
+    .operation-column .cell {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
     }
   }
 

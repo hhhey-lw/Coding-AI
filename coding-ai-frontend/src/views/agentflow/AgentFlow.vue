@@ -419,7 +419,7 @@ const truncatedFlowName = computed(() => {
 
 // 返回首页智能体页面
 const handleBack = () => {
-  router.push({ path: '/', query: { tab: 'agent' } })
+  router.push({ path: '/app', query: { tab: 'agent' } })
 }
 
 // 开始编辑名称

@@ -964,7 +964,7 @@ const handleParamImageUpload = async (file: any, paramKey: string) => {
 
 // 返回工作台页面
 const handleBack = () => {
-  router.push({ path: '/', query: { tab: 'workbench' } })
+  router.push({ path: '/app', query: { tab: 'workbench' } })
 }
 
 // 根据ID加载工作流
