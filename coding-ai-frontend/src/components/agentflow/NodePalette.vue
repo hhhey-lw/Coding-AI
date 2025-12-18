@@ -125,7 +125,7 @@ const availableNodes = [
   // Custom Function (Not in current AgentFlow example, skipping or adding placeholder)
   {
     type: 'reply',
-    label: 'Direct Reply',
+    label: 'End',
     description: '结束节点，直接回复用户请求',
     icon: 'ChatDotRound',
     iconColor: '#4DDBBB',

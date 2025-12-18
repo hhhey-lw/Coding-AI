@@ -109,7 +109,7 @@
                 </el-icon>
               </div>
               <div class="node-info">
-                <div class="node-label">{{ props.label }}</div>
+                <div class="node-label">{{ props.data.type === 'reply' ? 'End' : props.label }}</div>
                 <div v-if="props.data.model || props.data.modelName" class="node-tag">
                   <span class="tag-icon">(-)</span> {{ props.data.modelName || props.data.model }}
                 </div>
@@ -441,7 +441,7 @@ const finishEditName = async () => {
   if (flowId.value) {
     try {
       const flowData = exportWorkflowData()
-      flowData.id = flowId.value
+      ;(flowData as any).id = flowId.value
       const res = await AgentFlowAPI.saveAgentFlow(flowData as any)
       if (res && res.data) {
         ElMessage.success('名称已保存')
@@ -715,8 +715,265 @@ const exportWorkflowData = () => {
   return backendRequest
 }
 
+const validateGraphBeforeSave = () => {
+  const flowData = toObject()
+
+  const nodes: Node[] = (flowData.nodes || []) as any
+  const edges: Edge[] = (flowData.edges || []) as any
+
+  const nodeDisplayName = (nodeId: string) => {
+    const n: any = nodes.find((x) => x.id === nodeId)
+    return n?.label || n?.data?.label || nodeId
+  }
+
+  const getNodeType = (node: Node) => {
+    const data: any = node.data || {}
+    if (data.type) return String(data.type).toLowerCase()
+    if (node.id === 'start' || node.id.startsWith('start')) return 'start'
+    if (node.id.startsWith('llm')) return 'llm'
+    if (node.id.startsWith('agent')) return 'agent'
+    if (node.id.startsWith('reply')) return 'reply'
+    if (node.id.startsWith('end')) return 'end'
+    return String((node as any).type || '').toLowerCase()
+  }
+
+  const startNodes = nodes.filter((n) => getNodeType(n) === 'start')
+  if (startNodes.length !== 1) {
+    if (startNodes.length === 0) {
+      ElMessage.warning('画布必须包含一个 Start 节点')
+    } else {
+      ElMessage.warning(`画布只能包含一个 Start 节点，当前为 ${startNodes.length} 个`)
+    }
+    return false
+  }
+
+  const hasDirectReplyNode = nodes.some((n) => {
+    const t = getNodeType(n)
+    return t === 'reply' || t === 'end'
+  })
+  if (!hasDirectReplyNode) {
+    ElMessage.warning('画布必须至少包含一个 End 节点')
+    return false
+  }
+
+  // 1) 参数校验：Agent/LLM messages
+  const invalidMessageNodes = nodes.filter((node) => {
+    const type = getNodeType(node)
+    if (type !== 'agent' && type !== 'llm') return false
+
+    const data: any = node.data || {}
+    const messages = Array.isArray(data.messages) ? data.messages : []
+
+    if (messages.length === 0) return true
+
+    const hasEmptyContent = messages.some((m: any) => {
+      const content = (m?.content ?? '').toString().trim()
+      return content.length === 0
+    })
+
+    const hasUserMessage = messages.some((m: any) => {
+      const role = (m?.role ?? '').toString().toLowerCase()
+      const content = (m?.content ?? '').toString().trim()
+      return role === 'user' && content.length > 0
+    })
+
+    return hasEmptyContent || !hasUserMessage
+  })
+
+  if (invalidMessageNodes.length > 0) {
+    const preview = invalidMessageNodes
+      .slice(0, 5)
+      .map((n: any) => n.label || n.data?.label || n.id)
+      .filter(Boolean)
+      .join('、')
+    const suffix = invalidMessageNodes.length > 5 ? ` 等 ${invalidMessageNodes.length} 个节点` : ''
+
+    ElMessage.warning(`Agent/LLM 节点 messages 校验失败：每条消息内容不能为空，且至少包含一条 User 消息。请检查：${preview}${suffix}`)
+    return false
+  }
+
+  // 2) 参数校验：Condition branches.conditions[].leftValue
+  const invalidConditionNodes = nodes.filter((node) => {
+    const type = getNodeType(node)
+    if (type !== 'condition-basic' && type !== 'condition') return false
+
+    const data: any = node.data || {}
+    const branches = Array.isArray(data.branches) ? data.branches : []
+
+    return branches.some((b: any) => {
+      const conditions = Array.isArray(b?.conditions) ? b.conditions : []
+      if (conditions.length === 0) return false
+      return conditions.some((c: any) => {
+        const leftValue = (c?.leftValue ?? '').toString().trim()
+        return leftValue.length === 0
+      })
+    })
+  })
+
+  if (invalidConditionNodes.length > 0) {
+    const preview = invalidConditionNodes
+      .slice(0, 5)
+      .map((n: any) => n.label || n.data?.label || n.id)
+      .filter(Boolean)
+      .join('、')
+    const suffix = invalidConditionNodes.length > 5 ? ` 等 ${invalidConditionNodes.length} 个节点` : ''
+
+    ElMessage.warning(`Condition 节点 branches 校验失败：当 branch 有 conditions 时，conditions.leftValue 不能为空。请检查：${preview}${suffix}`)
+    return false
+  }
+
+  // 3) 边校验：必须是 DAG（有向无环图）
+  const nodeIdSet = new Set(nodes.map((n) => n.id))
+  const adjacency = new Map<string, string[]>()
+  nodes.forEach((n) => adjacency.set(n.id, []))
+
+  const inDegree = new Map<string, number>()
+  const outDegree = new Map<string, number>()
+  nodes.forEach((n) => {
+    inDegree.set(n.id, 0)
+    outDegree.set(n.id, 0)
+  })
+
+  for (const e of edges) {
+    if (!e?.source || !e?.target) continue
+    if (!nodeIdSet.has(e.source) || !nodeIdSet.has(e.target)) continue
+    adjacency.get(e.source)?.push(e.target)
+
+    outDegree.set(e.source, (outDegree.get(e.source) || 0) + 1)
+    inDegree.set(e.target, (inDegree.get(e.target) || 0) + 1)
+  }
+
+  // 3.1) 不允许孤立节点（入度=0 且 出度=0）
+  const isolatedNodes = nodes.filter((n) => {
+    return (inDegree.get(n.id) || 0) === 0 && (outDegree.get(n.id) || 0) === 0
+  })
+
+  if (isolatedNodes.length > 0) {
+    const preview = isolatedNodes
+      .slice(0, 5)
+      .map((n: any) => n.label || n.data?.label || n.id)
+      .filter(Boolean)
+      .join('、')
+    const suffix = isolatedNodes.length > 5 ? ` 等 ${isolatedNodes.length} 个节点` : ''
+
+    ElMessage.warning(`存在孤立节点（未连接任何边），请先连线或删除：${preview}${suffix}`)
+    return false
+  }
+
+  // 3.2) 每个节点的入口/出口端点都必须有连线覆盖
+  const outgoingByHandle = new Map<string, Map<string, number>>()
+  const outgoingCount = new Map<string, number>()
+  const incomingCount = new Map<string, number>()
+  nodes.forEach((n) => {
+    outgoingByHandle.set(n.id, new Map())
+    outgoingCount.set(n.id, 0)
+    incomingCount.set(n.id, 0)
+  })
+
+  for (const e of edges) {
+    if (!e?.source || !e?.target) continue
+    if (!nodeIdSet.has(e.source) || !nodeIdSet.has(e.target)) continue
+
+    outgoingCount.set(e.source, (outgoingCount.get(e.source) || 0) + 1)
+    incomingCount.set(e.target, (incomingCount.get(e.target) || 0) + 1)
+
+    const handleId = (e as any).sourceHandle
+    if (handleId) {
+      const perNode = outgoingByHandle.get(e.source) || new Map<string, number>()
+      perNode.set(handleId, (perNode.get(handleId) || 0) + 1)
+      outgoingByHandle.set(e.source, perNode)
+    }
+  }
+
+  const invalidInputNodes = nodes.filter((n: any) => {
+    const hasInput = !!n?.data?.inputs
+    if (!hasInput) return false
+    return (incomingCount.get(n.id) || 0) <= 0
+  })
+
+  if (invalidInputNodes.length > 0) {
+    const preview = invalidInputNodes
+      .slice(0, 5)
+      .map((n: any) => n.label || n.data?.label || n.id)
+      .filter(Boolean)
+      .join('、')
+    const suffix = invalidInputNodes.length > 5 ? ` 等 ${invalidInputNodes.length} 个节点` : ''
+    ElMessage.warning(`存在未连接入口端点的节点（必须至少有一条入边）：${preview}${suffix}`)
+    return false
+  }
+
+  const invalidOutputNodes = nodes.filter((n: any) => {
+    const outputs = Array.isArray(n?.data?.outputs) ? n.data.outputs : null
+    if (!outputs) return false
+    if (outputs.length === 0) return false
+
+    if (outputs.length === 1) {
+      return (outgoingCount.get(n.id) || 0) <= 0
+    }
+
+    const perNode = outgoingByHandle.get(n.id) || new Map<string, number>()
+    return outputs.some((o: any, idx: number) => {
+      const outId = (o?.id ?? idx).toString()
+      return (perNode.get(outId) || 0) <= 0
+    })
+  })
+
+  if (invalidOutputNodes.length > 0) {
+    const preview = invalidOutputNodes
+      .slice(0, 5)
+      .map((n: any) => n.label || n.data?.label || n.id)
+      .filter(Boolean)
+      .join('、')
+    const suffix = invalidOutputNodes.length > 5 ? ` 等 ${invalidOutputNodes.length} 个节点` : ''
+    ElMessage.warning(`存在未连接出口端点的节点（每个输出端点都必须至少连一条出边）：${preview}${suffix}`)
+    return false
+  }
+
+  const color = new Map<string, 0 | 1 | 2>() // 0=unvisited,1=visiting,2=done
+  nodes.forEach((n) => color.set(n.id, 0))
+  const parent = new Map<string, string | null>()
+  let cycleEdge: { from: string; to: string } | null = null
+
+  const dfs = (u: string) => {
+    if (cycleEdge) return
+    color.set(u, 1)
+    const neighbors = adjacency.get(u) || []
+    for (const v of neighbors) {
+      if (cycleEdge) return
+      const c = color.get(v) || 0
+      if (c === 0) {
+        parent.set(v, u)
+        dfs(v)
+      } else if (c === 1) {
+        // Found a back edge u -> v
+        cycleEdge = { from: u, to: v }
+        return
+      }
+    }
+    color.set(u, 2)
+  }
+
+  for (const n of nodes) {
+    if (cycleEdge) break
+    if ((color.get(n.id) || 0) === 0) {
+      parent.set(n.id, null)
+      dfs(n.id)
+    }
+  }
+
+  const ce = cycleEdge as any
+  if (ce) {
+    ElMessage.warning(`流程图存在环路，必须是有向无环图(DAG)：${nodeDisplayName(ce.from)} -> ${nodeDisplayName(ce.to)}`)
+    return false
+  }
+
+  return true
+}
+
 // 保存工作流
 const saveGraph = async () => {
+  if (!validateGraphBeforeSave()) return
+
   const flowData = exportWorkflowData()
   
   // 如果有 flowId，添加到请求中
@@ -1316,15 +1573,15 @@ const elements = ref<(Node | Edge)[]>([])
 
 // 节点类型到前端配置的映射
 const nodeTypeConfig: Record<string, any> = {
-  START: { icon: 'VideoPlay', color: '#67c23a', theme: 'green', type: 'start' },
-  END: { icon: 'CircleCheckFilled', color: '#909399', theme: 'gray', type: 'reply' },
-  AGENT: { icon: 'Cpu', color: '#409eff', theme: 'blue', type: 'agent' },
-  LLM: { icon: 'ChatDotRound', color: '#409eff', theme: 'blue', type: 'llm' },
-  CONDITION: { icon: 'Share', color: '#e6a23c', theme: 'orange', type: 'condition-basic' },
-  CONDITION_AGENT: { icon: 'MagicStick', color: '#e6a23c', theme: 'orange', type: 'condition-agent' },
-  HUMAN_INPUT: { icon: 'User', color: '#f56c6c', theme: 'red', type: 'human' },
-  RETRIEVER: { icon: 'Files', color: '#67c23a', theme: 'green', type: 'retriever' },
-  TOOL: { icon: 'Tools', color: '#909399', theme: 'gray', type: 'tool' }
+  START: { icon: 'VideoPlay', color: '#4ade80', theme: 'theme-green', type: 'start' },
+  END: { icon: 'ChatDotRound', color: '#2dd4bf', theme: 'theme-teal', type: 'reply' },
+  AGENT: { icon: 'Cpu', color: '#22d3ee', theme: 'theme-cyan', type: 'agent' },
+  LLM: { icon: 'MagicStick', color: '#60a5fa', theme: 'theme-blue', type: 'llm' },
+  CONDITION: { icon: 'Share', color: '#f59e0b', theme: 'theme-orange', type: 'condition-basic' },
+  CONDITION_AGENT: { icon: 'Share', color: '#fb7185', theme: 'theme-pink', type: 'condition-agent' },
+  HUMAN_INPUT: { icon: 'User', color: '#818cf8', theme: 'theme-purple', type: 'human' },
+  RETRIEVER: { icon: 'Files', color: '#9ca3af', theme: 'theme-slate', type: 'retriever' },
+  TOOL: { icon: 'Tools', color: '#d97706', theme: 'theme-brown', type: 'tool' }
 }
 
 // 从后端数据转换为前端节点
@@ -1395,6 +1652,7 @@ const convertBackendNodeToFrontend = (backendNode: any): Node => {
     data.params = configParams.toolParams
   } else if (config.type === 'reply') {
     data.message = configParams.finalResult
+    data.outputs = []
   } else if (config.type === 'start') {
     // 将 configParams 转换为 flowState 数组
     data.flowState = Object.entries(configParams)

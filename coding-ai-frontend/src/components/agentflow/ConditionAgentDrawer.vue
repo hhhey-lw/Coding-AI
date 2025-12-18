@@ -169,7 +169,7 @@ const formData = ref({
   modelName: '',
   input: '{{ question }}',
   scenarios: [
-    { scenario: 'agent', description: '能够与用户进行对话问答，且能够执行查询github仓库' },
+    { scenario: 'agent', description: '能够与用户进行对话问答，且能够实时查询Web数据' },
     { scenario: 'chat', description: '仅能够和用户进行对话' }
   ]
 })

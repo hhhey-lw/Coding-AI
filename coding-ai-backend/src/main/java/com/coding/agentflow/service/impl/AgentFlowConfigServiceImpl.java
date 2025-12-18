@@ -36,6 +36,9 @@ public class AgentFlowConfigServiceImpl extends ServiceImpl<AgentFlowConfigMappe
 
     @Override
     public AgentFlowConfigResponse getAgentFlowById(Long id) {
+        if (id == null) {
+            return null;
+        }
         AgentFlowConfig config = this.getById(id);
         return convertToResponse(config);
     }

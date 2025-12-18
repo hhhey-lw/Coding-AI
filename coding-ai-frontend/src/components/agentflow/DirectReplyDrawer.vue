@@ -1,7 +1,7 @@
 <template>
   <el-drawer
     v-model="visible"
-    title="Direct Reply Configuration"
+    title="End Configuration"
     direction="rtl"
     size="500px"
     :before-close="handleClose"
