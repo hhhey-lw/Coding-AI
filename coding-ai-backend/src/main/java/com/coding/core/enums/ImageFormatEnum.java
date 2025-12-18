@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public enum ImageFormatEnum {
 
-    JPEG("image/jpeg", "jpg"),
+    JPEG("image/jpeg", "jpeg"),
     JPG("image/jpg", "jpg"),
     PNG("image/png", "png");
 

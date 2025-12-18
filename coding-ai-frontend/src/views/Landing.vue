@@ -18,7 +18,7 @@
         <div class="hero-video-item" ref="videoCardEl">
           <video
             ref="videoEl"
-            src="https://longcoding-ai-service.oss-cn-hangzhou.aliyuncs.com/files/53c698c222914771b185efd7d6635812.webm"
+            src="https://longcoding-ai-service.oss-cn-hangzhou.aliyuncs.com/files/34ce2fcd4c064ddd92a5c3140a4f41d3.mp4"
             muted
             playsinline
           ></video>

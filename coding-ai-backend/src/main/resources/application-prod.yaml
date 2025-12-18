@@ -64,21 +64,6 @@ spring:
           max-idle: 8
           min-idle: 0
 
-  mail:
-    host: smtp.qq.com
-    port: 587
-    username: 1410124534@qq.com
-    password: avmvaqqeifelhcjb
-    default-encoding: UTF-8
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          timeout: 3000
-
 jwt:
   secret: 1ONZjSrF4YMyjH5AAgLHygE+gpeDCJ8MTwzoqWFsl42lmYL2AI1VYHVe0Eg7qNETKR3VHfL8tLsUz9i6fMa7Wg==
   expiration: 86400000                # 24小时
