@@ -8,6 +8,8 @@ import com.coding.agentflow.model.request.AgentFlowConfigRequest;
 import com.coding.agentflow.model.response.AgentFlowConfigResponse;
 import com.coding.agentflow.repository.AgentFlowConfigRepository;
 import com.coding.agentflow.service.AgentFlowConfigService;
+import com.coding.core.utils.UserContextHolder;
+import com.coding.workflow.utils.AssertUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,7 +28,9 @@ public class AgentFlowConfigServiceImpl extends ServiceImpl<AgentFlowConfigMappe
 
     @Override
     public Page<AgentFlowConfigResponse> pageAgentFlows(Integer current, Integer size, String name) {
-        Page<AgentFlowConfig> page = agentFlowConfigRepository.pageAgentFlows(current, size, name);
+        Long userId = UserContextHolder.getUserId();
+        AssertUtil.isNotNull(userId, "用户未登录");
+        Page<AgentFlowConfig> page = agentFlowConfigRepository.pageAgentFlows(current, size, userId, name);
         return convertToResponsePage(page);
     }
 
@@ -39,6 +43,10 @@ public class AgentFlowConfigServiceImpl extends ServiceImpl<AgentFlowConfigMappe
     @Override
     public Long saveOrUpdateAgentFlow(AgentFlowConfigRequest request) {
         AgentFlowConfig config = convertToEntity(request);
+        Long userId = UserContextHolder.getUserId();
+        AssertUtil.isNotNull(userId, "用户未登录");
+        config.setCreatorId(userId);
+        config.setUpdaterId(userId);
         if (config.getId() == null) {
             // 新增
             boolean saved = this.save(config);

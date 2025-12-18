@@ -107,7 +107,9 @@ public class KnowledgeBaseMgmtServiceImpl implements KnowledgeBaseMgmtService {
 
     @Override
     public IPage<KnowledgeBaseVO> pageKnowledgeBase(KnowledgeBasePageRequest request) {
-        IPage<KnowledgeBaseDO> page = knowledgeBaseRepository.page(request);
+        Long userId = UserContextHolder.getUserId();
+        AssertUtil.isNotNull(userId, "用户未登录");
+        IPage<KnowledgeBaseDO> page = knowledgeBaseRepository.page(userId, request.getName(), request.getStatus(), request.getPageNum(), request.getPageSize());
         return page.convert(this::convertToVO);
     }
 

@@ -2,7 +2,6 @@ package com.coding.core.controller;
 
 import com.coding.core.common.Result;
 import com.coding.core.model.request.RefreshTokenRequest;
-import com.coding.core.model.request.SendCodeRequest;
 import com.coding.core.model.request.UserLoginRequest;
 import com.coding.core.model.request.UserRegisterRequest;
 import com.coding.core.model.vo.UserTokenVO;
@@ -25,13 +24,6 @@ import javax.validation.Valid;
 public class UserController {
 
     private final UserService userService;
-
-    @Operation(summary = "发送邮箱验证码")
-    @PostMapping("/send-code")
-    public Result<Void> sendVerificationCode(@Valid @RequestBody SendCodeRequest request) {
-        userService.sendVerificationCode(request);
-        return Result.success();
-    }
 
     @Operation(summary = "用户注册")
     @PostMapping("/register")

@@ -22,10 +22,6 @@ public class UserRegisterRequest {
     @Schema(description = "密码")
     private String password;
 
-    @NotBlank(message = "验证码不能为空")
-    @Schema(description = "邮箱验证码")
-    private String code;
-
     @Schema(description = "用户昵称")
     private String userName;
 }

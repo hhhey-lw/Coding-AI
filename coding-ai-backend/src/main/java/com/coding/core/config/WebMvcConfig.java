@@ -65,7 +65,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/user/login",
                         "/user/register",
-                        "/user/send-code",
                         "/user/refresh-token",
                         "/user/logout",
                         // 排除Swagger相关路径
@@ -76,15 +75,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/doc.html",
                         // 排除静态资源
                         "/favicon.ico",
-                        "/error",
-                        // 测试接口
-                        "/ai/agent/**",
-                        // 知识库
-                        "/ai/knowledge/**",
-                        "/api/knowledge-base/**",
-                        "/api/knowledge-vector/**",
-                        // agent flow 接口测试
-                        "/agent-flow/execute/stream"
+                        "/error"
                 );
     }
 }

@@ -4,13 +4,11 @@ import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.coding.core.mapper.UserMapper;
 import com.coding.core.model.request.RefreshTokenRequest;
-import com.coding.core.model.request.SendCodeRequest;
 import com.coding.core.model.request.UserLoginRequest;
 import com.coding.core.model.request.UserRegisterRequest;
 import com.coding.core.model.entity.UserDO;
 import com.coding.core.model.vo.UserTokenVO;
 import com.coding.core.model.vo.UserLoginVO;
-import com.coding.core.service.EmailService;
 import com.coding.core.service.CacheService;
 import com.coding.core.service.UserService;
 import com.coding.core.utils.JwtUtil;
@@ -33,51 +31,18 @@ import java.util.concurrent.TimeUnit;
 public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
-    private final EmailService emailService;
     private final CacheService cacheService;
     private final JwtUtil jwtUtil;
 
-    private static final String VERIFICATION_CODE_PREFIX = "verification:code:";
     private static final String REFRESH_TOKEN_PREFIX = "refresh:token:";
-    private static final long CODE_EXPIRATION = 5; // 验证码过期时间（分钟）
     private static final String SALT = "longcoding.top"; // 密码加盐
-
-    @Override
-    public void sendVerificationCode(SendCodeRequest request) {
-        String email = request.getEmail();
-
-        // 生成6位随机验证码
-        String code = RandomUtil.randomNumbers(6);
-
-        // 保存验证码到Redis，5分钟过期
-        String redisKey = VERIFICATION_CODE_PREFIX + email;
-        cacheService.setRemote(redisKey, code, CODE_EXPIRATION, TimeUnit.MINUTES);
-
-        // 发送邮件
-        emailService.sendVerificationCode(email, code);
-
-        log.info("验证码已发送到邮箱：{}，验证码：{}", email, code);
-    }
 
     @Override
     public Long register(UserRegisterRequest request) {
         String email = request.getEmail();
         String password = request.getPassword();
-        String code = request.getCode();
 
-        // 1. 验证验证码
-        String redisKey = VERIFICATION_CODE_PREFIX + email;
-        String savedCode = cacheService.getRemote(redisKey);
-
-        if (savedCode == null) {
-            throw new BizException("验证码已过期");
-        }
-
-        if (!savedCode.equals(code)) {
-            throw new BizException("验证码错误");
-        }
-
-        // 2. 检查邮箱是否已注册
+        // 1. 检查邮箱是否已注册
         LambdaQueryWrapper<UserDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserDO::getUserAccount, email);
         UserDO existUser = userMapper.selectOne(wrapper);
@@ -86,10 +51,10 @@ public class UserServiceImpl implements UserService {
             throw new BizException("该邮箱已注册");
         }
 
-        // 3. 加密密码
+        // 2. 加密密码
         String encryptedPassword = encryptPassword(password);
 
-        // 4. 创建用户
+        // 3. 创建用户
         UserDO user = new UserDO();
         user.setUserAccount(email);
         user.setUserPassword(encryptedPassword);
@@ -99,9 +64,6 @@ public class UserServiceImpl implements UserService {
         user.setUpdateTime(LocalDateTime.now());
 
         userMapper.insert(user);
-
-        // 5. 删除Redis中的验证码
-        cacheService.deleteRemote(redisKey);
 
         log.info("用户注册成功，邮箱：{}，用户ID：{}", email, user.getId());
 

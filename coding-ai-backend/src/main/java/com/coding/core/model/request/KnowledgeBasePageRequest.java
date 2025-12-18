@@ -19,7 +19,5 @@ public class KnowledgeBasePageRequest extends PageRequest {
     @Schema(description = "状态：0-禁用，1-启用")
     private Integer status;
 
-    @Schema(description = "创建用户ID")
-    private Long userId;
 }
 

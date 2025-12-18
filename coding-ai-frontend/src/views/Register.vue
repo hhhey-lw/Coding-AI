@@ -39,31 +39,6 @@
           </el-input>
         </el-form-item>
 
-        <el-form-item prop="code">
-          <div class="code-input-wrapper">
-            <el-input
-              v-model="registerForm.code"
-              placeholder="请输入验证码"
-              size="large"
-              maxlength="6"
-              clearable
-            >
-              <template #prefix>
-                <el-icon><Key /></el-icon>
-              </template>
-            </el-input>
-            <el-button
-              size="large"
-              :disabled="countdown > 0"
-              :loading="sendingCode"
-              class="code-button"
-              @click="handleSendCode"
-            >
-              {{ countdown > 0 ? `${countdown}秒后重试` : '发送验证码' }}
-            </el-button>
-          </div>
-        </el-form-item>
-
         <el-form-item prop="password">
           <el-input
             v-model="registerForm.password"
@@ -124,20 +99,17 @@ const router = useRouter()
 
 // 响应式数据
 const loading = ref(false)
-const sendingCode = ref(false)
-const countdown = ref(0)
 const registerFormRef = ref<FormInstance>()
 
 const registerForm = reactive({
   userName: '',
   email: '',
-  code: '',
   password: '',
   confirmPassword: ''
 })
 
 // 确认密码验证
-const validateConfirmPassword = (rule: any, value: any, callback: any) => {
+const validateConfirmPassword = (_rule: any, value: any, callback: any) => {
   if (value === '') {
     callback(new Error('请再次输入密码'))
   } else if (value !== registerForm.password) {
@@ -156,10 +128,6 @@ const registerRules: FormRules = {
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
   ],
-  code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    { len: 6, message: '验证码为6位数字', trigger: 'blur' }
-  ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
@@ -168,49 +136,6 @@ const registerRules: FormRules = {
     { required: true, message: '请再次输入密码', trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
-
-// 发送验证码
-const handleSendCode = async () => {
-  // 先验证邮箱
-  if (!registerForm.email) {
-    ElMessage.warning('请先输入邮箱')
-    return
-  }
-  
-  // 验证邮箱格式
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(registerForm.email)) {
-    ElMessage.warning('请输入正确的邮箱格式')
-    return
-  }
-  
-  sendingCode.value = true
-  
-  try {
-    const response = await AuthAPI.sendCode({ email: registerForm.email })
-    
-    if (response.code === 1) {
-      ElMessage.success('验证码已发送到您的邮箱，请查收')
-      
-      // 开始倒计时（60秒）
-      countdown.value = 60
-      const timer = setInterval(() => {
-        countdown.value--
-        if (countdown.value <= 0) {
-          clearInterval(timer)
-        }
-      }, 1000)
-    } else {
-      // code === 0 表示失败，显示后端返回的message
-      ElMessage.error(response.message || '发送验证码失败')
-    }
-  } catch (error) {
-    console.error('发送验证码失败:', error)
-    ElMessage.error('发送验证码失败，请稍后重试')
-  } finally {
-    sendingCode.value = false
-  }
 }
 
 // 注册处理
@@ -225,7 +150,6 @@ const handleRegister = async () => {
         const response = await AuthAPI.register({
           email: registerForm.email,
           password: registerForm.password,
-          code: registerForm.code,
           userName: registerForm.userName || undefined  // 可选，不填则后端自动生成
         })
 
@@ -297,20 +221,6 @@ const goToLogin = () => {
 
 .register-form :deep(.el-form-item) {
   margin-bottom: 20px;
-}
-
-.code-input-wrapper {
-  display: flex;
-  gap: 8px;
-}
-
-.code-input-wrapper :deep(.el-input) {
-  flex: 1;
-}
-
-.code-button {
-  width: 140px;
-  flex-shrink: 0;
 }
 
 .register-button {

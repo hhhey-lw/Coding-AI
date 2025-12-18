@@ -3,14 +3,9 @@
  */
 
 // 类型定义
-export interface SendCodeRequest {
-  email: string
-}
-
 export interface RegisterRequest {
   email: string
   password: string
-  code: string
   userName?: string
 }
 
@@ -59,7 +54,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 // API 路径
 const API_PATHS = {
-  SEND_CODE: '/user/send-code',
   REGISTER: '/user/register',
   LOGIN: '/user/login',
   REFRESH_TOKEN: '/user/refresh-token',
@@ -73,30 +67,6 @@ const API_PATHS = {
  */
 export class AuthAPI {
   
-  /**
-   * 发送邮箱验证码
-   * 验证码有效期5分钟
-   */
-  static async sendCode(sendCodeRequest: SendCodeRequest): Promise<ApiResponse<null>> {
-    console.log('发送验证码请求:', sendCodeRequest.email)
-    
-    const response = await fetch(`${API_BASE_URL}${API_PATHS.SEND_CODE}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(sendCodeRequest),
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const result = await response.json()
-    console.log('发送验证码响应:', result)
-    return result
-  }
-
   /**
    * 用户注册
    * 返回创建的用户ID

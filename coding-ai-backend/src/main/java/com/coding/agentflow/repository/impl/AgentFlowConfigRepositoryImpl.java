@@ -19,9 +19,11 @@ public class AgentFlowConfigRepositoryImpl implements AgentFlowConfigRepository 
     private final AgentFlowConfigMapper agentFlowConfigMapper;
 
     @Override
-    public Page<AgentFlowConfig> pageAgentFlows(Integer current, Integer size, String name) {
+    public Page<AgentFlowConfig> pageAgentFlows(Integer current, Integer size, Long userId, String name) {
         LambdaQueryWrapper<AgentFlowConfig> wrapper = new LambdaQueryWrapper<>();
-        wrapper.like(StringUtils.isNotBlank(name), AgentFlowConfig::getName, name)
+        wrapper
+                .eq(AgentFlowConfig::getCreatorId, userId)
+                .like(StringUtils.isNotBlank(name), AgentFlowConfig::getName, name)
                 .orderByDesc(AgentFlowConfig::getCreateTime);
         return agentFlowConfigMapper.selectPage(new Page<>(current, size), wrapper);
     }

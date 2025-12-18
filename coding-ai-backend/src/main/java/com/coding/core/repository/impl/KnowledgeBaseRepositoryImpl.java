@@ -67,21 +67,19 @@ public class KnowledgeBaseRepositoryImpl implements KnowledgeBaseRepository {
     }
 
     @Override
-    public IPage<KnowledgeBaseDO> page(KnowledgeBasePageRequest request) {
-        Page<KnowledgeBaseDO> page = new Page<>(request.getPageNum(), request.getPageSize());
+    public IPage<KnowledgeBaseDO> page(Long userId, String name, Integer status, Integer pageNum, Integer pageSize) {
+        Page<KnowledgeBaseDO> page = new Page<>(pageNum, pageSize);
         
         LambdaQueryWrapper<KnowledgeBaseDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(KnowledgeBaseDO::getDeleted, 0);
         
-        if (StringUtils.isNotBlank(request.getName())) {
-            wrapper.like(KnowledgeBaseDO::getName, request.getName());
+        if (StringUtils.isNotBlank(name)) {
+            wrapper.like(KnowledgeBaseDO::getName, name);
         }
-        if (request.getStatus() != null) {
-            wrapper.eq(KnowledgeBaseDO::getStatus, request.getStatus());
+        if (status != null) {
+            wrapper.eq(KnowledgeBaseDO::getStatus, status);
         }
-        if (request.getUserId() != null) {
-            wrapper.eq(KnowledgeBaseDO::getUserId, request.getUserId());
-        }
+        wrapper.eq(KnowledgeBaseDO::getUserId, userId);
         
         wrapper.orderByDesc(KnowledgeBaseDO::getCreateTime);
         
