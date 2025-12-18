@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config config/vite.config.ts",
-    "build": "vue-tsc && vite build --config config/vite.config.ts",
+    "build": "vite build --config config/vite.config.ts",
+    "typecheck": "vue-tsc --noEmit",
     "preview": "vite preview --config config/vite.config.ts"
   },
   "dependencies": {
@@ -35,8 +36,8 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
     "sass": "^1.93.3",
-    "typescript": "^5.0.2",
+    "typescript": "5.0.2",
     "vite": "^4.4.5",
-    "vue-tsc": "^1.4.2"
+    "vue-tsc": "1.8.27"
   }
 }

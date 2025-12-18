@@ -34,3 +34,4 @@ build/
 
 ### VS Code ###
 .vscode/
+/coding-ai-frontend/dist/
