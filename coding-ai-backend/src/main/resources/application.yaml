@@ -1,3 +1,83 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
 spring:
   profiles:
-    active: prod
+    active: ${SPRING_PROFILES_ACTIVE:prod}
+  application:
+    name: coding-ai
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  datasource:
+    dynamic:
+      primary: mysql  # 设置默认的数据源
+      strict: false   # 非严格模式
+      datasource:
+        mysql:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: jdbc:mysql://${MYSQL_HOST:}:${MYSQL_PORT:3306}/${MYSQL_DATABASE_NAME}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai
+          username: ${MYSQL_USERNAME:}
+          password: ${MYSQL_PASSWORD:}
+        postgresql:
+          driver-class-name: org.postgresql.Driver
+          url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT:5432}/${POSTGRES_DATABASE_NAME}
+          username: ${POSTGRES_USERNAME:}
+          password: ${POSTGRES_PASSWORD:}
+
+  # Web MVC配置
+  mvc:
+    static-path-pattern: /static/**
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+  # Agent 使用的 OpenAI 配置
+  ai:
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      api-key: ${DASHSCOPE_API_KEY:}
+      chat:
+        options:
+          model: qwen-max
+      embedding:
+        options:
+          model: text-embedding-v4
+          dimensions: 1024
+
+  data:
+    redis:
+      host: ${REDIS_HOST:}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: 3000ms
+          max-idle: 8
+          min-idle: 0
+
+jwt:
+  secret: ${JWT_SECRET:}
+  access-token-expiration: 7200000    # Access  Token过期时间：2小时
+  refresh-token-expiration: 604800000 # Refresh Token过期时间：7天
+
+aliyun:
+  access-key-id: ${ALIYUN_ACCESS_KEY_ID:}
+  access-key-secret: ${ALIYUN_ACCESS_KEY_SECRET:}
+  oss:
+    endpoint: ${ALIYUN_OSS_ENDPOINT:https://oss-cn-hangzhou.aliyuncs.com}
+    bucket-name: ${ALIYUN_OSS_BUCKET_NAME:}
+
+logging:
+  level:
+    root: info

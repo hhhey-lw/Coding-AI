@@ -6,34 +6,34 @@ ai-service:
       provider-name: 百炼平台
       service-type: MCP
       base-url: https://dashscope.aliyuncs.com/api/v1/mcps/
-      authorization: sk-bbe244347f4545fca6182c22b5512c9d
+      authorization: ${DASHSCOPE_API_KEY:}
       status: true
 
     - provider-code: BaiLian
       provider-name: 百炼平台
       service-type: TextGen
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      authorization: sk-bbe244347f4545fca6182c22b5512c9d
+      authorization: ${DASHSCOPE_API_KEY:}
       status: true
 
     - provider-code: BaiLian
       provider-name: 百炼平台
       service-type: VideoGen
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      authorization: sk-bbe244347f4545fca6182c22b5512c9d
+      authorization: ${DASHSCOPE_API_KEY:}
       status: true
 
     - provider-code: Volcengine
       provider-name: 火山引擎
       service-type: ImageGen
-      authorization: 2d6238cb-a57d-4370-9671-59b84ee99cd9
+      authorization: ${VOLCENGINE_API_KEY:}
       status: true
 
     - provider-code: MiniMax
       provider-name: MiniMax
       service-type: MusicGen
       base-url: https://api.minimaxi.com/v1/music_generation
-      authorization: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLmtbfonrrnlKjmiLdfNDI3NjIzNTA1NjAwNDQyMzc0IiwiVXNlck5hbWUiOiLmtbfonrrnlKjmiLdfNDI3NjIzNTA1NjAwNDQyMzc0IiwiQWNjb3VudCI6IiIsIlN1YmplY3RJRCI6IjE5NzEyMTYyMjA0MjYzNDY0OTYiLCJQaG9uZSI6IjE4ODY4Nzg0NDM4IiwiR3JvdXBJRCI6IjE5NzEyMTYyMjA0MjIxNTIxOTIiLCJQYWdlTmFtZSI6IiIsIk1haWwiOiIiLCJDcmVhdGVUaW1lIjoiMjAyNS0wOS0yNSAyMzoxOTowNCIsIlRva2VuVHlwZSI6MSwiaXNzIjoibWluaW1heCJ9.wE5gPuHQjVZAMTnZYcz73NH_cx9d47K43fe1F1nFveOtQP2UnKrc5CWg6zeQp2qEAAZTn9LNkMMgrE3Tgp6BI4U11pJ4c9lqsFkmDPEfIx7OmwEdMjn2kMDnN3W7M5Ke4v9Lg7fnh1MxlfgUaDZdw5VlxBlT3U3CLqTsmoagjbKq2x17FAizV8pV4UnsLKlqgr_ulNYEZXVDCY3PLMkr1TguaF1uR6wzyD_BFNKZgkT8IHyMQVHxG4SoCymjRekVu5IzUVZZtFOlcFwTGT2nw2W98mYtP2EHowW_cTZ0PHuGghTR5-69fN3L1mnif5e7giKcZhqODdlcLs8S6wqgIg
+      authorization: ${MINIMAX_API_KEY:}
       status: true
 
   # AI 模型配置
