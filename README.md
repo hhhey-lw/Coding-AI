@@ -32,7 +32,7 @@
 ```
 Coding-AI/
 ├── coding-ai-backend/        # 后端服务
-├── coding-ai-graph-core/     # 图执行依赖库
+├── coding-ai-graph-core/     # 图执行依赖库 参考Spring-ai-alibaba-graph
 ├── coding-ai-frontend/       # 前端服务
 └── pom.xml                   
 ```
