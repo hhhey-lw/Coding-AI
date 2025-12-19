@@ -1,4 +1,4 @@
-package com.coding.workflow.service.impl.processor;
+package com.coding.workflow.service.impl;
 
 import com.coding.workflow.enums.NodeTypeEnum;
 import com.coding.workflow.model.workflow.Edge;

@@ -1,4 +1,4 @@
-package com.coding.workflow.service.impl.ai;
+package com.coding.workflow.service.ai.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
 import com.coding.core.enums.ModelTypeEnum;

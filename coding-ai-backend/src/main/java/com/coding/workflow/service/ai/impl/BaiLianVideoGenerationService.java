@@ -1,4 +1,4 @@
-package com.coding.workflow.service.impl.ai;
+package com.coding.workflow.service.ai.impl;
 
 import com.alibaba.dashscope.aigc.videosynthesis.VideoSynthesis;
 import com.alibaba.dashscope.aigc.videosynthesis.VideoSynthesisParam;

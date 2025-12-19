@@ -20,7 +20,7 @@ public class ChatMemoryConfig {
     @Bean
     public ChatMemory chatMemory() {
         return MessageWindowChatMemory.builder()
-                .maxMessages(20)  // 默认保留最近20条消息
+                .maxMessages(50)  // 默认保留最近50条消息
                 .build();
     }
 }

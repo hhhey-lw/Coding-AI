@@ -1,11 +1,10 @@
-package com.coding.workflow.service.impl.ai;
+package com.coding.workflow.service.ai.impl;
 
 import com.coding.core.enums.ModelTypeEnum;
 import com.coding.core.service.AiProviderConfigService;
 import com.coding.workflow.model.request.MusicGenerationRequest;
 import com.coding.workflow.model.response.MusicGenerationResponse;
 import com.coding.workflow.service.ai.MusicGenerationService;
-import com.coding.workflow.utils.AssertUtil;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;

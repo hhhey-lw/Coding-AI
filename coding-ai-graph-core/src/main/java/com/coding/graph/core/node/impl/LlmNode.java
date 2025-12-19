@@ -2,7 +2,7 @@ package com.coding.graph.core.node.impl;
 
 import com.coding.graph.core.node.action.NodeAction;
 import com.coding.graph.core.state.OverAllState;
-import com.coding.graph.core.streaming.StreamingChatGenerator;
+import com.coding.graph.core.generator.streaming.StreamingChatGenerator;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NoArgsConstructor;

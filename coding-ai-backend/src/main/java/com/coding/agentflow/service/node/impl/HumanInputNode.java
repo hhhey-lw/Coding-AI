@@ -1,8 +1,9 @@
-package com.coding.agentflow.service.node;
+package com.coding.agentflow.service.node.impl;
 
 import com.coding.agentflow.model.enums.NodeStatusEnum;
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.agentflow.service.node.AbstractNode;
 import com.coding.graph.core.state.OverAllState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

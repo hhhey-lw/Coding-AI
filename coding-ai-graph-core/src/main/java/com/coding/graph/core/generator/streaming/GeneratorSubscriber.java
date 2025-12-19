@@ -1,4 +1,4 @@
-package com.coding.graph.core.streaming;
+package com.coding.graph.core.generator.streaming;
 
 import com.coding.graph.core.generator.AsyncGenerator;
 

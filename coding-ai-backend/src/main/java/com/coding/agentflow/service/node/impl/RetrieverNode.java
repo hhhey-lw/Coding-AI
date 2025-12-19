@@ -1,10 +1,10 @@
-package com.coding.agentflow.service.node;
+package com.coding.agentflow.service.node.impl;
 
 import com.coding.agentflow.model.enums.NodeTypeEnum;
 import com.coding.agentflow.model.model.Node;
+import com.coding.agentflow.service.node.AbstractNode;
 import com.coding.core.model.model.KnowledgeVectorModel;
 import com.coding.graph.core.state.OverAllState;
-import com.coding.core.model.entity.KnowledgeVectorDO;
 import com.coding.core.repository.KnowledgeVectorRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;

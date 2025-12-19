@@ -1,4 +1,4 @@
-package com.coding.workflow.service.impl.ai;
+package com.coding.workflow.service.ai.impl;
 
 import com.coding.core.common.Result;
 import com.coding.workflow.service.ai.McpExecuteService;
