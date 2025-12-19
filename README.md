@@ -13,6 +13,19 @@
 - 支持知识库 `RAG` 嵌入
 
 
+## 2. 界面展示
+> 支持React Agent和Plan - Execute Agent两种模式的对话
+
+![image](./coding-ai-frontend/resource/img-1.png)
+
+> 可视化节点编排智能体(自主决策)
+
+![image](./coding-ai-frontend/resource/img-2.png)
+
+> 可视化节点编排工作流(固定流程)
+
+![image](./coding-ai-frontend/resource/img-3.png)
+
 
 ## 2. 目录结构
 
