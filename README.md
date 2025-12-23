@@ -1,6 +1,6 @@
 # Coding-AI
 
-一个基于 **Spring Boot 3 + Spring AI + Vue 3** 的 AI 应用/工作流平台。
+一个基于 **Spring Boot + Spring AI + Vue ** 的 AI 应用/工作流平台。
 
 
 
